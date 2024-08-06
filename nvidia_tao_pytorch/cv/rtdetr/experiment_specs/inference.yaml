@@ -1,0 +1,23 @@
+results_dir: /home/scratch.p3/sean/rt-detr/tao_integration
+inference:
+  num_gpus: 1
+  conf_threshold: 0.5
+  checkpoint: /home/scratch.p3/sean/rt-detr/rtdetr_r50_1x_rectangle_astro2.2_delta/checkpoint_tao.pth
+dataset:
+  infer_data_sources:
+    image_dir: 
+      - /media/projects2_metropolis/datasets/kpi_datasets/People/0_Degrees_20ft_4.mp4/images_final_hres/
+    classmap: /home/scratch.p3/sean/ddetr/classmap.txt
+    # image_dir: /home/scratch.p3/sean/datasets/coco/raw-data/val2017/
+    # json_file: /home/scratch.p3/sean/datasets/coco/raw-data/annotations/instances_val2017_remapped.json
+    # - image_dir: /media/projects2_metropolis/datasets/kpi_datasets/People/0_Degrees_20ft_4.mp4/images_final_hres/
+    # json_file: /home/scratch.p3/sean/datasets/astro2.2/astro2.2_val_drive.json
+  num_classes: 4
+  batch_size: 8
+  workers: 8
+model:
+  backbone: resnet_50
+  return_interm_indices: [1, 2, 3]
+  dec_layers: 6
+  enc_layers: 6
+  num_queries: 300

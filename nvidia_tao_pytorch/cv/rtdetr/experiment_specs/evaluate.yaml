@@ -1,0 +1,21 @@
+results_dir: /tmp
+evaluate:
+  num_gpus: 1
+  conf_threshold: 0.0
+  # checkpoint: /home/scratch.p3/sean/rt-detr/rtdetr_r50_1x_rectangle_astro2.2_delta/checkpoint_tao.pth
+  checkpoint: /home/scratch.p3/sean/rt-detr/rtdetr_r50_6x_coco/checkpoint_tao.pth
+dataset:
+  test_data_sources:
+    image_dir: /home/scratch.p3/sean/datasets/coco/raw-data/val2017/
+    json_file: /home/scratch.p3/sean/datasets/coco/raw-data/annotations/instances_val2017.json
+    # image_dir: /
+    # json_file: /home/scratch.p3/sean/datasets/astro2.2/astro2.2_val_drive.json
+  num_classes: 4
+  batch_size: 16
+  workers: 8
+model:
+  backbone: resnet_50
+  return_interm_indices: [1, 2, 3]
+  dec_layers: 6
+  enc_layers: 6
+  num_queries: 300

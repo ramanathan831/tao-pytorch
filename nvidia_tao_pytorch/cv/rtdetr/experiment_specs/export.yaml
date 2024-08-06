@@ -1,0 +1,16 @@
+results_dir: /home/scratch.p3/sean/rt-detr/tao_integration
+export:
+  gpu_id: 0
+  checkpoint: /home/scratch.p3/sean/rt-detr/rtdetr_r50_1x_rectangle_astro2.2_delta/checkpoint_tao.pth
+  onnx_file: /home/scratch.p3/sean/rt-detr/tao_integration/export/rn50_astro_rectangle.onnx
+  input_width: 960
+  input_height: 544
+  opset_version: 17
+dataset:
+  num_classes: 4
+model:
+  backbone: resnet_50
+  return_interm_indices: [1, 2, 3]
+  dec_layers: 6
+  enc_layers: 6
+  num_queries: 300
