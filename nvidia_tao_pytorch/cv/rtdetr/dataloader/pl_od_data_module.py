@@ -22,7 +22,7 @@ import pytorch_lightning as pl
 from nvidia_tao_pytorch.cv.rtdetr.utils.misc import collate_fn
 
 from nvidia_tao_pytorch.cv.rtdetr.dataloader.transforms import build_transforms
-from nvidia_tao_pytorch.cv.rtdetr.dataloader.od_dataset import RTDataset
+from nvidia_tao_pytorch.cv.rtdetr.dataloader.od_dataset import build_coco, RTDataset
 from nvidia_tao_pytorch.cv.rtdetr.dataloader.serialized_dataset import build_shm_dataset
 
 from nvidia_tao_pytorch.cv.deformable_detr.dataloader.od_dataset import ODPredictDataset
@@ -103,11 +103,15 @@ class ODDataModule(pl.LightningDataModule):
         train_transform = build_transforms(self.augmentation_config, dataset_mode='train')
         is_distributed = is_dist_avail_and_initialized()
 
-        # Torchrun has different authkey which prohibits mp.pickler to work.
-        # We need to instantitate this inside train_dataloader
-        # instead of setup when the multiprocessing has already been spawned.
-        local_broadcast_process_authkey()
-        self.train_dataset = build_shm_dataset(train_data_sources, train_transform, remap_mscoco_category=True)
+        if self.dataset_config["dataset_type"] == "serialized":
+            # Torchrun has different authkey which prohibits mp.pickler to work.
+            # We need to instantitate this inside train_dataloader
+            # instead of setup when the multiprocessing has already been spawned.
+            local_broadcast_process_authkey()
+            self.train_dataset = build_shm_dataset(train_data_sources, train_transform, remap_mscoco_category=True)
+        else:
+            self.train_dataset = build_coco(train_data_sources, train_transform, remap_mscoco_category=True)
+
         if is_distributed:
             self.train_sampler = torch.utils.data.distributed.DistributedSampler(self.train_dataset, shuffle=True)
         else:

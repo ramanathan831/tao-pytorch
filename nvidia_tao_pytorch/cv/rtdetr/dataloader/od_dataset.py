@@ -15,12 +15,39 @@
 """ Object Detection Dataset Class and Related Functions """
 
 import torch
+from torch.utils.data import ConcatDataset
 from torchvision import tv_tensors
 
 from PIL import Image
 from typing import Any, Tuple, List
 
 from nvidia_tao_pytorch.cv.deformable_detr.dataloader.od_dataset import ODDataset
+
+
+def build_coco(data_sources, transforms, remap_mscoco_category):
+    """Load dataset
+
+    Args:
+        data_sources (str): list of different data sources.
+        transforms (dict): augmentations to apply.
+        max_labels (int): max number of labels to sample.
+    """
+    if type(data_sources).__name__ == "DictConfig":
+        data_sources = [data_sources]
+
+    dataset_list = []
+    for data_source in data_sources:
+        image_dir = data_source.image_dir
+        json_file = data_source.json_file
+        dataset_list.append(RTDataset(json_file, image_dir, 
+                                      transforms=transforms,
+                                      remap_mscoco_category=True))
+
+        if len(dataset_list) > 1:
+            train_dataset = ConcatDataset(dataset_list)
+        else:
+            train_dataset = dataset_list[0]
+    return train_dataset
 
 
 class RTDataset(ODDataset):

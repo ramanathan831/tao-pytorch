@@ -21,6 +21,7 @@ dataset:
   num_classes: 80
   batch_size: 16
   workers: 8
+  dataset_type: default
 model:
   backbone: resnet_50
   train_backbone: True
