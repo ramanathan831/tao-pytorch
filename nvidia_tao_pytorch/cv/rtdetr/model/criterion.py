@@ -21,7 +21,6 @@ import torch.nn.functional as F
 import torchvision
 
 from nvidia_tao_pytorch.cv.deformable_detr.utils.box_ops import box_cxcywh_to_xyxy, box_iou, generalized_box_iou
-from nvidia_tao_pytorch.cv.deformable_detr.utils.misc import accuracy
 
 from nvidia_tao_pytorch.core.distributed.comm import get_world_size, is_dist_avail_and_initialized
 
@@ -34,7 +33,7 @@ class SetCriterion(nn.Module):
         2) Supervise each pair of matched ground-truth / prediction (supervise class and box)
     """
 
-    def __init__(self, matcher, weight_dict, losses, alpha=0.2, gamma=2.0, eos_coef=1e-4, num_classes=80):
+    def __init__(self, matcher, weight_dict, losses, alpha=0.2, gamma=2.0, num_classes=80):
         """ Create the criterion.
 
         Args:
@@ -42,8 +41,8 @@ class SetCriterion(nn.Module):
             weight_dict (dict): dict containing as key the names of the losses and as values their relative weight.
             num_classes (int): number of object categories, omitting the special no-object category.
             losses (list[str]): list of all the losses to be applied. See get_loss for list of available losses.
-            alpha (float): alpha in Focal Loss.
-            gamma (float): gamma in Focal Loss.
+            alpha (float): alpha in Varifocal Loss.
+            gamma (float): gamma in Varifocal Loss.
         """
         super().__init__()
         self.num_classes = num_classes

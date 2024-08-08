@@ -1,24 +1,19 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 
 """
 List serialization code adopted from
 https://github.com/facebookresearch/detectron2/blob/main/detectron2/data/common.py
 """
-import os
-import contextlib
-import io
 import torch
 from torchvision import tv_tensors
 
-from typing import Dict, List, Any
-from pycocotools.coco import COCO
-from PIL import Image, ImageOps
+from typing import List, Any
+from PIL import Image
 
 from nvidia_tao_pytorch.cv.deformable_detr.utils.data_source_config import build_data_source_lists
 from nvidia_tao_pytorch.cv.deformable_detr.dataloader.serialized_dataset import load_coco_json, SerializedDatasetFromList
 from nvidia_tao_pytorch.cv.rtdetr.dataloader.od_dataset import mscoco_category2label
 from nvidia_tao_pytorch.core.distributed.comm import get_local_rank
-from nvidia_tao_pytorch.core.distributed.serialized_object import TorchShmSerializedList
 
 
 def build_shm_dataset(data_sources, transforms, remap_mscoco_category=False):

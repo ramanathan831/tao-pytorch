@@ -49,6 +49,7 @@ class ODDataModule(pl.LightningDataModule):
         self.num_workers = dataset_config["workers"]
         self.num_classes = dataset_config["num_classes"]
         self.pin_memory = dataset_config["pin_memory"]
+        self.remap_mscoco_category = self.dataset_config.remap_mscoco_category
         self.subtask_config = subtask_config
 
     def setup(self, stage: Optional[str] = None):
@@ -62,13 +63,13 @@ class ODDataModule(pl.LightningDataModule):
 
         if stage in ('fit', None):
             # prep validation
-            val_data_sources = self.dataset_config["val_data_sources"]
+            val_data_sources = self.dataset_config.val_data_sources
             val_transform = build_transforms(self.augmentation_config, dataset_mode='val')
             # TODO: @scha remove ListCfg to DictCfg for val data sources
-            self.val_dataset = RTDataset(val_data_sources[0]["json_file"],
-                                         val_data_sources[0]["image_dir"],
+            self.val_dataset = RTDataset(val_data_sources.json_file,
+                                         val_data_sources.image_dir,
                                          transforms=val_transform,
-                                         remap_mscoco_category=True)
+                                         remap_mscoco_category=self.remap_mscoco_category)
             if is_distributed:
                 self.val_sampler = torch.utils.data.distributed.DistributedSampler(self.val_dataset, shuffle=False)
             else:
@@ -76,16 +77,16 @@ class ODDataModule(pl.LightningDataModule):
 
         # Assign test dataset for use in dataloader
         if stage in ('test', None):
-            test_data_sources = self.dataset_config["test_data_sources"]
+            test_data_sources = self.dataset_config.test_data_sources
             test_transforms = build_transforms(self.augmentation_config, subtask_config=self.subtask_config, dataset_mode='eval')
-            self.test_dataset = RTDataset(test_data_sources["json_file"],
-                                          test_data_sources["image_dir"],
+            self.test_dataset = RTDataset(test_data_sources.json_file,
+                                          test_data_sources.image_dir,
                                           transforms=test_transforms,
-                                          remap_mscoco_category=True)
+                                          remap_mscoco_category=self.remap_mscoco_category)
 
         # Assign predict dataset for use in dataloader
         if stage in ('predict', None):
-            pred_data_sources = self.dataset_config["infer_data_sources"]
+            pred_data_sources = self.dataset_config.infer_data_sources
             pred_list = pred_data_sources.get("image_dir", [])
             if isinstance(pred_list, str):
                 pred_list = [pred_list]
@@ -99,18 +100,18 @@ class ODDataModule(pl.LightningDataModule):
         Returns:
             train_loader: PyTorch DataLoader used for training.
         """
-        train_data_sources = self.dataset_config["train_data_sources"]
+        train_data_sources = self.dataset_config.train_data_sources
         train_transform = build_transforms(self.augmentation_config, dataset_mode='train')
         is_distributed = is_dist_avail_and_initialized()
 
-        if self.dataset_config["dataset_type"] == "serialized":
+        if self.dataset_config.dataset_type == "serialized":
             # Torchrun has different authkey which prohibits mp.pickler to work.
             # We need to instantitate this inside train_dataloader
             # instead of setup when the multiprocessing has already been spawned.
             local_broadcast_process_authkey()
-            self.train_dataset = build_shm_dataset(train_data_sources, train_transform, remap_mscoco_category=True)
+            self.train_dataset = build_shm_dataset(train_data_sources, train_transform, remap_mscoco_category=self.remap_mscoco_category)
         else:
-            self.train_dataset = build_coco(train_data_sources, train_transform, remap_mscoco_category=True)
+            self.train_dataset = build_coco(train_data_sources, train_transform, remap_mscoco_category=self.remap_mscoco_category)
 
         if is_distributed:
             self.train_sampler = torch.utils.data.distributed.DistributedSampler(self.train_dataset, shuffle=True)

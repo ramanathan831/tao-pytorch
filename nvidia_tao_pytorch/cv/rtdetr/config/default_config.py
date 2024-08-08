@@ -31,12 +31,12 @@ from nvidia_tao_pytorch.core.common_config import (
     EvaluateConfig,
     InferenceConfig
 )
-from nvidia_tao_pytorch.cv.deformable_detr.config.dataset import (
-    DDDatasetConfig
+from nvidia_tao_pytorch.cv.rtdetr.config.dataset import (
+    RTDatasetConfig
 )
-from nvidia_tao_pytorch.cv.deformable_detr.config.deploy import DDGenTrtEngineExpConfig
-from nvidia_tao_pytorch.cv.deformable_detr.config.model import DDModelConfig
-from nvidia_tao_pytorch.cv.deformable_detr.config.train import DDTrainExpConfig
+from nvidia_tao_pytorch.cv.rtdetr.config.deploy import DDGenTrtEngineExpConfig
+from nvidia_tao_pytorch.cv.rtdetr.config.model import RTModelConfig
+from nvidia_tao_pytorch.cv.rtdetr.config.train import RTTrainExpConfig
 
 
 @dataclass
@@ -208,31 +208,31 @@ class DDExportExpConfig:
 class ExperimentConfig(CommonExperimentConfig):
     """Experiment config."""
 
-    model: DDModelConfig = DATACLASS_FIELD(
-        DDModelConfig(),
-        description="Configurable parameters to construct the model for a Deformable DETR experiment.",
+    model: RTModelConfig = DATACLASS_FIELD(
+        RTModelConfig(),
+        description="Configurable parameters to construct the model for a RT-DETR experiment.",
     )
-    dataset: DDDatasetConfig = DATACLASS_FIELD(
-        DDDatasetConfig(),
-        description="Configurable parameters to construct the dataset for a Deformable DETR experiment.",
+    dataset: RTDatasetConfig = DATACLASS_FIELD(
+        RTDatasetConfig(),
+        description="Configurable parameters to construct the dataset for a RT-DETR experiment.",
     )
-    train: DDTrainExpConfig = DATACLASS_FIELD(
-        DDTrainExpConfig(),
-        description="Configurable parameters to construct the trainer for a Deformable DETR experiment.",
+    train: RTTrainExpConfig = DATACLASS_FIELD(
+        RTTrainExpConfig(),
+        description="Configurable parameters to construct the trainer for a RT-DETR experiment.",
     )
     evaluate: DDEvalExpConfig = DATACLASS_FIELD(
         DDEvalExpConfig(),
-        description="Configurable parameters to construct the evaluator for a Deformable DETR experiment.",
+        description="Configurable parameters to construct the evaluator for a RT-DETR experiment.",
     )
     inference: DDInferenceExpConfig = DATACLASS_FIELD(
         DDInferenceExpConfig(),
-        description="Configurable parameters to construct the inferencer for a Deformable DETR experiment.",
+        description="Configurable parameters to construct the inferencer for a RT-DETR experiment.",
     )
     export: DDExportExpConfig = DATACLASS_FIELD(
         DDExportExpConfig(),
-        description="Configurable parameters to construct the exporter for a Deformable DETR experiment.",
+        description="Configurable parameters to construct the exporter for a RT-DETR experiment.",
     )
     gen_trt_engine: DDGenTrtEngineExpConfig = DATACLASS_FIELD(
         DDGenTrtEngineExpConfig(),
-        description="Configurable parameters to construct the TensorRT engine builder for a Deformable DETR experiment.",
+        description="Configurable parameters to construct the TensorRT engine builder for a RT-DETR experiment.",
     )

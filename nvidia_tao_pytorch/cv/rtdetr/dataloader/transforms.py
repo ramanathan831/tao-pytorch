@@ -12,14 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-""" Transformation for people transformer."""
-
-""""by lyuwenyu
-"""
-
+""" Transformation for RT-DETR."""
 
 import torch 
-import torch.nn as nn 
 
 import torchvision
 torchvision.disable_beta_transforms_warning()
@@ -46,9 +41,8 @@ def build_transforms(augmentation_config, subtask_config=None, dataset_mode='tra
     """
     distortion_prob= augmentation_config.get("distortion_prob", 0.8)
     iou_crop_prob= augmentation_config.get("iou_crop_prob", 0.8)
-    train_resize = augmentation_config.get("train_resize", [640, 640])
-    test_resize = augmentation_config.get("test_resize", [640, 640])
-    # test_resize = augmentation_config.get("test_resize", [544, 960])
+    train_resize = augmentation_config.get("train_spatial_size", [640, 640])
+    test_resize = augmentation_config.get("eval_spatial_size", [640, 640])
 
     if dataset_mode == 'train':
         transforms = T.Compose([
@@ -112,4 +106,3 @@ class RandomIoUCrop(T.RandomIoUCrop):
             return inputs if len(inputs) > 1 else inputs[0]
 
         return super().forward(*inputs)
-

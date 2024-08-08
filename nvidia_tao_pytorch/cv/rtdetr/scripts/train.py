@@ -21,9 +21,8 @@ from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_pytorch.core.tlt_logging import logging
 from nvidia_tao_pytorch.core.initialize_experiments import initialize_train_experiment
-from nvidia_tao_pytorch.core.callbacks.ema import EMA, EMAModelCheckpoint
 
-from nvidia_tao_pytorch.cv.deformable_detr.config.default_config import ExperimentConfig
+from nvidia_tao_pytorch.cv.rtdetr.config.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.deformable_detr.utils.misc import load_pretrained_weights
 
 from nvidia_tao_pytorch.cv.rtdetr.dataloader.pl_od_data_module import ODDataModule
@@ -83,10 +82,13 @@ def run_experiment(experiment_config, key):
 
     if experiment_config.train.precision.lower() == 'fp16':
         precision = '16-mixed'
+    elif experiment_config.train.precision.lower() == 'bf16':
+        precision = 'bf16-mixed'
     elif experiment_config.train.precision.lower() == 'fp32':
         precision = '32-true'
     else:
-        raise NotImplementedError(f"{experiment_config.train.precision} is not supported. Only fp32 and fp16 are supported")
+        raise NotImplementedError(f"{experiment_config.train.precision} is not supported. \
+                                  Only bf16, fp16, and fp32 are supported")
 
     strategy = 'auto'
     if len(gpus) > 1:

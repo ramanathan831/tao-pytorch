@@ -1,14 +1,23 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """ Backbone ResNet model definition. """
 
-import torch
 import torch.nn as nn
 
 from nvidia_tao_pytorch.cv.deformable_detr.model.resnet import BasicBlock, Bottleneck, conv1x1
 from nvidia_tao_pytorch.cv.deformable_detr.model.backbone import FrozenBatchNorm2d
-
-download_url = {
-    50: 'https://download.pytorch.org/models/resnet50-0676ba61.pth',
-}
 
 
 class ResNet(nn.Module):
@@ -69,6 +78,9 @@ class ResNet(nn.Module):
         
         self.return_idx = return_idx
         out_channels = [256, 512, 1024, 2048]
+        if isinstance(block, BasicBlock):
+            out_channels = [64, 128, 256, 512]
+            
         _out_strides = [4, 8, 16, 32]
         self.out_channels = [out_channels[_i] for _i in return_idx]
         self.out_strides = [_out_strides[_i] for _i in return_idx]

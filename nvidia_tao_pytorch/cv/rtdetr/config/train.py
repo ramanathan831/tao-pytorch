@@ -49,24 +49,17 @@ class OptimConfig:
         )
     )
     lr: float = FLOAT_FIELD(
-        value=2e-4,
+        value=1e-4,
         math_cond="> 0.0",
         display_name="learning rate",
         description="The initial learning rate for training the model, excluding the backbone.",
         automl_enabled="TRUE"
     )
     lr_backbone: float = FLOAT_FIELD(
-        value=2e-5,
+        value=1e-5,
         math_cond="> 0.0",
         display_name="learning rate - backbone",
         description="The initial learning rate for training the backbone.",
-        automl_enabled="TRUE"
-    )
-    lr_linear_proj_mult: float = FLOAT_FIELD(
-        value=0.1,
-        math_cond="> 0.0",
-        display_name="learning rate - linear projection",
-        description="The initial learning rate for training the linear projection layer.",
         automl_enabled="TRUE"
     )
     momentum: float = FLOAT_FIELD(
@@ -94,13 +87,13 @@ class OptimConfig:
         )
     )
     lr_steps: List[int] = LIST_FIELD(
-        arrList=[40],
+        arrList=[1000],
         description="""The steps at which the learning rate must be decreased.
                     This is applicable only with the MultiStep LR.""",
         display_name="learning rate decay steps"
     )
     lr_step_size: int = INT_FIELD(
-        value=40,
+        value=1000,
         math_cond="> 0",
         display_name="learning rate step size",
         description="The number of steps to decrease the learning rate in the StepLR.",
@@ -113,23 +106,40 @@ class OptimConfig:
         description="The decreasing factor for the learning rate scheduler.",
         automl_enabled="TRUE"
     )
+    warmup_steps: int = INT_FIELD(
+        value=0,
+        default_value=0,
+        description="The number of steps to perform linear learning rate warm-up.",
+        display_name="warm up steps",
+        valid_min=0,
+        valid_max="inf"
+    )
 
 
 @dataclass
-class DDTrainExpConfig(TrainConfig):
+class EmaConfig:
+    decay: float = 0.999
+    apply_ema_every_n_steps: int = 1
+    start_step: int = 0
+    save_ema_weights_in_callback_state: bool = True
+    evaluate_ema_weights_instead: bool = True
+
+
+@dataclass
+class RTTrainExpConfig(TrainConfig):
     """Train experiment config."""
 
     freeze: Optional[List[str]] = LIST_FIELD(
         arrList=[],
         description="""
         List of layer names to freeze.
-        Example: ["backbone", "transformer.encoder", "input_proj"].""",
+        Example: ["backbone", "encoder", "decoder"].""",
         display_name="freeze"
     )
     pretrained_model_path: Optional[str] = STR_FIELD(
         value=None,
         default_value='',
-        description="Path to a pre-trained Deformable DETR model to initialize the current training from."
+        description="Path to a pre-trained RT-DETR model to initialize the current training from."
     )
     clip_grad_norm: float = FLOAT_FIELD(
         value=0.1,
@@ -147,7 +157,16 @@ class DDTrainExpConfig(TrainConfig):
         as a good means to validate the spec file and run a sanity check on the trainer
         without actually initializing and running the trainer.""",
     )
-
+    enable_ema: bool = BOOL_FIELD(
+        value=False,
+        display_name="enable ema",
+        description="Whether to enable Exponential Moving Average during training."
+    )
+    ema: EmaConfig = DATACLASS_FIELD(
+        EmaConfig(),
+        display_name="ema",
+        description="Hyper parameters to configure the Exponential Moving Average."
+    )
     optim: OptimConfig = DATACLASS_FIELD(
         OptimConfig(),
         display_name="optimizer",
@@ -159,7 +178,7 @@ class DDTrainExpConfig(TrainConfig):
         description="Precision to run the training on.",
         display_name="precision",
         valid_options=",".join([
-            "fp16", "fp32",
+            "bf16", "fp32",
         ])
     )
     distributed_strategy: str = STR_FIELD(

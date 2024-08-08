@@ -34,10 +34,8 @@ class RTDETRModel(nn.Module):
                  pretrained_backbone=None,
                  train_backbone=True,
                  num_classes=80,
-                #  num_classes=4,
                  out_indices=[1, 2, 3],
                  # Encoder
-                 in_channels=[512, 1024, 2048],
                  feat_strides=[8, 16, 32],
                  hidden_dim=256,
                  use_encoder_idx=[2],
@@ -50,7 +48,6 @@ class RTDETRModel(nn.Module):
                  expansion=1.0,
                  depth_mult=1,
                  act='silu',
-                #  eval_spatial_size=[544, 960],
                  eval_spatial_size=[640, 640],
                  # Decoder
                  feat_channels=[256, 256, 256],
@@ -59,7 +56,6 @@ class RTDETRModel(nn.Module):
                  num_decoder_layers=6,
                  num_denoising=100,
                  eval_idx=-1,
-                #  multi_scale=[[480, 832], [512, 896], [544, 960], [544, 960], [544, 960], [576, 992], [608, 1056], [672, 1184], [704, 1216], [736, 1280], [768, 1344], [800, 1408]] # must be divisible by 32
                  multi_scale=[480, 512, 544, 576, 608, 640, 640, 640, 672, 704, 736, 768, 800]
                  ):
         """Initialize RT-DETR Model.
@@ -72,6 +68,10 @@ class RTDETRModel(nn.Module):
             backbone = resnet_model_dict[backbone](
                 out_indices,
             )
+            for name, parameter in backbone.named_parameters():
+                if not train_backbone or 'layer2' not in name and 'layer3' not in name and 'layer4' not in name:
+                    parameter.requires_grad_(False)
+            in_channels = backbone.out_channels
 
         pretrained_backbone_ckp = load_pretrained_weights(pretrained_backbone) if pretrained_backbone else None
         if pretrained_backbone_ckp:
@@ -132,7 +132,7 @@ def build_model(experiment_config,
         export (bool): flag to indicate onnx export.
 
     Returns:
-        model (nn.Module): DINO model.
+        model (nn.Module): RT-DETR model.
     """
     model_config = experiment_config.model
     dataset_config = experiment_config.dataset
@@ -142,24 +142,55 @@ def build_model(experiment_config,
     
     pretrained_backbone = model_config.pretrained_backbone_path
     return_interm_indices = model_config.return_interm_indices
+
+    eval_spatial_size = dataset_config.augmentation.eval_spatial_size
+    multi_scale = dataset_config.augmentation.multi_scales
+    num_classes = dataset_config.num_classes
+    num_queries = model_config.num_queries
+    hidden_dim = model_config.hidden_dim
+    use_encoder_idx = model_config.use_encoder_idx
+    nhead = model_config.nheads
+    dim_feedforward = model_config.dim_feedforward
+    dropout = model_config.dropout_ratio
+    pe_temperature = model_config.pe_temperature
+    expansion = model_config.expansion
+    depth_mult = model_config.depth_mult
+    enc_act = model_config.enc_act
+    act = model_config.act
+    num_levels = model_config.num_feature_levels
+    num_encoder_layers = model_config.enc_layers
+    num_decoder_layers = model_config.dec_layers
+    num_denoising = model_config.dn_number
+    feat_channels = model_config.feat_channels
+    eval_idx = model_config.eval_idx
+    
     model = RTDETRModel(
         backbone=backbone,
         train_backbone=train_backbone,
         pretrained_backbone=pretrained_backbone,
         out_indices=return_interm_indices,
+        num_classes=num_classes,
+        eval_spatial_size=eval_spatial_size,
+        multi_scale=multi_scale,
+        num_queries=num_queries,
+
+        # Encoder
+        hidden_dim=hidden_dim,
+        use_encoder_idx=use_encoder_idx,
+        num_encoder_layers=num_encoder_layers,
+        nhead=nhead,
+        dim_feedforward=dim_feedforward,
+        dropout=dropout,
+        enc_act=enc_act,
+        pe_temperature=pe_temperature,
+        expansion=expansion,
+        depth_mult=depth_mult,
+        act=act,
+        # Decoder
+        feat_channels=feat_channels,
+        num_levels=num_levels,
+        num_decoder_layers=num_decoder_layers,
+        num_denoising=num_denoising,
+        eval_idx=eval_idx,
     )
     return model
-
-# if __name__ == "__main__":
-#     rtdetr = RTDETRModel(backbone="resnet_50",
-#                          pretrained_backbone="/home/scratch.p3/sean/dino/resnet50-0676ba61.pth")
-
-#     rtdetr.eval()
-#     import torch
-#     img = torch.randn(1, 3, 640, 640)
-
-#     with torch.no_grad():
-#         outs = rtdetr(img)
-
-#     for k, v in outs.items():
-#         print(k, v.shape)

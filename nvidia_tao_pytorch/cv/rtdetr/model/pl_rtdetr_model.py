@@ -27,6 +27,7 @@ from nvidia_tao_pytorch.core.lightning.tao_lightning_module import TAOLightningM
 from nvidia_tao_pytorch.core.callbacks.loggers import TAOStatusLogger
 from nvidia_tao_pytorch.core.callbacks.ema import EMA, EMAModelCheckpoint
 from nvidia_tao_pytorch.core.utilities import get_latest_checkpoint
+from nvidia_tao_pytorch.core.optimizers.schedulers import LinearWarmupScheduler
 
 import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
 from nvidia_tao_pytorch.core.tlt_logging import logging
@@ -82,16 +83,11 @@ class RTDETRPlModel(TAOLightningModule):
             resumed_epoch = 0
         status_logger_callback.epoch_counter = resumed_epoch + 1
         callbacks.append(status_logger_callback)
-        # TODO: @scha make this configurable
-        enable_ema = False
-        if enable_ema:
+
+        if self.experiment_spec["train"]["enable_ema"]:
             # Apply Exponential Moving Average Callback
             ema_callback = EMA(
-                    decay=0.999,
-                    apply_ema_every_n_steps=1,
-                    start_step=0,
-                    save_ema_weights_in_callback_state=True,
-                    evaluate_ema_weights_instead=True
+                    **self.experiment_spec["train"]["ema"]
                 )
             ckpt_func = EMAModelCheckpoint
             callbacks.append(ema_callback)
@@ -149,14 +145,14 @@ class RTDETRPlModel(TAOLightningModule):
 
         # TODO: @scha make this configurable
         self.weight_dict = {"loss_vfl": 1, "loss_bbox": 5, "loss_giou": 2,}
-        loss_types = ['vfl', 'boxes']
-        alpha = 0.75
-        gamma = 2.0
+
         self.criterion = SetCriterion(self.matcher,
                                       weight_dict=self.weight_dict,
-                                      losses=loss_types, alpha=alpha, gamma=gamma,
+                                      losses=self.model_config["loss_types"],
+                                      alpha=self.model_config["alpha"], gamma=self.model_config["gamma"],
                                       num_classes=self.dataset_config["num_classes"])
-        self.box_processors = RTDETRPostProcess(num_select=300, remap_mscoco_category=True)
+        self.box_processors = RTDETRPostProcess(num_select=self.model_config["num_select"],
+                                                remap_mscoco_category=self.dataset_config["remap_mscoco_category"])
 
     def configure_optimizers(self):
         """Configure optimizers for training."""
@@ -239,10 +235,9 @@ class RTDETRPlModel(TAOLightningModule):
         losses = sum(loss_dict.values())
 
         self.log("train_loss", losses, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True, batch_size=batch_size)
-        # self.log("train_class_error", loss_dict['class_error'], on_step=True, on_epoch=False, prog_bar=False)
-        # self.log("train_loss_ce", loss_dict['loss_ce'], on_step=True, on_epoch=False, prog_bar=False)
-        # self.log("train_loss_bbox", loss_dict['loss_bbox'], on_step=True, on_epoch=False, prog_bar=False)
-        # self.log("train_loss_giou", loss_dict['loss_giou'], on_step=True, on_epoch=False, prog_bar=False)
+        self.log("train_loss_vfl", loss_dict['loss_vfl'], on_step=True, on_epoch=False, prog_bar=False)
+        self.log("train_loss_bbox", loss_dict['loss_bbox'], on_step=True, on_epoch=False, prog_bar=False)
+        self.log("train_loss_giou", loss_dict['loss_giou'], on_step=True, on_epoch=False, prog_bar=False)
         lrs = [param_group['lr'] for param_group in self.optimizers().optimizer.param_groups]
         self.log("lr", lrs[0], on_step=True, on_epoch=False, prog_bar=True)
 
@@ -283,10 +278,9 @@ class RTDETRPlModel(TAOLightningModule):
         self.val_coco_evaluator.update(res)
 
         self.log("val_loss", losses, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True, batch_size=batch_size)
-        # self.log("val_class_error", loss_dict['class_error'], on_step=True, on_epoch=False, prog_bar=False)
-        # self.log("val_loss_ce", loss_dict['loss_ce'], on_step=True, on_epoch=False, prog_bar=False)
-        # self.log("val_loss_bbox", loss_dict['loss_bbox'], on_step=True, on_epoch=False, prog_bar=False)
-        # self.log("val_loss_giou", loss_dict['loss_giou'], on_step=True, on_epoch=False, prog_bar=False)
+        self.log("val_loss_vfl", loss_dict['loss_vfl'], on_step=True, on_epoch=False, prog_bar=False)
+        self.log("val_loss_bbox", loss_dict['loss_bbox'], on_step=True, on_epoch=False, prog_bar=False)
+        self.log("val_loss_giou", loss_dict['loss_giou'], on_step=True, on_epoch=False, prog_bar=False)
 
         return losses
 

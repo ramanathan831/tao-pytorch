@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,17 +24,17 @@ from nvidia_tao_pytorch.config.types import (
     LIST_FIELD,
     STR_FIELD,
 )
-from nvidia_tao_pytorch.cv.deformable_detr.model.gc_vit import gc_vit_model_dict
+from nvidia_tao_pytorch.cv.rtdetr.model.resnet import resnet_model_dict
 
+# TODO: @scha add more backbones
 SUPPORTED_BACKBONES = [
-    *list(gc_vit_model_dict.keys()),
-    *["resnet_50"],
+    *list(resnet_model_dict.keys()),
 ]
 
 
 @dataclass
-class DDModelConfig:
-    """Deformable DETR model config."""
+class RTModelConfig:
+    """RT-DETR model config."""
 
     pretrained_backbone_path: Optional[str] = STR_FIELD(
         value=None,
@@ -47,9 +47,17 @@ class DDModelConfig:
         default_value="resnet_50",
         display_name="backbone",
         description="""The backbone name of the model.
-                    TAO implementation of Deformable DETR support GCViT and ResNet50.""",
+                    TAO implementation of RT-DETR support ResNet, EfficientViT, FAN, and ConvNext.""",
         valid_options=",".join(SUPPORTED_BACKBONES)
     )
+    train_backbone: bool = BOOL_FIELD(
+        value=True,
+        default_value=True,
+        display_name="Train backbone",
+        description="""Flag to set backbone weights as trainable or frozen.
+                    When set to `False`, the backbone weights will be frozen.""",
+    )
+
     num_queries: int = INT_FIELD(
         value=300,
         default_value=300,
@@ -59,14 +67,141 @@ class DDModelConfig:
         valid_max="inf",
         automl_enabled="TRUE"
     )
+    num_select: int = INT_FIELD(
+        value=300,
+        default_value=300,
+        description="The number of top-K predictions selected during post-process",
+        display_name="num select",
+        valid_min=1,
+        automl_enabled="TRUE"
+    )
     num_feature_levels: int = INT_FIELD(
-        value=4,
-        default_value=4,
+        value=3,
+        default_value=3,
         description="The number of feature levels to use in the model",
         display_name="number of feature levels",
         valid_min=1,
-        valid_max=5,
+        valid_max=4,
     )
+    return_interm_indices: List[int] = LIST_FIELD(
+        arrList=[1, 2, 3],
+        description="The index of feature levels to use in the model. The length must match `num_feature_levels`.",
+        display_name="return interim indices"
+    )
+
+    feat_strides: List[int] = LIST_FIELD(
+        arrList=[8, 16, 32],
+        description="The stride used as grid size of positional embedding at each encoder layer.",
+        display_name="feature strides"
+    )
+    hidden_dim: int = INT_FIELD(
+        value=256,
+        default_value=256,
+        description="Dimension of the hidden units.",
+        display_unit="hidden dim",
+        automl_enabled="FALSE"
+    )
+    nheads: int = INT_FIELD(
+        value=8,
+        default_value=8,
+        description="Number of heads",
+        display_name="nheads",
+    )
+    dropout_ratio: float = FLOAT_FIELD(
+        value=0.0,
+        default_value=0.0,
+        description="The probability to drop hidden units.",
+        display_name="drop out ratio",
+        valid_min=0.0,
+        valid_max=1.0
+    )
+    enc_layers: int = INT_FIELD(
+        value=1,
+        default_value=1,
+        description="Numer of encoder layers in the transformer",
+        valid_min=1,
+        automl_enabled="TRUE",
+        display_name="encoder layers",
+    )
+    dim_feedforward: int = INT_FIELD(
+        value=1024,
+        description="Dimension of the feedforward network",
+        display_name="dim feedforward",
+        valid_min=1,
+    )
+
+    use_encoder_idx: List[int] = LIST_FIELD(
+        arrList=[2],
+        description="The index of multi-scale backbone features to pass to encoder.",
+        display_name="use encoder index"
+    )
+    pe_temperature: int = INT_FIELD(
+        value=10000,
+        default_value=10000,
+        description="The temperature applied to the positional sine embedding.",
+        display_name="pe_temperature",
+        valid_min=1,
+        valid_max="inf"
+    )
+    expansion: float = INT_FIELD(
+        value=1.0,
+        default_value=1.0,
+        description="The expansion raito for hidden dimesnion used in CSPRepLayer.",
+        display_name="expansion",
+        valid_min=0.0,
+        valid_max="inf"
+    )
+    depth_mult: int = INT_FIELD(
+        value=1,
+        default_value=1,
+        description="The number of RegVGGBlock used in CSPRepLayer.",
+        display_name="expansion",
+        valid_min=1,
+        valid_max="inf"
+    )
+    enc_act: str = STR_FIELD(
+        value="gelu",
+        default_value="gelu",
+        display_name="encoder activation",
+        description="The activation used for the encoder."
+    )
+    act: str = STR_FIELD(
+        value="silu",
+        default_value="silu",
+        display_name="activation",
+        description="The activation used for top-down FPN and bottom-up PAN."
+    )
+
+    dec_layers: int = INT_FIELD(
+        value=6,
+        default_value=6,
+        description="Numer of decoder layers in the transformer",
+        valid_min=1,
+        automl_enabled="TRUE",
+        display_name="decoder layers",
+    )
+    dn_number: int = INT_FIELD(
+        value=100,
+        default_value=100,
+        description="The number of denoising queries.",
+        display_name="denoising number",
+        valid_min=0,
+        valid_max="inf"
+    )
+    feat_channels: List[int] = LIST_FIELD(
+        arrList=[256, 256, 256],
+        description="The index of feature channel size in decoder.",
+        display_name="feature channels"
+    )
+    eval_idx: int = INT_FIELD(
+        value=-1,
+        default_value=-1,
+        description="The index of decoder layer to use for evaluation. By default, use the last decoder layer.",
+        display_name="evaluation index",
+        valid_min=-1,
+        valid_max="inf"
+    )
+
     cls_loss_coef: float = FLOAT_FIELD(
         value=2.0,
         default_value=2.0,
@@ -91,31 +226,17 @@ class DDModelConfig:
         description="The relative weight of the GIoU loss of the bounding box in the matching cost.",
         display_name="GIoU loss coefficient",
     )
-    with_box_refine: bool = BOOL_FIELD(
-        value=True,
-        default_value=True,
-        display_name="With box refine",
-        description="""A flag specifying whether to enbable the Iterative Bounding Box Refinement""",
-    )
-    num_select: int = INT_FIELD(
-        value=300,
-        default_value=300,
-        description="The number of top-K predictions selected during post-process",
-        display_name="num select",
-        valid_min=1,
-        automl_enabled="TRUE"
-    )
 
-    return_interm_indices: List[int] = LIST_FIELD(
-        arrList=[1, 2, 3, 4],
-        description="The index of feature levels to use in the model. The length must match `num_feature_levels`.",
-        display_name="return interim indices"
+    alpha: float = FLOAT_FIELD(
+        value=0.75,
+        description="The alpha value in the varifocal loss.",
+        display_name="alpha",
+        math_cond="> 0.0"
     )
-
-    focal_alpha: float = FLOAT_FIELD(
-        value=0.25,
-        description="The alpha value in the focal loss.",
-        display_name="focal alpha",
+    gamma: float = FLOAT_FIELD(
+        value=2.0,
+        description="The gamma value in the varifocal loss.",
+        display_name="gamma",
         math_cond="> 0.0"
     )
     clip_max_norm: float = FLOAT_FIELD(
@@ -123,83 +244,17 @@ class DDModelConfig:
         display_name="clip max norm",
         description="",
     )
-    nheads: int = INT_FIELD(
-        value=8,
-        default_value=8,
-        description="Number of heads",
-        display_name="nheads",
-    )
-    dropout_ratio: float = FLOAT_FIELD(
-        value=0.3,
-        default_value=0.3,
-        description="The probability to drop hidden units.",
-        display_name="drop out ratio",
-        valid_min=0.0,
-        valid_max=1.0
-    )
-    hidden_dim: int = INT_FIELD(
-        value=256,
-        default_value=256,
-        description="Dimension of the hidden units.",
-        display_unit="hidden dim",
-        automl_enabled="FALSE"
-    )
-    enc_layers: int = INT_FIELD(
-        value=6,
-        default_value=6,
-        description="Numer of encoder layers in the transformer",
-        valid_min=1,
-        automl_enabled="TRUE",
-        display_name="encoder layers",
-    )
-    dec_layers: int = INT_FIELD(
-        value=6,
-        default_value=6,
-        description="Numer of decoder layers in the transformer",
-        valid_min=1,
-        automl_enabled="TRUE",
-        display_name="decoder layers",
-    )
-    dim_feedforward: int = INT_FIELD(
-        value=1024,
-        description="Dimension of the feedforward network",
-        display_name="dim feedforward",
-        valid_min=1,
-    )
-    dec_n_points: int = INT_FIELD(
-        value=4,
-        display_name="decoder n points",
-        description="Number of reference points in the decoder.",
-        valid_min=1,
-    )
-    enc_n_points: int = INT_FIELD(
-        value=4,
-        display_name="encoder n points",
-        description="Number of reference points in the encoder.",
-        valid_min=1,
-    )
+
     aux_loss: bool = BOOL_FIELD(
         value=True,
         default_value=True,
-        display_name="Train backbone",
+        display_name="Auxiliary Loss",
         description="""A flag specifying whether to use auxiliary
                     decoding losses (loss at each decoder layer)""",
     )
-    dilation: bool = BOOL_FIELD(
-        value=False,
-        default_value=False,
-        display_name="Dilation enabled.",
-        description="""A flag specifying whether enable dilation or not in the backbone.""",
-    )
-    train_backbone: bool = BOOL_FIELD(
-        value=True,
-        default_value=True,
-        display_name="Train backbone",
-        description="""Flag to set backbone weights as trainable or frozen.
-                    When set to `False`, the backbone weights will be frozen.""",
-    )
+
     loss_types: List[str] = LIST_FIELD(
-        arrList=['labels', 'boxes'],
+        arrList=['vfl', 'boxes'],
         description="Losses to be used during training",
         display_name="loss_types",
     )

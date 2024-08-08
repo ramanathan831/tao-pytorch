@@ -8,25 +8,29 @@ train:
     lr_steps: [1000]
     momentum: 0.9
   num_epochs: 72
-  precision: fp32
+  precision: bf16
+  enable_ema: True
+  ema:
+    save_ema_weights_in_callback_state: False
 dataset:
   train_data_sources:
-    # - image_dir: /home/scratch.p3/sean/datasets/coco/raw-data/train2017/
-    - image_dir: /home/scratch.p3/sean/datasets/coco/raw-data/val2017/
-      json_file: /home/scratch.p3/sean/datasets/coco/raw-data/annotations/instances_val2017.json
-      # json_file: /home/scratch.p3/sean/datasets/coco/raw-data/annotations/instances_train2017.json
+    - image_dir: /home/scratch.p3/sean/datasets/coco/raw-data/train2017/
+    # - image_dir: /home/scratch.p3/sean/datasets/coco/raw-data/val2017/
+    #   json_file: /home/scratch.p3/sean/datasets/coco/raw-data/annotations/instances_val2017.json
+      json_file: /home/scratch.p3/sean/datasets/coco/raw-data/annotations/instances_train2017.json
   val_data_sources:
-    - image_dir: /home/scratch.p3/sean/datasets/coco/raw-data/val2017/
-      json_file: /home/scratch.p3/sean/datasets/coco/raw-data/annotations/instances_val2017.json
+    image_dir: /home/scratch.p3/sean/datasets/coco/raw-data/val2017/
+    json_file: /home/scratch.p3/sean/datasets/coco/raw-data/annotations/instances_val2017.json
   num_classes: 80
   batch_size: 16
   workers: 8
-  dataset_type: default
+  dataset_type: serialized
+  remap_mscoco_category: True
 model:
   backbone: resnet_50
   train_backbone: True
   pretrained_backbone_path: /home/scratch.p3/sean/dino/resnet50-0676ba61.pth
   return_interm_indices: [1, 2, 3]
   dec_layers: 6
-  enc_layers: 6
+  enc_layers: 1
   num_queries: 300
