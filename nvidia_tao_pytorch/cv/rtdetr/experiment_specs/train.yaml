@@ -11,7 +11,7 @@ train:
   precision: bf16
   enable_ema: True
   ema:
-    save_ema_weights_in_callback_state: False
+    decay: 0.9999
 dataset:
   train_data_sources:
     - image_dir: /home/scratch.p3/sean/datasets/coco/raw-data/train2017/

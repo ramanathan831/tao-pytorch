@@ -141,10 +141,13 @@ class RTDETRPlModel(TAOLightningModule):
 
     def _build_criterion(self):
         """Internal function to build the loss function."""
-        self.matcher = HungarianMatcher(cost_class=self.model_config["cls_loss_coef"], cost_bbox=self.model_config["bbox_loss_coef"], cost_giou=self.model_config["giou_loss_coef"])
+        self.matcher = HungarianMatcher(cost_class=self.model_config["vfl_loss_coef"],
+                                        cost_bbox=self.model_config["bbox_loss_coef"],
+                                        cost_giou=self.model_config["giou_loss_coef"])
 
-        # TODO: @scha make this configurable
-        self.weight_dict = {"loss_vfl": 1, "loss_bbox": 5, "loss_giou": 2,}
+        self.weight_dict = {'loss_vfl': self.model_config["vfl_loss_coef"],
+                            'loss_bbox': self.model_config["bbox_loss_coef"],
+                            'loss_giou': self.model_config["giou_loss_coef"]}
 
         self.criterion = SetCriterion(self.matcher,
                                       weight_dict=self.weight_dict,

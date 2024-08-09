@@ -119,10 +119,9 @@ class OptimConfig:
 @dataclass
 class EmaConfig:
     decay: float = 0.999
-    apply_ema_every_n_steps: int = 1
-    start_step: int = 0
-    save_ema_weights_in_callback_state: bool = True
-    evaluate_ema_weights_instead: bool = True
+    every_n_steps: int = 1
+    validate_original_weights: bool = False
+    cpu_offload: bool = False
 
 
 @dataclass

@@ -202,13 +202,13 @@ class RTModelConfig:
         valid_max="inf"
     )
 
-    cls_loss_coef: float = FLOAT_FIELD(
-        value=2.0,
-        default_value=2.0,
+    vfl_loss_coef: float = FLOAT_FIELD(
+        value=1.0,
+        default_value=1.0,
         valid_min=0.0,
         valid_max="inf",
-        description="The relative weight of the classification error in the matching cost.",
-        display_name="Class loss coefficient",
+        description="The relative weight of the varifocal error in the matching cost.",
+        display_name="varifocal loss coefficient",
     )
     bbox_loss_coef: float = FLOAT_FIELD(
         value=5.0,

@@ -65,7 +65,6 @@ class ODDataModule(pl.LightningDataModule):
             # prep validation
             val_data_sources = self.dataset_config.val_data_sources
             val_transform = build_transforms(self.augmentation_config, dataset_mode='val')
-            # TODO: @scha remove ListCfg to DictCfg for val data sources
             self.val_dataset = RTDataset(val_data_sources.json_file,
                                          val_data_sources.image_dir,
                                          transforms=val_transform,
@@ -74,6 +73,15 @@ class ODDataModule(pl.LightningDataModule):
                 self.val_sampler = torch.utils.data.distributed.DistributedSampler(self.val_dataset, shuffle=False)
             else:
                 self.val_sampler = torch.utils.data.SequentialSampler(self.val_dataset)
+
+        # Check class mapping
+        max_id = max([r['id'] for r in self.val_dataset.label_map])
+        if max_id > self.dataset_config.num_classes and \
+            not self.dataset_config.remap_mscoco_category:
+            raise ValueError("Your annotation class ids are not contigous. "
+                             "If you're using the original COCO annotation, please set remap_mscoco_category=True.\n"
+                             f"Largest class id: {max_id} & num_classes: {self.dataset_config.num_classes}\n"
+                             "You may also use `annotations convert` from Data Services to convert your annotation into contiguous format.")
 
         # Assign test dataset for use in dataloader
         if stage in ('test', None):

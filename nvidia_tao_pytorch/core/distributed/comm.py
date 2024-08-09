@@ -22,6 +22,7 @@ import pickle
 
 import torch
 import torch.distributed as dist
+from pytorch_lightning.utilities.rank_zero import rank_zero_info
 
 
 def is_dist_avail_and_initialized():
@@ -157,7 +158,7 @@ def local_broadcast_process_authkey():
     all_keys = all_gather(authkey)
     local_leader_key = all_keys[get_global_rank() - local_rank]
     if authkey != local_leader_key:
-        print("Process authkey is different from the key of local leader. This might happen when "
-              "workers are launched independently.")
-        print("Overwriting local authkey ...")
+        rank_zero_info("Process authkey is different from the key of local leader. This might happen when "
+                       "workers are launched independently.")
+        rank_zero_info("Overwriting local authkey ...")
         mp.current_process().authkey = local_leader_key
