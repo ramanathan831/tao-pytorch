@@ -6,7 +6,7 @@ by lyuwenyu
 """
 
 import torch
-import torch.nn.functional as F 
+import torch.nn.functional as F
 
 from scipy.optimize import linear_sum_assignment
 from torch import nn
@@ -83,7 +83,7 @@ class HungarianMatcher(nn.Module):
             out_prob = out_prob[:, tgt_ids]
             neg_cost_class = (1 - self.alpha) * (out_prob**self.gamma) * (-(1 - out_prob + 1e-8).log())
             pos_cost_class = self.alpha * ((1 - out_prob)**self.gamma) * (-(out_prob + 1e-8).log())
-            cost_class = pos_cost_class - neg_cost_class        
+            cost_class = pos_cost_class - neg_cost_class
         else:
             cost_class = -out_prob[:, tgt_ids]
 
@@ -92,7 +92,7 @@ class HungarianMatcher(nn.Module):
 
         # Compute the giou cost betwen boxes
         cost_giou = -generalized_box_iou(box_cxcywh_to_xyxy(out_bbox), box_cxcywh_to_xyxy(tgt_bbox))
-        
+
         # Final cost matrix
         C = self.cost_bbox * cost_bbox + self.cost_class * cost_class + self.cost_giou * cost_giou
         C = C.view(bs, num_queries, -1).cpu()

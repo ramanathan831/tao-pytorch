@@ -27,7 +27,6 @@ from nvidia_tao_pytorch.core.lightning.tao_lightning_module import TAOLightningM
 from nvidia_tao_pytorch.core.callbacks.loggers import TAOStatusLogger
 from nvidia_tao_pytorch.core.callbacks.ema import EMA, EMAModelCheckpoint
 from nvidia_tao_pytorch.core.utilities import get_latest_checkpoint
-from nvidia_tao_pytorch.core.optimizers.schedulers import LinearWarmupScheduler
 
 import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
 from nvidia_tao_pytorch.core.tlt_logging import logging
@@ -87,8 +86,8 @@ class RTDETRPlModel(TAOLightningModule):
         if self.experiment_spec["train"]["enable_ema"]:
             # Apply Exponential Moving Average Callback
             ema_callback = EMA(
-                    **self.experiment_spec["train"]["ema"]
-                )
+                **self.experiment_spec["train"]["ema"]
+            )
             ckpt_func = EMAModelCheckpoint
             callbacks.append(ema_callback)
         else:

@@ -14,15 +14,15 @@
 
 """ Transformation for RT-DETR."""
 
-import torch 
+import torch
 
 import torchvision
-torchvision.disable_beta_transforms_warning()
 from torchvision import tv_tensors
 
 import torchvision.transforms.v2 as T
 
 from typing import Any, Dict, List, Optional
+torchvision.disable_beta_transforms_warning()
 
 
 def build_transforms(augmentation_config, subtask_config=None, dataset_mode='train'):
@@ -39,8 +39,8 @@ def build_transforms(augmentation_config, subtask_config=None, dataset_mode='tra
     Raises:
         If dataset_mode is set to other than given options (train, val, eval, infer), the code will raise the value error.
     """
-    distortion_prob= augmentation_config.get("distortion_prob", 0.8)
-    iou_crop_prob= augmentation_config.get("iou_crop_prob", 0.8)
+    distortion_prob = augmentation_config.get("distortion_prob", 0.8)
+    iou_crop_prob = augmentation_config.get("iou_crop_prob", 0.8)
     train_resize = augmentation_config.get("train_spatial_size", [640, 640])
     test_resize = augmentation_config.get("eval_spatial_size", [640, 640])
 
@@ -73,6 +73,7 @@ class ConvertBox(T.Transform):
     _transformed_types = (
         tv_tensors.BoundingBoxes,
     )
+
     def __init__(self, out_fmt='', normalize=False) -> None:
         super().__init__()
         self.out_fmt = out_fmt
@@ -83,23 +84,25 @@ class ConvertBox(T.Transform):
             'cxcywh': tv_tensors.BoundingBoxFormat.CXCYWH
         }
 
-    def _transform(self, inpt: Any, params: Dict[str, Any]) -> Any:  
+    def _transform(self, inpt: Any, params: Dict[str, Any]) -> Any:
         if self.out_fmt:
             spatial_size = inpt.canvas_size
             in_fmt = inpt.format.value.lower()
             inpt = torchvision.ops.box_convert(inpt, in_fmt=in_fmt, out_fmt=self.out_fmt)
             inpt = tv_tensors.BoundingBoxes(inpt, format=self.data_fmt[self.out_fmt], canvas_size=spatial_size)
-        
+
         if self.normalize:
             inpt = inpt / torch.tensor(inpt.canvas_size[::-1]).tile(2)[None]
 
         return inpt
 
+
 class RandomIoUCrop(T.RandomIoUCrop):
+
     def __init__(self, min_scale: float = 0.3, max_scale: float = 1, min_aspect_ratio: float = 0.5,
                  max_aspect_ratio: float = 2, sampler_options: Optional[List[float]] = None, trials: int = 40, p: float = 1.0):
         super().__init__(min_scale, max_scale, min_aspect_ratio, max_aspect_ratio, sampler_options, trials)
-        self.p = p 
+        self.p = p
 
     def __call__(self, *inputs: Any) -> Any:
         if torch.rand(1) >= self.p:

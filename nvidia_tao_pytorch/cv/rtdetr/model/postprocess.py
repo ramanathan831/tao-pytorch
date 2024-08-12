@@ -15,13 +15,10 @@
 """ Post Process """
 
 import torch
-import torch.nn as nn 
-import torch.nn.functional as F 
 
 from nvidia_tao_pytorch.cv.deformable_detr.utils import box_ops
 from nvidia_tao_pytorch.cv.deformable_detr.model.post_process import PostProcess
 
-from nvidia_tao_pytorch.cv.rtdetr.dataloader.od_dataset import mscoco_label2category
 from nvidia_tao_pytorch.cv.rtdetr.dataloader.od_dataset import mscoco_label2category
 
 
@@ -67,7 +64,7 @@ class RTDETRPostProcess(PostProcess):
 
         if self.remap_mscoco_category:
             labels = torch.tensor([mscoco_label2category[int(x.item())] for x in labels.flatten()])\
-                .to(boxes.device).reshape(labels.shape)    
+                .to(boxes.device).reshape(labels.shape)
 
         # from relative [0, 1] to absolute [0, height] coordinates
         img_h, img_w = target_sizes.unbind(1)

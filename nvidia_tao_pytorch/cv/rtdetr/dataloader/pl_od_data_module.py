@@ -76,8 +76,7 @@ class ODDataModule(pl.LightningDataModule):
 
         # Check class mapping
         max_id = max([r['id'] for r in self.val_dataset.label_map])
-        if max_id > self.dataset_config.num_classes and \
-            not self.dataset_config.remap_mscoco_category:
+        if max_id > self.dataset_config.num_classes and not self.dataset_config.remap_mscoco_category:
             raise ValueError("Your annotation class ids are not contigous. "
                              "If you're using the original COCO annotation, please set remap_mscoco_category=True.\n"
                              f"Largest class id: {max_id} & num_classes: {self.dataset_config.num_classes}\n"

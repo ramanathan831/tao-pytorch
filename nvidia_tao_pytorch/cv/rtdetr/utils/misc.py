@@ -16,7 +16,7 @@
 
 import torch
 
+
 def collate_fn(items):
-    '''default collate_fn
-    '''    
+    '''default collate function for RT-DETR'''
     return torch.cat([x[0][None] for x in items], dim=0), [x[1] for x in items], [x[2] for x in items]

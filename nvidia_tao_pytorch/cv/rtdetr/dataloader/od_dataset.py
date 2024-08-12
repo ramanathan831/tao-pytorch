@@ -39,7 +39,7 @@ def build_coco(data_sources, transforms, remap_mscoco_category):
     for data_source in data_sources:
         image_dir = data_source.image_dir
         json_file = data_source.json_file
-        dataset_list.append(RTDataset(json_file, image_dir, 
+        dataset_list.append(RTDataset(json_file, image_dir,
                                       transforms=transforms,
                                       remap_mscoco_category=True))
 
@@ -99,8 +99,8 @@ class RTDataset(ODDataset):
         boxes = boxes[keep]
 
         boxes = tv_tensors.BoundingBoxes(
-            boxes, 
-            format='XYXY', 
+            boxes,
+            format='XYXY',
             canvas_size=image.size[::-1]  # h w
         )
 

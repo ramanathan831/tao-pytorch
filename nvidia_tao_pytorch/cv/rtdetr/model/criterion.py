@@ -15,10 +15,9 @@
 """ RT-DETR loss functions. """
 
 
-import torch 
-import torch.nn as nn 
-import torch.nn.functional as F 
-import torchvision
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
 from nvidia_tao_pytorch.cv.deformable_detr.utils.box_ops import box_cxcywh_to_xyxy, box_iou, generalized_box_iou
 
@@ -48,7 +47,7 @@ class SetCriterion(nn.Module):
         self.num_classes = num_classes
         self.matcher = matcher
         self.weight_dict = weight_dict
-        self.losses = losses 
+        self.losses = losses
 
         self.alpha = alpha
         self.gamma = gamma
@@ -75,7 +74,7 @@ class SetCriterion(nn.Module):
 
         pred_score = F.sigmoid(src_logits).detach()
         weight = self.alpha * pred_score.pow(self.gamma) * (1 - target) + target_score
-        
+
         loss = F.binary_cross_entropy_with_logits(src_logits, target_score, weight=weight, reduction='none')
         loss = loss.mean(1).sum() * src_logits.shape[1] / num_boxes
         return {'loss_vfl': loss}
@@ -96,8 +95,8 @@ class SetCriterion(nn.Module):
         losses['loss_bbox'] = loss_bbox.sum() / num_boxes
 
         loss_giou = 1 - torch.diag(generalized_box_iou(
-                box_cxcywh_to_xyxy(src_boxes),
-                box_cxcywh_to_xyxy(target_boxes)))
+                                   box_cxcywh_to_xyxy(src_boxes),
+                                   box_cxcywh_to_xyxy(target_boxes)))
         losses['loss_giou'] = loss_giou.sum() / num_boxes
         return losses
 
@@ -159,7 +158,7 @@ class SetCriterion(nn.Module):
                     if loss == 'labels':
                         # Logging is enabled only for the last layer
                         kwargs = {'log': False}
-                   
+
                     l_dict = self.get_loss(loss, aux_outputs, targets, indices, num_boxes, **kwargs)
                     l_dict = {k: l_dict[k] * self.weight_dict[k] for k in l_dict if k in self.weight_dict}
                     l_dict = {k + f'_aux_{i}': v for k, v in l_dict.items()}
@@ -196,7 +195,7 @@ class SetCriterion(nn.Module):
         dn_positive_idx, dn_num_group = dn_meta["dn_positive_idx"], dn_meta["dn_num_group"]
         num_gts = [len(t['labels']) for t in targets]
         device = targets[0]['labels'].device
-        
+
         dn_match_indices = []
         for i, num_gt in enumerate(num_gts):
             if num_gt > 0:
@@ -205,7 +204,9 @@ class SetCriterion(nn.Module):
                 assert len(dn_positive_idx[i]) == len(gt_idx)
                 dn_match_indices.append((dn_positive_idx[i], gt_idx))
             else:
-                dn_match_indices.append((torch.zeros(0, dtype=torch.int64, device=device), \
-                    torch.zeros(0, dtype=torch.int64,  device=device)))
-        
+                dn_match_indices.append((
+                    torch.zeros(0, dtype=torch.int64, device=device),
+                    torch.zeros(0, dtype=torch.int64,  device=device)
+                ))
+
         return dn_match_indices

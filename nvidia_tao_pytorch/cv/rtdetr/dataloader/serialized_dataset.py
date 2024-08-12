@@ -88,8 +88,8 @@ class RTSerializedDatasetFromList(SerializedDatasetFromList):
         boxes = boxes[keep]
 
         boxes = tv_tensors.BoundingBoxes(
-            boxes, 
-            format='XYXY', 
+            boxes,
+            format='XYXY',
             canvas_size=image.size[::-1]  # h w
         )
 

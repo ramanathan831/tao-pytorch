@@ -139,7 +139,7 @@ def build_model(experiment_config,
 
     backbone = model_config.backbone
     train_backbone = model_config.train_backbone
-    
+
     pretrained_backbone = model_config.pretrained_backbone_path
     return_interm_indices = model_config.return_interm_indices
 
@@ -163,7 +163,7 @@ def build_model(experiment_config,
     num_denoising = model_config.dn_number
     feat_channels = model_config.feat_channels
     eval_idx = model_config.eval_idx
-    
+
     model = RTDETRModel(
         backbone=backbone,
         train_backbone=train_backbone,

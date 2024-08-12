@@ -75,12 +75,12 @@ class ResNet(nn.Module):
                     nn.init.constant_(m.bn3.weight, 0)
                 elif isinstance(m, BasicBlock):
                     nn.init.constant_(m.bn2.weight, 0)
-        
+
         self.return_idx = return_idx
         out_channels = [256, 512, 1024, 2048]
         if isinstance(block, BasicBlock):
             out_channels = [64, 128, 256, 512]
-            
+
         _out_strides = [4, 8, 16, 32]
         self.out_channels = [out_channels[_i] for _i in return_idx]
         self.out_strides = [_out_strides[_i] for _i in return_idx]
