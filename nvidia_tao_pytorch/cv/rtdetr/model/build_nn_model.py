@@ -21,6 +21,7 @@ from nvidia_tao_pytorch.core.tlt_logging import logging
 from nvidia_tao_pytorch.cv.deformable_detr.utils.misc import load_pretrained_weights
 
 from nvidia_tao_pytorch.cv.rtdetr.model.resnet import resnet_model_dict
+from nvidia_tao_pytorch.cv.rtdetr.model.convnext import convnext_model_dict
 from nvidia_tao_pytorch.cv.rtdetr.model.hybrid_encoder import HybridEncoder
 from nvidia_tao_pytorch.cv.rtdetr.model.rtdetr_decoder import RTDETRTransformer
 from nvidia_tao_pytorch.cv.rtdetr.model.rtdetr import RTDETR
@@ -30,7 +31,7 @@ class RTDETRModel(nn.Module):
     """RT-DETR model module."""
 
     def __init__(self,
-                 backbone='resnet_50',
+                 backbone_name='resnet_50',
                  pretrained_backbone=None,
                  train_backbone=True,
                  num_classes=80,
@@ -64,16 +65,34 @@ class RTDETRModel(nn.Module):
 
         """
         super().__init__()
-        if backbone.startswith('resnet'):
-            backbone = resnet_model_dict[backbone](
+        parser = None
+        if backbone_name.startswith('resnet'):
+            backbone = resnet_model_dict[backbone_name](
                 out_indices,
             )
             for name, parameter in backbone.named_parameters():
                 if not train_backbone or 'layer2' not in name and 'layer3' not in name and 'layer4' not in name:
                     parameter.requires_grad_(False)
+            in_channels = backbone_name.out_channels
+        elif backbone_name.startswith('convnext'):
+            backbone = convnext_model_dict[backbone_name](
+                out_indices
+            )
+            for name, parameter in backbone.named_parameters():
+                if not train_backbone:
+                    parameter.requires_grad_(False)
             in_channels = backbone.out_channels
 
-        pretrained_backbone_ckp = load_pretrained_weights(pretrained_backbone) if pretrained_backbone else None
+            def conv_parse(m):
+                """Parse official checkpoint from Meta"""
+                if "model" in m:
+                    return m["model"]
+                return m
+            parser = conv_parse
+        else:
+            raise NotImplementedError(f"{backbone_name} is not supported")
+
+        pretrained_backbone_ckp = load_pretrained_weights(pretrained_backbone, parser=parser) if pretrained_backbone else None
         if pretrained_backbone_ckp:
             _tmp_st_output = backbone.load_state_dict(pretrained_backbone_ckp, strict=False)
             if get_global_rank() == 0:
@@ -165,7 +184,7 @@ def build_model(experiment_config,
     eval_idx = model_config.eval_idx
 
     model = RTDETRModel(
-        backbone=backbone,
+        backbone_name=backbone,
         train_backbone=train_backbone,
         pretrained_backbone=pretrained_backbone,
         out_indices=return_interm_indices,

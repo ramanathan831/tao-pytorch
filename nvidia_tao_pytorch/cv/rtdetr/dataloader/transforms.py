@@ -22,7 +22,9 @@ from torchvision import tv_tensors
 import torchvision.transforms.v2 as T
 
 from typing import Any, Dict, List, Optional
+
 torchvision.disable_beta_transforms_warning()
+from nvidia_tao_pytorch.cv.deformable_detr.dataloader.transforms import Compose, ResizeAndPad
 
 
 def build_transforms(augmentation_config, subtask_config=None, dataset_mode='train'):
@@ -43,6 +45,7 @@ def build_transforms(augmentation_config, subtask_config=None, dataset_mode='tra
     iou_crop_prob = augmentation_config.get("iou_crop_prob", 0.8)
     train_resize = augmentation_config.get("train_spatial_size", [640, 640])
     test_resize = augmentation_config.get("eval_spatial_size", [640, 640])
+    preserve_aspect_ratio = augmentation_config["preserve_aspect_ratio"]
 
     if dataset_mode == 'train':
         transforms = T.Compose([
@@ -58,11 +61,19 @@ def build_transforms(augmentation_config, subtask_config=None, dataset_mode='tra
             ConvertBox(out_fmt='cxcywh', normalize=True)
         ])
     elif dataset_mode in ('val', 'eval', 'infer'):
-        transforms = T.Compose([
-            T.Resize(size=test_resize),
-            T.ToImage(),
-            T.ConvertImageDtype(),
-        ])
+        if preserve_aspect_ratio:
+            # Resize the longest edge to test_resize and zero pad the rest
+            transforms = Compose([
+                ResizeAndPad(max_size=max(test_resize)),
+                T.ToImage(),
+                T.ConvertImageDtype(),
+            ])
+        else:
+            transforms = Compose([
+                T.resize(size=test_resize),
+                T.ToImage(),
+                T.ConvertImageDtype(),
+            ])
     else:
         raise ValueError('There are only train, val, eval, and infer options in dataset_mode.')
 

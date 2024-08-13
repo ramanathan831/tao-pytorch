@@ -8,7 +8,7 @@ train:
     lr_steps: [1000]
     momentum: 0.9
   num_epochs: 72
-  precision: bf16
+  precision: fp32
   enable_ema: True
   ema:
     decay: 0.9999
@@ -27,9 +27,10 @@ dataset:
   dataset_type: serialized
   remap_mscoco_category: True
 model:
-  backbone: resnet_50
+  backbone: convnext_base
   train_backbone: True
-  pretrained_backbone_path: /home/scratch.p3/sean/dino/resnet50-0676ba61.pth
+  # pretrained_backbone_path: /home/scratch.p3/sean/dino/resnet50-0676ba61.pth
+  pretrained_backbone_path: /home/scratch.p3/sean/rt-detr/convnext/convnext_base_22k_224.pth
   return_interm_indices: [1, 2, 3]
   dec_layers: 6
   enc_layers: 1

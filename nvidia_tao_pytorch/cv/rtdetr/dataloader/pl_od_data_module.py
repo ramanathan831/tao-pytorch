@@ -22,10 +22,8 @@ import pytorch_lightning as pl
 from nvidia_tao_pytorch.cv.rtdetr.utils.misc import collate_fn
 
 from nvidia_tao_pytorch.cv.rtdetr.dataloader.transforms import build_transforms
-from nvidia_tao_pytorch.cv.rtdetr.dataloader.od_dataset import build_coco, RTDataset
+from nvidia_tao_pytorch.cv.rtdetr.dataloader.od_dataset import build_coco, RTDataset, ODPredictDataset
 from nvidia_tao_pytorch.cv.rtdetr.dataloader.serialized_dataset import build_shm_dataset
-
-from nvidia_tao_pytorch.cv.deformable_detr.dataloader.od_dataset import ODPredictDataset
 
 from nvidia_tao_pytorch.core.distributed.comm import (is_dist_avail_and_initialized,
                                                       local_broadcast_process_authkey)
@@ -74,13 +72,13 @@ class ODDataModule(pl.LightningDataModule):
             else:
                 self.val_sampler = torch.utils.data.SequentialSampler(self.val_dataset)
 
-        # Check class mapping
-        max_id = max([r['id'] for r in self.val_dataset.label_map])
-        if max_id > self.dataset_config.num_classes and not self.dataset_config.remap_mscoco_category:
-            raise ValueError("Your annotation class ids are not contigous. "
-                             "If you're using the original COCO annotation, please set remap_mscoco_category=True.\n"
-                             f"Largest class id: {max_id} & num_classes: {self.dataset_config.num_classes}\n"
-                             "You may also use `annotations convert` from Data Services to convert your annotation into contiguous format.")
+            # Check class mapping
+            max_id = max([r['id'] for r in self.val_dataset.label_map])
+            if max_id > self.dataset_config.num_classes and not self.dataset_config.remap_mscoco_category:
+                raise ValueError("Your annotation class ids are not contigous. "
+                                 "If you're using the original COCO annotation, please set remap_mscoco_category=True.\n"
+                                 f"Largest class id: {max_id} & num_classes: {self.dataset_config.num_classes}\n"
+                                 "You may also use `annotations convert` from Data Services to convert your annotation into contiguous format.")
 
         # Assign test dataset for use in dataloader
         if stage in ('test', None):
@@ -99,7 +97,11 @@ class ODDataModule(pl.LightningDataModule):
                 pred_list = [pred_list]
             classmap = pred_data_sources.get("classmap", "")
             pred_transforms = build_transforms(self.augmentation_config, subtask_config=self.subtask_config, dataset_mode='infer')
-            self.pred_dataset = ODPredictDataset(pred_list, classmap, transforms=pred_transforms)
+            fixed_resolution=self.augmentation_config.eval_spatial_size if self.augmentation_config.preserve_aspect_ratio else None
+            self.pred_dataset = ODPredictDataset(pred_list, classmap,
+                                                 transforms=pred_transforms,
+                                                 start_from_one=False,
+                                                 fixed_resolution=fixed_resolution)
 
     def train_dataloader(self):
         """Build the dataloader for training.

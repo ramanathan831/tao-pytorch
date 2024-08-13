@@ -144,7 +144,7 @@ class TransformerDecoder(nn.Module):
         dec_out_bboxes = []
         dec_out_logits = []
         ref_points_detach = F.sigmoid(ref_points_unact)
-
+        ref_points = None
         for i, layer in enumerate(self.layers):
             ref_points_input = ref_points_detach.unsqueeze(2)
             query_pos_embed = query_pos_head(ref_points_detach)

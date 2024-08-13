@@ -65,6 +65,12 @@ class RTAugmentationConfig:
         automl_enabled="TRUE",
         display_name="iou crop probability"
     )
+    preserve_aspect_ratio: bool = BOOL_FIELD(
+        value=False,
+        default_value=False,
+        display_name="preserve aspect ratio",
+        description="""Flag to enable resize with preserving the aspect ratio."""
+    )
 
 
 @dataclass

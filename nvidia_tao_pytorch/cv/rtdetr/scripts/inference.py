@@ -21,7 +21,7 @@ from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_pytorch.core.initialize_experiments import initialize_inference_experiment
 from nvidia_tao_pytorch.cv.rtdetr.dataloader.pl_od_data_module import ODDataModule
-from nvidia_tao_pytorch.cv.deformable_detr.config.default_config import ExperimentConfig
+from nvidia_tao_pytorch.cv.rtdetr.config.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.rtdetr.model.pl_rtdetr_model import RTDETRPlModel
 
 

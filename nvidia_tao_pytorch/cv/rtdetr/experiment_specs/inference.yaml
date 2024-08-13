@@ -1,23 +1,48 @@
-results_dir: /home/scratch.p3/sean/rt-detr/tao_integration
+results_dir: /home/scratch.p3/sean/rt-detr/convnext
 inference:
   num_gpus: 1
   conf_threshold: 0.5
-  checkpoint: /home/scratch.p3/sean/rt-detr/rtdetr_r50_1x_rectangle_astro2.2_delta/checkpoint_tao.pth
+  checkpoint: /home/scratch.p3/sean/rt-detr/convnext/checkpoint_tao.pth
+  color_map:
+    "master_chef_can": blue
+    "cracker_box": blue
+    "sugar_box": blue
+    "tomato_soup_can": blue
+    "mustard_bottle": blue
+    "tuna_fish_can": blue
+    "pudding_box": blue
+    "gelatin_box": blue
+    "potted_meat_can": blue
+    "banana": blue
+    "pitcher_base": blue
+    "bleach_cleanser": blue
+    "bowl": blue
+    "mug": blue
+    "power_drill": blue
+    "wood_block": blue
+    "scissors": blue
+    "large_marker": blue
+    "large_clamp": blue
+    "extra_large_clamp": blue
+    "foam_brick": blue
 dataset:
   infer_data_sources:
     image_dir: 
-      - /media/projects2_metropolis/datasets/kpi_datasets/People/0_Degrees_20ft_4.mp4/images_final_hres/
-    classmap: /home/scratch.p3/sean/ddetr/classmap.txt
+      - /home/scratch.p3/sean/rt-detr/convnext/synthetica/
+    classmap: /home/scratch.p3/sean/rt-detr/convnext/classmap.txt
     # image_dir: /home/scratch.p3/sean/datasets/coco/raw-data/val2017/
     # json_file: /home/scratch.p3/sean/datasets/coco/raw-data/annotations/instances_val2017_remapped.json
     # - image_dir: /media/projects2_metropolis/datasets/kpi_datasets/People/0_Degrees_20ft_4.mp4/images_final_hres/
     # json_file: /home/scratch.p3/sean/datasets/astro2.2/astro2.2_val_drive.json
-  num_classes: 4
-  batch_size: 8
+  num_classes: 21
+  batch_size: 2
   workers: 8
+  augmentation:
+    eval_spatial_size: [640, 640]
+    preserve_aspect_ratio: True
 model:
-  backbone: resnet_50
+  backbone: convnext_small
   return_interm_indices: [1, 2, 3]
   dec_layers: 6
-  enc_layers: 6
+  enc_layers: 1
   num_queries: 300

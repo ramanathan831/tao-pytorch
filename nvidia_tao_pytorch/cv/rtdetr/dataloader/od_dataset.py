@@ -15,13 +15,16 @@
 """ Object Detection Dataset Class and Related Functions """
 
 import torch
+from torch.utils.data.dataset import Dataset
 from torch.utils.data import ConcatDataset
 from torchvision import tv_tensors
 
-from PIL import Image
+import os
+import glob
+from PIL import Image, ImageOps
 from typing import Any, Tuple, List
 
-from nvidia_tao_pytorch.cv.deformable_detr.dataloader.od_dataset import ODDataset
+from nvidia_tao_pytorch.cv.deformable_detr.dataloader.od_dataset import ODDataset, VALID_IMAGE_EXTENSIONS
 
 
 def build_coco(data_sources, transforms, remap_mscoco_category):
@@ -121,6 +124,92 @@ class RTDataset(ODDataset):
         target["size"] = torch.as_tensor([int(height), int(width)])
 
         return image, target
+
+
+class ODPredictDataset(Dataset):
+    """Base Object Detection Predict Dataset Class."""
+
+    def __init__(self, dataset_list: List[Any], label_map_path: str,
+                 transforms=None, start_from_one=False, fixed_resolution=None):
+        """Initialize the Object Detetion Dataset Class for inference.
+
+        Unlike ODDataset, this class does not require COCO JSON file.
+
+        Args:
+            dataset_list (list): list of dataset directory.
+            label_map_path (str): label mapping path.
+            transforms: augmentations to apply.
+            start_from_one (bool): Whether to start the class_mapping index from 1 or not.
+            fixed_resolution (tuple): Fixed resolution (h, w) for evaluation.
+                Only needed when we resize with aspect ratio preserved.
+
+        Raises:
+            FileNotFoundErorr: If provided classmap, sequence, or image extension does not exist.
+        """
+        self.dataset_list = dataset_list
+        self.transforms = transforms
+        if not os.path.exists(label_map_path):
+            raise FileNotFoundError(f"Provided class map {label_map_path} does not exist!")
+
+        # Load classmap and reformat it to COCO categories format
+        with open(label_map_path, "r") as f:
+            classmap = [line.rstrip() for line in f.readlines()]
+        self.label_map = [{"id": i + int(start_from_one), "name": c} for i, c in enumerate(classmap)]
+
+        self.fixed_resolution = fixed_resolution
+
+        self.ids = []
+        for seq in dataset_list:
+            if not os.path.exists(seq):
+                raise FileNotFoundError(f"Provided inference directory {seq} does not exist!")
+
+            for ext in VALID_IMAGE_EXTENSIONS:
+                self.ids.extend(glob.glob(seq + f"/*{ext}"))
+        if len(self.ids) == 0:
+            raise FileNotFoundError(f"No valid image with extensions {VALID_IMAGE_EXTENSIONS} found in the provided directories")
+
+    def _load_image(self, img_path: int) -> Image.Image:
+        """Load image given image path.
+
+        Args:
+            img_path (str): image path to load.
+
+        Returns:
+            Loaded PIL.Image.
+        """
+        img = ImageOps.exif_transpose(Image.open(img_path).convert("RGB"))
+        return_output = (img, img_path)
+
+        return return_output
+
+    def __getitem__(self, index: int) -> Tuple[Any, Any, Any]:
+        """Get image, target, image_path given index.
+
+        Args:
+            index (int): index of the image id to load.
+
+        Returns:
+            (image, target, image_path): pre-processed image, target and image_path for the model.
+        """
+        img_path = self.ids[index]
+        image, image_path = self._load_image(img_path)
+
+        width, height = image.size
+        target = {}
+        if self.fixed_resolution:
+            target["orig_size"] = torch.as_tensor(list(self.fixed_resolution))
+        else:
+            target["orig_size"] = torch.as_tensor([int(height), int(width)])
+        target["size"] = torch.as_tensor([int(height), int(width)])
+
+        if self.transforms is not None:
+            image, target = self.transforms(image, target)
+
+        return image, target, image_path
+
+    def __len__(self) -> int:
+        """__len__"""
+        return len(self.ids)
 
 
 mscoco_category2name = {
