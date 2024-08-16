@@ -65,7 +65,7 @@ def run_experiment(experiment_config, key):
                 new_checkpoint[k] = v
             else:
                 # Skip layers that mismatch
-                logging.info(f"skip layer: {k}, checkpoint layer size: {list(v.size())},",
+                logging.info(f"skip layer: {k}, checkpoint layer size: {list(v.size())},"
                              f"current model layer size: {list(current_model_dict[k].size())}")
                 new_checkpoint[k] = current_model_dict[k]
         # Load pretrained weights

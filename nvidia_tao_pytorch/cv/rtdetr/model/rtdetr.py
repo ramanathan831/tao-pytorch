@@ -13,6 +13,8 @@
 # limitations under the License.
 
 """ RT-DETR model. """
+import omegaconf
+from omegaconf import OmegaConf
 
 import torch.nn as nn
 import torch.nn.functional as F
@@ -32,6 +34,9 @@ class RTDETR(nn.Module):
     def forward(self, x, targets=None):
         if self.multi_scale and self.training:
             sz = random.choice(self.multi_scale)
+            # Convert omegaconf listconfig when reading lists from the experiment config.
+            if isinstance(sz, omegaconf.listconfig.ListConfig):
+                sz = OmegaConf.to_object(sz)
             if isinstance(sz, int):
                 # square resize
                 x = F.interpolate(x, size=[sz, sz])

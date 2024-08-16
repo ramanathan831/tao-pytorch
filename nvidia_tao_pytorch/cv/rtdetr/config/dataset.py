@@ -39,12 +39,12 @@ class RTAugmentationConfig:
     )
     train_spatial_size: List[int] = LIST_FIELD(
         arrList=[640, 640],
-        description="Input resolution to run evaluation during training.",
+        description="Input resolution to run evaluation during training. This is in the [h, w] order.",
         display_name="train spatial size"
     )
     eval_spatial_size: List[int] = LIST_FIELD(
         arrList=[640, 640],
-        description="Input resolution to run evaluation during validation and testing.",
+        description="Input resolution to run evaluation during validation and testing. This is in the [h, w] order.",
         display_name="evaluation spatial size"
     )
     distortion_prob: float = FLOAT_FIELD(

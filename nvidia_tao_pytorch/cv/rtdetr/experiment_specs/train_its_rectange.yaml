@@ -1,0 +1,58 @@
+wandb:
+  enable: True
+  project: ITS Primary detector trainings
+  entity: metropolis
+  tags:
+    - resnet50
+    - training
+    - openimages_pretrained
+    - no_drivesim
+    - 960x544 (WxH)
+  name: RN50-RTDETR OI initial experiment with no drivesim content rectangular input
+results_dir: /media/scratch.metropolis3/vpraveen/experiments/rtdetr/its_rn50_rtdetr_4gpus_960x544_v2
+train:
+  pretrained_model_path: /media/scratch.metropolis3/sean/rt-detr/rtdetr_r50_6x_openimages/checkpoint_tao.pth
+  num_gpus: 1
+  gpu_ids: [7]
+  num_nodes: 1
+  validation_interval: 12
+  optim:
+    lr_backbone: 1e-5
+    lr: 1e-4
+    lr_steps: [1000]
+    momentum: 0.9
+  num_epochs: 72
+  precision: bf16
+  enable_ema: True
+  ema:
+    decay: 0.999
+dataset:
+  train_data_sources:
+    - image_dir: /media/scratch.metropolis3/vpraveen/datasets/its_datasets/legacy_datasets/images
+      json_file: /media/scratch.metropolis3/vpraveen/datasets/its_datasets/legacy_datasets/ivasmall_people39k_dubuque.json
+  val_data_sources:
+    image_dir: /media/scratch.metropolis3/vpraveen/datasets/its_datasets/legacy_datasets_val/images
+    json_file: /media/scratch.metropolis3/vpraveen/datasets/its_datasets/legacy_datasets_val/ivasmall_people39k_dubuque_validation.json
+  num_classes: 5  # We may need to update the dataset to be 0-indexed. Currently, 0th index or background is useless.
+  batch_size: 16
+  workers: 8
+  dataset_type: serialized
+  augmentation:
+    multi_scales: [[480, 832], [512, 896], [544, 960], [544, 960], [544, 960], [576, 992], [608, 1056], [672, 1184], [704, 1216], [736, 1280], [768, 1344], [800, 1408]] # must be divisible by 32
+    train_spatial_size: [544, 960]
+    eval_spatial_size: [544, 960]
+model:
+  backbone: resnet_50
+  train_backbone: True
+  # pretrained_backbone_path: /media/scratch.metropolis3/sean/dino/resnet50-0676ba61.pth
+  return_interm_indices: [1, 2, 3]
+  dec_layers: 6
+  enc_layers: 1
+  num_queries: 300
+export:
+  gpu_id: 0
+  checkpoint: /media/scratch.metropolis3/vpraveen/experiments/rtdetr/its_rn50_rtdetr_4gpus_960x544_v2/train/rtdetr_model_latest.pth
+  onnx_file: /media/scratch.metropolis3/vpraveen/experiments/rtdetr/its_rn50_rtdetr_4gpus_960x544_v2/train/rtdetr_model_latest.onnx
+  input_width: 960
+  input_height: 544
+  opset_version: 17
