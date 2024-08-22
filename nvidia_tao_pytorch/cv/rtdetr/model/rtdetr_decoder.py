@@ -37,6 +37,8 @@ def bias_init_with_prob(prior_prob=0.01):
 
 
 class TransformerDecoderLayer(nn.Module):
+    """ Transfromer Decoder Layer module """
+
     def __init__(self,
                  d_model=256,
                  n_head=8,
@@ -45,6 +47,7 @@ class TransformerDecoderLayer(nn.Module):
                  activation="relu",
                  n_levels=4,
                  n_points=4,):
+        """ Initializes the Transformer Decoder Layer """
         super(TransformerDecoderLayer, self).__init__()
 
         # self attention
@@ -65,18 +68,12 @@ class TransformerDecoderLayer(nn.Module):
         self.dropout4 = nn.Dropout(dropout)
         self.norm3 = nn.LayerNorm(d_model)
 
-        # self._reset_parameters()
-
-    # def _reset_parameters(self):
-    #     linear_init_(self.linear1)
-    #     linear_init_(self.linear2)
-    #     xavier_uniform_(self.linear1.weight)
-    #     xavier_uniform_(self.linear2.weight)
-
     def with_pos_embed(self, tensor, pos):
+        """ Add positional Embedding to the tensor """
         return tensor if pos is None else tensor + pos
 
     def forward_ffn(self, tgt):
+        """Feed-forward network forward function"""
         return self.linear2(self.dropout3(self.activation(self.linear1(tgt))))
 
     def forward(self,
@@ -88,14 +85,9 @@ class TransformerDecoderLayer(nn.Module):
                 attn_mask=None,
                 memory_mask=None,
                 query_pos_embed=None):
+        """Forward function"""
         # self attention
         q = k = self.with_pos_embed(tgt, query_pos_embed)
-
-        # if attn_mask is not None:
-        #     attn_mask = torch.where(
-        #         attn_mask.to(torch.bool),
-        #         torch.zeros_like(attn_mask),
-        #         torch.full_like(attn_mask, float('-inf'), dtype=tgt.dtype))
 
         tgt2, _ = self.self_attn(q, k, value=tgt, attn_mask=attn_mask)
         tgt = tgt + self.dropout1(tgt2)
@@ -122,7 +114,10 @@ class TransformerDecoderLayer(nn.Module):
 
 
 class TransformerDecoder(nn.Module):
+    """Transfromer Decoder module."""
+
     def __init__(self, hidden_dim, decoder_layer, num_layers, eval_idx=-1):
+        """ Initializes the Transformer Decoder Module """
         super(TransformerDecoder, self).__init__()
         self.layers = nn.ModuleList([copy.deepcopy(decoder_layer) for _ in range(num_layers)])
         self.hidden_dim = hidden_dim
@@ -140,6 +135,7 @@ class TransformerDecoder(nn.Module):
                 query_pos_head,
                 attn_mask=None,
                 memory_mask=None):
+        """ Transformer Decoder forward function."""
         output = tgt
         dec_out_bboxes = []
         dec_out_logits = []
@@ -175,6 +171,7 @@ class TransformerDecoder(nn.Module):
 
 
 class RTDETRTransformer(nn.Module):
+    """ RT-DETR Transfromer module """
 
     def __init__(self,
                  num_classes=80,
@@ -198,7 +195,7 @@ class RTDETRTransformer(nn.Module):
                  eval_idx=-1,
                  eps=1e-2,
                  aux_loss=True):
-
+        """Initialize Encoder-Decoder Class for RT-DETR."""
         super(RTDETRTransformer, self).__init__()
         assert position_embed_type in ['sine', 'learned'], \
             f'ValueError: position_embed_type not supported {position_embed_type}!'
@@ -264,6 +261,7 @@ class RTDETRTransformer(nn.Module):
         self._reset_parameters()
 
     def _reset_parameters(self):
+        """ Reset parmaeters """
         bias = bias_init_with_prob(0.01)
 
         init.constant_(self.enc_score_head.bias, bias)
@@ -283,6 +281,7 @@ class RTDETRTransformer(nn.Module):
         init.xavier_uniform_(self.query_pos_head.layers[1].weight)
 
     def _build_input_proj_layer(self, feat_channels):
+        """Build input projection layers."""
         self.input_proj = nn.ModuleList()
         for in_channels in feat_channels:
             self.input_proj.append(
@@ -304,6 +303,7 @@ class RTDETRTransformer(nn.Module):
             in_channels = self.hidden_dim
 
     def _get_encoder_input(self, feats):
+        """Run encoder input."""
         # get projection features
         proj_feats = [self.input_proj[i](feat) for i, feat in enumerate(feats)]
         if self.num_levels > len(proj_feats):
@@ -341,6 +341,7 @@ class RTDETRTransformer(nn.Module):
                           grid_size=0.05,
                           dtype=torch.float32,
                           device='cpu'):
+        """Generate anchors."""
         if spatial_shapes is None:
             spatial_shapes = [
                 [int(self.eval_spatial_size[0] / s), int(self.eval_spatial_size[1] / s)] for s in self.feat_strides
@@ -371,6 +372,7 @@ class RTDETRTransformer(nn.Module):
                            spatial_shapes,
                            denoising_class=None,
                            denoising_bbox_unact=None):
+        """Run decoders."""
         bs, _, _ = memory.shape
         # prepare input for decoder
         if self.training or self.eval_spatial_size is None:
@@ -419,7 +421,7 @@ class RTDETRTransformer(nn.Module):
         return target, reference_points_unact.detach(), enc_topk_bboxes, enc_topk_logits
 
     def forward(self, feats, targets=None):
-
+        """Forward function."""
         # input projection and embedding
         (memory, spatial_shapes, level_start_index) = self._get_encoder_input(feats)
 
@@ -475,8 +477,9 @@ class RTDETRTransformer(nn.Module):
 
     @torch.jit.unused
     def _set_aux_loss(self, outputs_class, outputs_coord):
-        # this is a workaround to make torchscript happy, as torchscript
-        # doesn't support dictionary with non-homogeneous values, such
-        # as a dict having both a Tensor and a list.
+        """This is a workaround to make torchscript happy, as torchscript
+        doesn't support dictionary with non-homogeneous values, such
+        as a dict having both a Tensor and a list.
+        """
         return [{'pred_logits': a, 'pred_boxes': b}
                 for a, b in zip(outputs_class, outputs_coord)]

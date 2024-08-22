@@ -23,8 +23,9 @@ import torchvision.transforms.v2 as T
 
 from typing import Any, Dict, List, Optional
 
-torchvision.disable_beta_transforms_warning()
 from nvidia_tao_pytorch.cv.deformable_detr.dataloader.transforms import Compose, ResizeAndPad
+
+torchvision.disable_beta_transforms_warning()
 
 
 def build_transforms(augmentation_config, subtask_config=None, dataset_mode='train'):
@@ -70,7 +71,7 @@ def build_transforms(augmentation_config, subtask_config=None, dataset_mode='tra
             ])
         else:
             transforms = Compose([
-                T.resize(size=test_resize),
+                T.Resize(size=test_resize),
                 T.ToImage(),
                 T.ConvertImageDtype(),
             ])
@@ -81,11 +82,14 @@ def build_transforms(augmentation_config, subtask_config=None, dataset_mode='tra
 
 
 class ConvertBox(T.Transform):
+    """ConvertBox converts list to tv_tensors format."""
+
     _transformed_types = (
         tv_tensors.BoundingBoxes,
     )
 
     def __init__(self, out_fmt='', normalize=False) -> None:
+        """Init function."""
         super().__init__()
         self.out_fmt = out_fmt
         self.normalize = normalize
@@ -96,6 +100,7 @@ class ConvertBox(T.Transform):
         }
 
     def _transform(self, inpt: Any, params: Dict[str, Any]) -> Any:
+        """_transform function."""
         if self.out_fmt:
             spatial_size = inpt.canvas_size
             in_fmt = inpt.format.value.lower()
@@ -109,13 +114,16 @@ class ConvertBox(T.Transform):
 
 
 class RandomIoUCrop(T.RandomIoUCrop):
+    """RandomIoUCrop from torchvision.v2."""
 
     def __init__(self, min_scale: float = 0.3, max_scale: float = 1, min_aspect_ratio: float = 0.5,
                  max_aspect_ratio: float = 2, sampler_options: Optional[List[float]] = None, trials: int = 40, p: float = 1.0):
+        """Init function."""
         super().__init__(min_scale, max_scale, min_aspect_ratio, max_aspect_ratio, sampler_options, trials)
         self.p = p
 
     def __call__(self, *inputs: Any) -> Any:
+        """__call__ function."""
         if torch.rand(1) >= self.p:
             return inputs if len(inputs) > 1 else inputs[0]
 

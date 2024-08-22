@@ -38,10 +38,10 @@ class SetCriterion(nn.Module):
         Args:
             matcher (nn.Module): module able to compute a matching between targets and proposals.
             weight_dict (dict): dict containing as key the names of the losses and as values their relative weight.
-            num_classes (int): number of object categories, omitting the special no-object category.
             losses (list[str]): list of all the losses to be applied. See get_loss for list of available losses.
             alpha (float): alpha in Varifocal Loss.
             gamma (float): gamma in Varifocal Loss.
+            num_classes (int): number of object categories, omitting the special no-object category.
         """
         super().__init__()
         self.num_classes = num_classes
@@ -52,7 +52,20 @@ class SetCriterion(nn.Module):
         self.alpha = alpha
         self.gamma = gamma
 
-    def loss_labels_vfl(self, outputs, targets, indices, num_boxes, log=True):
+    def loss_labels_vfl(self, outputs, targets, indices, num_boxes):
+        """Varifocal loss.
+
+        Args:
+            outputs (dict[torch.Tensor]): computed outputs
+            targets (List[dict]): target annotations
+                targets dicts must contain the key "boxes" containing a tensor of dim [nb_target_boxes, 4]
+                target boxes are expected in format (center_x, center_y, w, h), normalized by the image size.
+            indices (list): matching indices
+            num_boxes (int): number of bounding boxes
+
+        Returns:
+            varifocal loss
+        """
         assert 'pred_boxes' in outputs
         idx = self._get_src_permutation_idx(indices)
 
@@ -80,9 +93,18 @@ class SetCriterion(nn.Module):
         return {'loss_vfl': loss}
 
     def loss_boxes(self, outputs, targets, indices, num_boxes):
-        """Compute the losses related to the bounding boxes, the L1 regression loss and the GIoU loss
-           targets dicts must contain the key "boxes" containing a tensor of dim [nb_target_boxes, 4]
-           The target boxes are expected in format (center_x, center_y, w, h), normalized by the image size.
+        """Compute the losses related to the bounding boxes, the L1 regression loss and the GIoU loss.
+
+        Args:
+            outputs (dict[torch.Tensor]): computed outputs
+            targets (List[dict]): target annotations
+                targets dicts must contain the key "boxes" containing a tensor of dim [nb_target_boxes, 4]
+                target boxes are expected in format (center_x, center_y, w, h), normalized by the image size.
+            indices (list): matching indices
+            num_boxes (int): number of bounding boxes
+
+        Returns:
+            bbox loss and giou loss
         """
         assert 'pred_boxes' in outputs
         idx = self._get_src_permutation_idx(indices)
@@ -101,18 +123,38 @@ class SetCriterion(nn.Module):
         return losses
 
     def _get_src_permutation_idx(self, indices):
-        # permute predictions following indices
+        """Permute predictions following indices.
+
+        Args:
+            indices (list): matching indices.
+        """
         batch_idx = torch.cat([torch.full_like(src, i) for i, (src, _) in enumerate(indices)])
         src_idx = torch.cat([src for (src, _) in indices])
         return batch_idx, src_idx
 
     def _get_tgt_permutation_idx(self, indices):
-        # permute targets following indices
+        """Permute targets following indices.
+
+        Args:
+            indices (list): matching indices.
+        """
         batch_idx = torch.cat([torch.full_like(tgt, i) for i, (_, tgt) in enumerate(indices)])
         tgt_idx = torch.cat([tgt for (_, tgt) in indices])
         return batch_idx, tgt_idx
 
     def get_loss(self, loss, outputs, targets, indices, num_boxes, **kwargs):
+        """Compute the losses related to the bounding boxes, the L1 regression loss and the GIoU loss.
+
+        Args:
+            loss (str): name of the loss to get
+            outputs (dict[torch.Tensor]): computed outputs
+            targets (List[dict]): target annotations
+            indices (list): matching indices
+            num_boxes (int): number of bounding boxes
+
+        Returns:
+            the loss value given the loss name
+        """
         loss_map = {
             'boxes': self.loss_boxes,
             'vfl': self.loss_labels_vfl,
@@ -121,11 +163,15 @@ class SetCriterion(nn.Module):
         return loss_map[loss](outputs, targets, indices, num_boxes, **kwargs)
 
     def forward(self, outputs, targets):
-        """ This performs the loss computation.
-        Parameters:
-             outputs: dict of tensors, see the output specification of the model for the format
-             targets: list of dicts, such that len(targets) == batch_size.
-                      The expected keys in each dict depends on the losses applied, see each loss' doc
+        """ Performs the loss computation.
+
+        Args:
+            outputs (dict[torch.Tensor]): dict of tensors, see the output specification of the model for the format
+            targets (List[dict]): list of dicts, such that len(targets) == batch_size.
+                    The expected keys in each dict depends on the losses applied, see each loss' doc
+
+        Returns:
+            losses (dict): Dictionary of computed losses
         """
         outputs_without_aux = {k: v for k, v in outputs.items() if 'aux' not in k}
 
@@ -190,8 +236,7 @@ class SetCriterion(nn.Module):
 
     @staticmethod
     def get_cdn_matched_indices(dn_meta, targets):
-        '''get_cdn_matched_indices
-        '''
+        """get_cdn_matched_indices."""
         dn_positive_idx, dn_num_group = dn_meta["dn_positive_idx"], dn_meta["dn_num_group"]
         num_gts = [len(t['labels']) for t in targets]
         device = targets[0]['labels'].device

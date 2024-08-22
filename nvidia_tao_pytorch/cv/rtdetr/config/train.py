@@ -117,11 +117,34 @@ class OptimConfig:
 
 
 @dataclass
-class EmaConfig:
-    decay: float = 0.999
-    every_n_steps: int = 1
-    validate_original_weights: bool = False
-    cpu_offload: bool = False
+class EMAConfig:
+    """Exponential Moving Average Config."""
+
+    decay: float = FLOAT_FIELD(
+        value=0.999,
+        math_cond="> 0.0",
+        display_name="ema decay",
+        description="The decreasing factor for the exponential moving average.",
+        automl_enabled="TRUE"
+    )
+    every_n_steps: int = INT_FIELD(
+        value=1,
+        default_value=1,
+        description="The number of steps to perform exponential moving average.",
+        display_name="every_n_steps",
+        valid_min=1,
+        valid_max="inf"
+    )
+    validate_original_weights: bool = BOOL_FIELD(
+        value=False,
+        display_name="validate original weights",
+        description="Whether to run evaluation using the non-EMA weight.",
+    )
+    cpu_offload: bool = BOOL_FIELD(
+        value=False,
+        display_name="cpu offload",
+        description="Offload EMA calculation to CPU. Note that this will significantly slow down training.",
+    )
 
 
 @dataclass
@@ -161,8 +184,8 @@ class RTTrainExpConfig(TrainConfig):
         display_name="enable ema",
         description="Whether to enable Exponential Moving Average during training."
     )
-    ema: EmaConfig = DATACLASS_FIELD(
-        EmaConfig(),
+    ema: EMAConfig = DATACLASS_FIELD(
+        EMAConfig(),
         display_name="ema",
         description="Hyper parameters to configure the Exponential Moving Average."
     )

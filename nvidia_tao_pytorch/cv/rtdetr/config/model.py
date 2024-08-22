@@ -24,7 +24,7 @@ from nvidia_tao_pytorch.config.types import (
     LIST_FIELD,
     STR_FIELD,
 )
-from nvidia_tao_pytorch.cv.rtdetr.model.resnet import resnet_model_dict
+from nvidia_tao_pytorch.cv.rtdetr.model.backbone.resnet import resnet_model_dict
 
 # TODO: @scha add more backbones
 SUPPORTED_BACKBONES = [

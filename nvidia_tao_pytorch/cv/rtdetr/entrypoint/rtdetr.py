@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Define entrypoint to run tasks for dino."""
+"""Define entrypoint to run tasks for RT-DETR."""
 
 import argparse
 from nvidia_tao_pytorch.cv.rtdetr import scripts

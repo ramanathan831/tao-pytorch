@@ -97,7 +97,7 @@ class ODDataModule(pl.LightningDataModule):
                 pred_list = [pred_list]
             classmap = pred_data_sources.get("classmap", "")
             pred_transforms = build_transforms(self.augmentation_config, subtask_config=self.subtask_config, dataset_mode='infer')
-            fixed_resolution=self.augmentation_config.eval_spatial_size if self.augmentation_config.preserve_aspect_ratio else None
+            fixed_resolution = self.augmentation_config.eval_spatial_size if self.augmentation_config.preserve_aspect_ratio else None
             self.pred_dataset = ODPredictDataset(pred_list, classmap,
                                                  transforms=pred_transforms,
                                                  start_from_one=False,

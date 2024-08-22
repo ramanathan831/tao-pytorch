@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """ RT-DETR model. """
+
 import omegaconf
 from omegaconf import OmegaConf
 
@@ -23,8 +24,10 @@ import random
 
 
 class RTDETR(nn.Module):
+    """RT-DETR Module."""
 
     def __init__(self, backbone: nn.Module, encoder, decoder, multi_scale=None):
+        """Init function."""
         super().__init__()
         self.backbone = backbone
         self.decoder = decoder
@@ -32,6 +35,7 @@ class RTDETR(nn.Module):
         self.multi_scale = multi_scale
 
     def forward(self, x, targets=None):
+        """Forward function."""
         if self.multi_scale and self.training:
             sz = random.choice(self.multi_scale)
             # Convert omegaconf listconfig when reading lists from the experiment config.
@@ -51,6 +55,7 @@ class RTDETR(nn.Module):
         return x
 
     def deploy(self):
+        """Convert to deploy mode."""
         self.eval()
         for m in self.modules():
             if hasattr(m, 'convert_to_deploy'):

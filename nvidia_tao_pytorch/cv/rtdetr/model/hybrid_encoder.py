@@ -23,7 +23,10 @@ from nvidia_tao_pytorch.cv.dino.model.model_utils import _get_activation_fn
 
 
 class ConvNormLayer(nn.Module):
+    """Conv + BatchNorm layer"""
+
     def __init__(self, ch_in, ch_out, kernel_size, stride, padding=None, bias=False, act=None):
+        """Init function."""
         super().__init__()
         self.conv = nn.Conv2d(
             ch_in,
@@ -36,11 +39,15 @@ class ConvNormLayer(nn.Module):
         self.act = nn.Identity() if act is None else _get_activation_fn(act)
 
     def forward(self, x):
+        """Forward function."""
         return self.act(self.norm(self.conv(x)))
 
 
 class RepVggBlock(nn.Module):
+    """RepVgg Block."""
+
     def __init__(self, ch_in, ch_out, act='relu'):
+        """Init function."""
         super().__init__()
         self.ch_in = ch_in
         self.ch_out = ch_out
@@ -49,6 +56,7 @@ class RepVggBlock(nn.Module):
         self.act = nn.Identity() if act is None else _get_activation_fn(act)
 
     def forward(self, x):
+        """Forward function."""
         if hasattr(self, 'conv'):
             y = self.conv(x)
         else:
@@ -57,6 +65,7 @@ class RepVggBlock(nn.Module):
         return self.act(y)
 
     def convert_to_deploy(self):
+        """Convert the module for deployment."""
         if not hasattr(self, 'conv'):
             self.conv = nn.Conv2d(self.ch_in, self.ch_out, 3, 1, padding=1)
 
@@ -65,18 +74,21 @@ class RepVggBlock(nn.Module):
         self.conv.bias.data = bias
 
     def get_equivalent_kernel_bias(self):
+        """get equivalent kernel bias."""
         kernel3x3, bias3x3 = self._fuse_bn_tensor(self.conv1)
         kernel1x1, bias1x1 = self._fuse_bn_tensor(self.conv2)
 
         return kernel3x3 + self._pad_1x1_to_3x3_tensor(kernel1x1), bias3x3 + bias1x1
 
     def _pad_1x1_to_3x3_tensor(self, kernel1x1):
+        """pad 1x1 to 3x3 tensor."""
         if kernel1x1 is None:
             return 0
         else:
             return F.pad(kernel1x1, [1, 1, 1, 1])
 
     def _fuse_bn_tensor(self, branch: ConvNormLayer):
+        """Fuse BatchNorm tensors."""
         if branch is None:
             return 0, 0
         kernel = branch.conv.weight
@@ -91,6 +103,8 @@ class RepVggBlock(nn.Module):
 
 
 class CSPRepLayer(nn.Module):
+    """CSPRep Layer."""
+
     def __init__(self,
                  in_channels,
                  out_channels,
@@ -98,6 +112,7 @@ class CSPRepLayer(nn.Module):
                  expansion=1.0,
                  bias=None,
                  act="silu"):
+        """Init function."""
         super(CSPRepLayer, self).__init__()
         hidden_channels = int(out_channels * expansion)
         self.conv1 = ConvNormLayer(in_channels, hidden_channels, 1, 1, bias=bias, act=act)
@@ -111,6 +126,7 @@ class CSPRepLayer(nn.Module):
             self.conv3 = nn.Identity()
 
     def forward(self, x):
+        """Forward function."""
         x_1 = self.conv1(x)
         x_1 = self.bottlenecks(x_1)
         x_2 = self.conv2(x)
@@ -118,6 +134,8 @@ class CSPRepLayer(nn.Module):
 
 
 class TransformerEncoderLayer(nn.Module):
+    """Transformer Encoder Layer."""
+
     def __init__(self,
                  d_model,
                  nhead,
@@ -125,6 +143,7 @@ class TransformerEncoderLayer(nn.Module):
                  dropout=0.1,
                  activation="relu",
                  normalize_before=False):
+        """Init function."""
         super().__init__()
         self.normalize_before = normalize_before
 
@@ -142,9 +161,11 @@ class TransformerEncoderLayer(nn.Module):
 
     @staticmethod
     def with_pos_embed(tensor, pos_embed):
+        """ Add positional embedding to the tensor """
         return tensor if pos_embed is None else tensor + pos_embed
 
     def forward(self, src, src_mask=None, pos_embed=None) -> torch.Tensor:
+        """Forward function."""
         residual = src
         if self.normalize_before:
             src = self.norm1(src)
@@ -166,13 +187,17 @@ class TransformerEncoderLayer(nn.Module):
 
 
 class TransformerEncoder(nn.Module):
+    """Transformer Encoder Module."""
+
     def __init__(self, encoder_layer, num_layers, norm=None):
+        """Init function."""
         super(TransformerEncoder, self).__init__()
         self.layers = nn.ModuleList([copy.deepcopy(encoder_layer) for _ in range(num_layers)])
         self.num_layers = num_layers
         self.norm = norm
 
     def forward(self, src, src_mask=None, pos_embed=None) -> torch.Tensor:
+        """Forward function."""
         output = src
         for layer in self.layers:
             output = layer(output, src_mask=src_mask, pos_embed=pos_embed)
@@ -184,6 +209,8 @@ class TransformerEncoder(nn.Module):
 
 
 class HybridEncoder(nn.Module):
+    """Hybrid Encoder Module."""
+
     def __init__(self,
                  in_channels=[512, 1024, 2048],
                  feat_strides=[8, 16, 32],
@@ -199,6 +226,7 @@ class HybridEncoder(nn.Module):
                  depth_mult=1.0,
                  act='silu',
                  eval_spatial_size=None):
+        """Init function."""
         super().__init__()
         self.in_channels = in_channels
         self.feat_strides = feat_strides
@@ -256,6 +284,7 @@ class HybridEncoder(nn.Module):
         self._reset_parameters()
 
     def _reset_parameters(self):
+        """ Reset parmaeters """
         if self.eval_spatial_size:
             for idx in self.use_encoder_idx:
                 stride = self.feat_strides[idx]
@@ -283,6 +312,7 @@ class HybridEncoder(nn.Module):
         return torch.concat([out_w.sin(), out_w.cos(), out_h.sin(), out_h.cos()], dim=1)[None, :, :]
 
     def forward(self, feats):
+        """Forward function."""
         assert len(feats) == len(self.in_channels), f"{[f.shape[1] for f in feats]} and {self.in_channels}"
         proj_feats = [self.input_proj[i](feat) for i, feat in enumerate(feats)]
 

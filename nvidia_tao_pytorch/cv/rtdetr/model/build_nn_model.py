@@ -20,8 +20,11 @@ from nvidia_tao_pytorch.core.distributed.comm import get_global_rank
 from nvidia_tao_pytorch.core.tlt_logging import logging
 from nvidia_tao_pytorch.cv.deformable_detr.utils.misc import load_pretrained_weights
 
-from nvidia_tao_pytorch.cv.rtdetr.model.resnet import resnet_model_dict
-from nvidia_tao_pytorch.cv.rtdetr.model.convnext import convnext_model_dict
+from nvidia_tao_pytorch.cv.rtdetr.model.backbone.resnet import resnet_model_dict
+from nvidia_tao_pytorch.cv.rtdetr.model.backbone.convnext import convnext_model_dict
+from nvidia_tao_pytorch.cv.rtdetr.model.backbone.fan import fan_model_dict
+from nvidia_tao_pytorch.cv.rtdetr.model.backbone.efficientvit import efficientvit_model_dict
+
 from nvidia_tao_pytorch.cv.rtdetr.model.hybrid_encoder import HybridEncoder
 from nvidia_tao_pytorch.cv.rtdetr.model.rtdetr_decoder import RTDETRTransformer
 from nvidia_tao_pytorch.cv.rtdetr.model.rtdetr import RTDETR
@@ -57,7 +60,8 @@ class RTDETRModel(nn.Module):
                  num_decoder_layers=6,
                  num_denoising=100,
                  eval_idx=-1,
-                 multi_scale=[480, 512, 544, 576, 608, 640, 640, 640, 672, 704, 736, 768, 800]
+                 multi_scale=[480, 512, 544, 576, 608, 640, 640, 640, 672, 704, 736, 768, 800],
+                 activation_checkpoint=False,
                  ):
         """Initialize RT-DETR Model.
 
@@ -89,6 +93,22 @@ class RTDETRModel(nn.Module):
                     return m["model"]
                 return m
             parser = conv_parse
+        elif backbone_name.startswith('fan'):
+            backbone = fan_model_dict[backbone_name](
+                out_indices, activation_checkpoint=activation_checkpoint,
+            )
+            for name, parameter in backbone.named_parameters():
+                if not train_backbone:
+                    parameter.requires_grad_(False)
+            in_channels = [o for i, o in enumerate(backbone.out_channels) if i in out_indices]
+        elif backbone_name.startswith('efficientvit'):
+            backbone = efficientvit_model_dict[backbone_name](
+                out_indices
+            )
+            for name, parameter in backbone.named_parameters():
+                if not train_backbone:
+                    parameter.requires_grad_(False)
+            in_channels = backbone.out_channels
         else:
             raise NotImplementedError(f"{backbone_name} is not supported")
 
@@ -183,6 +203,8 @@ def build_model(experiment_config,
     feat_channels = model_config.feat_channels
     eval_idx = model_config.eval_idx
 
+    activation_checkpoint = experiment_config.train.activation_checkpoint
+
     model = RTDETRModel(
         backbone_name=backbone,
         train_backbone=train_backbone,
@@ -211,5 +233,6 @@ def build_model(experiment_config,
         num_decoder_layers=num_decoder_layers,
         num_denoising=num_denoising,
         eval_idx=eval_idx,
+        activation_checkpoint=activation_checkpoint,
     )
     return model
