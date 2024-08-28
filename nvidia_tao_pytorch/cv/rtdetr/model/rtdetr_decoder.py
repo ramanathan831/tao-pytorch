@@ -200,7 +200,7 @@ class RTDETRTransformer(nn.Module):
         assert position_embed_type in ['sine', 'learned'], \
             f'ValueError: position_embed_type not supported {position_embed_type}!'
         assert len(feat_channels) <= num_levels
-        assert len(feat_strides) == len(feat_channels)
+        assert len(feat_strides) == len(feat_channels), f"{feat_strides} {feat_channels}"
         for _ in range(num_levels - len(feat_strides)):
             feat_strides.append(feat_strides[-1] * 2)
 

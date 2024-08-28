@@ -25,10 +25,15 @@ from nvidia_tao_pytorch.config.types import (
     STR_FIELD,
 )
 from nvidia_tao_pytorch.cv.rtdetr.model.backbone.resnet import resnet_model_dict
+from nvidia_tao_pytorch.cv.rtdetr.model.backbone.convnext import convnext_model_dict
+from nvidia_tao_pytorch.cv.rtdetr.model.backbone.fan import fan_model_dict
+from nvidia_tao_pytorch.cv.rtdetr.model.backbone.efficientvit import efficientvit_model_dict
 
-# TODO: @scha add more backbones
 SUPPORTED_BACKBONES = [
     *list(resnet_model_dict.keys()),
+    *list(convnext_model_dict.keys()),
+    *list(fan_model_dict.keys()),
+    *list(efficientvit_model_dict.keys()),
 ]
 
 
@@ -94,6 +99,17 @@ class RTModelConfig:
         description="The stride used as grid size of positional embedding at each encoder layer.",
         display_name="feature strides"
     )
+    feat_channels: List[int] = LIST_FIELD(
+        arrList=[256, 256, 256],
+        description="The feature channel sizes in decoder.",
+        display_name="feature channels"
+    )
+    use_encoder_idx: List[int] = LIST_FIELD(
+        arrList=[2],
+        description="The index of multi-scale backbone features to pass to encoder.",
+        display_name="use encoder index"
+    )
+
     hidden_dim: int = INT_FIELD(
         value=256,
         default_value=256,
@@ -130,11 +146,6 @@ class RTModelConfig:
         valid_min=1,
     )
 
-    use_encoder_idx: List[int] = LIST_FIELD(
-        arrList=[2],
-        description="The index of multi-scale backbone features to pass to encoder.",
-        display_name="use encoder index"
-    )
     pe_temperature: int = INT_FIELD(
         value=10000,
         default_value=10000,
@@ -187,11 +198,6 @@ class RTModelConfig:
         display_name="denoising number",
         valid_min=0,
         valid_max="inf"
-    )
-    feat_channels: List[int] = LIST_FIELD(
-        arrList=[256, 256, 256],
-        description="The index of feature channel size in decoder.",
-        display_name="feature channels"
     )
     eval_idx: int = INT_FIELD(
         value=-1,

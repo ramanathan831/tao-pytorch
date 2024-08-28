@@ -67,6 +67,7 @@ setuptools.setup(
             'deformable_detr=nvidia_tao_pytorch.cv.deformable_detr.entrypoint.deformable_detr:main',
             'dino=nvidia_tao_pytorch.cv.dino.entrypoint.dino:main',
             'grounding_dino=nvidia_tao_pytorch.cv.grounding_dino.entrypoint.grounding_dino:main',
+            'rtdetr=nvidia_tao_pytorch.cv.rtdetr.entrypoint.rtdetr:main',
             'mask_grounding_dino=nvidia_tao_pytorch.cv.mask_grounding_dino.entrypoint.mask_grounding_dino:main',
             'pose_classification=nvidia_tao_pytorch.cv.pose_classification.entrypoint.pose_classification:main',
             're_identification=nvidia_tao_pytorch.cv.re_identification.entrypoint.re_identification:main',

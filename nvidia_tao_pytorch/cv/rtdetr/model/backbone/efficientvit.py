@@ -124,6 +124,8 @@ class EfficientViT(nn.Module):
             self.width_list.append(in_channels)
         self.stages = nn.ModuleList(self.stages)
         self.activation_checkpoint = activation_checkpoint
+        self.out_channels = width_list[2:]
+
         # add a norm layer for each output
         for i_layer in out_indices:
             layer = nn.LayerNorm(width_list[1:][i_layer])
@@ -166,9 +168,9 @@ class EfficientViT(nn.Module):
         """Forward function."""
         outs = []
         # Stem
-        x = self.stages[0](x)
+        x = self.input_stem(x)
 
-        for idx, stage in enumerate(self.stages[1:]):
+        for idx, stage in enumerate(self.stages):
             # Disable activation checkpointing during ONNX export
             if torch.onnx.is_in_onnx_export() or not self.activation_checkpoint:
                 x = stage(x)
@@ -280,7 +282,7 @@ class EfficientViTLarge(nn.Module):
             self.width_list.append(in_channels)
         self.stages = nn.ModuleList(self.stages)
 
-        self.out_channels = width_list[2:]  # TODO: @scha don't hardcode
+        self.out_channels = width_list[2:]
 
         self.activation_checkpoint = activation_checkpoint
         # add a norm layer for each output
@@ -347,7 +349,6 @@ class EfficientViTLarge(nn.Module):
             else:
                 x = checkpoint.checkpoint(stage, x)
 
-            x = stage(x)
             if idx in self.out_indices:
                 norm_layer = getattr(self, f"norm{idx}")
                 out = norm_layer(x.permute(0, 2, 3, 1).contiguous())

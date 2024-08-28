@@ -77,7 +77,7 @@ class RTDETRModel(nn.Module):
             for name, parameter in backbone.named_parameters():
                 if not train_backbone or 'layer2' not in name and 'layer3' not in name and 'layer4' not in name:
                     parameter.requires_grad_(False)
-            in_channels = backbone_name.out_channels
+            in_channels = backbone.out_channels
         elif backbone_name.startswith('convnext'):
             backbone = convnext_model_dict[backbone_name](
                 out_indices
@@ -87,12 +87,12 @@ class RTDETRModel(nn.Module):
                     parameter.requires_grad_(False)
             in_channels = backbone.out_channels
 
-            def conv_parse(m):
+            def parse_convnext_ptm(m):
                 """Parse official checkpoint from Meta"""
                 if "model" in m:
                     return m["model"]
                 return m
-            parser = conv_parse
+            parser = parse_convnext_ptm
         elif backbone_name.startswith('fan'):
             backbone = fan_model_dict[backbone_name](
                 out_indices, activation_checkpoint=activation_checkpoint,
@@ -109,6 +109,14 @@ class RTDETRModel(nn.Module):
                 if not train_backbone:
                     parameter.requires_grad_(False)
             in_channels = backbone.out_channels
+
+            def parse_efficientvit_ptm(m):
+                """Parse official checkpoint from MIT"""
+                if "state_dict" in m:
+                    return {k.replace("backbone.", ""): v for k, v in m['state_dict'].items()}
+                else:
+                    return {k.replace("backbone.", ""): v for k, v in m.items()}
+            parser = parse_efficientvit_ptm
         else:
             raise NotImplementedError(f"{backbone_name} is not supported")
 
@@ -201,6 +209,7 @@ def build_model(experiment_config,
     num_decoder_layers = model_config.dec_layers
     num_denoising = model_config.dn_number
     feat_channels = model_config.feat_channels
+    feat_strides = model_config.feat_strides
     eval_idx = model_config.eval_idx
 
     activation_checkpoint = experiment_config.train.activation_checkpoint
@@ -229,6 +238,7 @@ def build_model(experiment_config,
         act=act,
         # Decoder
         feat_channels=feat_channels,
+        feat_strides=feat_strides,
         num_levels=num_levels,
         num_decoder_layers=num_decoder_layers,
         num_denoising=num_denoising,

@@ -200,7 +200,7 @@ class RTTrainExpConfig(TrainConfig):
         description="Precision to run the training on.",
         display_name="precision",
         valid_options=",".join([
-            "bf16", "fp32",
+            "bf16", "fp32", "fp16"
         ])
     )
     distributed_strategy: str = STR_FIELD(

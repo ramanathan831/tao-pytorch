@@ -9,6 +9,7 @@ train:
     momentum: 0.9
   num_epochs: 72
   precision: fp32
+  activation_checkpoint: False
   enable_ema: True
   ema:
     decay: 0.9999
@@ -22,15 +23,17 @@ dataset:
     image_dir: /home/scratch.p3/sean/datasets/coco/raw-data/val2017/
     json_file: /home/scratch.p3/sean/datasets/coco/raw-data/annotations/instances_val2017.json
   num_classes: 80
-  batch_size: 16
+  batch_size: 4
   workers: 8
   dataset_type: serialized
   remap_mscoco_category: True
 model:
-  backbone: convnext_base
+  # backbone: efficientvit_b0
+  backbone: efficientvit_l2
   train_backbone: True
-  # pretrained_backbone_path: /home/scratch.p3/sean/dino/resnet50-0676ba61.pth
-  pretrained_backbone_path: /home/scratch.p3/sean/rt-detr/convnext/convnext_base_22k_224.pth
+  pretrained_backbone_path: /home/scratch.p3/sean/rt-detr/efficientvit_l2_nvimagenet.pth
+  # pretrained_backbone_path: /home/scratch.p3/sean/dino/fan_hybrid_small.pth.tar
+  # pretrained_backbone_path: /home/scratch.p3/sean/rt-detr/convnext/convnext_base_22k_224.pth
   return_interm_indices: [1, 2, 3]
   dec_layers: 6
   enc_layers: 1

@@ -171,6 +171,7 @@ class ConvNeXt(nn.Module):
         #         padding=1
         #     )
         #     self.conv_upsample.append(conv)
+        assert len(self.return_idx) == 3, f"ConvNext only supports num_feature_levels == 3, Got {len(self.return_idx)}"
         self.conv_512 = nn.Conv2d(dims[self.return_idx[0]], 512, kernel_size=3, stride=1, padding=1)
         self.conv_1024 = nn.Conv2d(dims[self.return_idx[1]], 1024, kernel_size=3, stride=1, padding=1)
         self.conv_2048 = nn.Conv2d(dims[self.return_idx[2]], 2048, kernel_size=3, stride=1, padding=1)
