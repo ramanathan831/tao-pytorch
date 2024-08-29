@@ -109,14 +109,6 @@ class RTDETRModel(nn.Module):
                 if not train_backbone:
                     parameter.requires_grad_(False)
             in_channels = backbone.out_channels
-
-            def parse_efficientvit_ptm(m):
-                """Parse official checkpoint from MIT"""
-                if "state_dict" in m:
-                    return {k.replace("backbone.", ""): v for k, v in m['state_dict'].items()}
-                else:
-                    return {k.replace("backbone.", ""): v for k, v in m.items()}
-            parser = parse_efficientvit_ptm
         else:
             raise NotImplementedError(f"{backbone_name} is not supported")
 
