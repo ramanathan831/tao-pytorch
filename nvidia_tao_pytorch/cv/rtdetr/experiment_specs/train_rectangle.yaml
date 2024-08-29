@@ -9,24 +9,27 @@ train:
     momentum: 0.9
   num_epochs: 72
   precision: bf16
-  activation_checkpoint: True
   enable_ema: True
   ema:
     decay: 0.999
 dataset:
   train_data_sources:
-    - image_dir: "???"
-      json_file: "???"
+    - image_dir: ???
+      json_file: ???
   val_data_sources:
-    image_dir: "???"
-    json_file: "???"
+    image_dir: ???
+    json_file: ???
   num_classes: 80
   batch_size: 4
   workers: 8
   dataset_type: serialized
   remap_mscoco_category: True  # Set this to True only if you're running COCO training
+  augmentation:
+    multi_scales: [[480, 832], [512, 896], [544, 960], [544, 960], [544, 960], [576, 992], [608, 1056], [672, 1184], [704, 1216], [736, 1280], [768, 1344], [800, 1408]]  # must be divisible by 32
+    train_spatial_size: [544, 960]  # rectangular images
+    eval_spatial_size: [544, 960]
 model:
-  backbone: fan_small
+  backbone: resnet_50
   train_backbone: True
   pretrained_backbone_path: "???"
   return_interm_indices: [1, 2, 3]

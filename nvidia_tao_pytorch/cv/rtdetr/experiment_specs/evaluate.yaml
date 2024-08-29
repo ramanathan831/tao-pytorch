@@ -1,10 +1,6 @@
-results_dir: /tmp
 evaluate:
   num_gpus: 1
-  conf_threshold: 0.0
-  # checkpoint: /home/scratch.p3/sean/rt-detr/rtdetr_r50_1x_rectangle_astro2.2_delta/checkpoint_tao.pth
-  # checkpoint: /home/scratch.p3/sean/rt-detr/rtdetr_r50_6x_coco/checkpoint_tao.pth
-  checkpoint: /home/scratch.p3/sean/rt-detr/rtdetr_efficientvit_l2_r384_6x_coco/checkpoint_tao.pth
+  checkpoint: /home/scratch.p3/sean/rt-detr/rtdetr_efficientvit_l2_6x_openimages/checkpoint_tao.pth
 dataset:
   test_data_sources:
     image_dir: /home/scratch.p3/sean/datasets/coco/raw-data/val2017/
