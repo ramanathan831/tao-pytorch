@@ -1,8 +1,7 @@
-results_dir: /home/scratch.p3/sean/rt-detr/tao_integration
 export:
   gpu_id: 0
-  checkpoint: /home/scratch.p3/sean/rt-detr/rtdetr_efficientvit_l2_r384_6x_coco/checkpoint_tao.pth
-  onnx_file: /home/scratch.p3/sean/rt-detr/rtdetr_efficientvit_l2_r384_6x_coco/checkpoint_tao.onnx
+  checkpoint: "???"
+  onnx_file: "???"
   input_width: 640
   input_height: 640
   opset_version: 17
@@ -10,7 +9,7 @@ dataset:
   num_classes: 80
   remap_mscoco_category: True
 model:
-  backbone: efficientvit_l2
+  backbone: fan_small
   return_interm_indices: [1, 2, 3]
   dec_layers: 6
   enc_layers: 1

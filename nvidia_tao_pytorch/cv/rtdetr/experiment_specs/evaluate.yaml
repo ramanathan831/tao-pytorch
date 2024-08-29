@@ -1,18 +1,16 @@
 evaluate:
   num_gpus: 1
-  checkpoint: /home/scratch.p3/sean/rt-detr/rtdetr_efficientvit_l2_6x_openimages/checkpoint_tao.pth
+  checkpoint: "???"
 dataset:
   test_data_sources:
-    image_dir: /home/scratch.p3/sean/datasets/coco/raw-data/val2017/
-    json_file: /home/scratch.p3/sean/datasets/coco/raw-data/annotations/instances_val2017.json
-    # image_dir: /
-    # json_file: /home/scratch.p3/sean/datasets/astro2.2/astro2.2_val_drive.json
+    image_dir: "???"
+    json_file: "???"
   num_classes: 80
   batch_size: 16
   workers: 8
   remap_mscoco_category: True
 model:
-  backbone: efficientvit_l2
+  backbone: fan_small
   return_interm_indices: [1, 2, 3]
   dec_layers: 6
   enc_layers: 1
