@@ -1,0 +1,257 @@
+def getPulseToken() {
+    def token
+    echo "getting token !!"
+    sh "apk update"
+    sh "apk add curl jq wget python3 py3-pip"
+    token = sh(script: """
+        curl --location --request POST 'https://x9thwm-cootr2q1jdv5p7b8iw4fs4ob3x6nqqsoznyk.ssa.nvidia.com/token' \
+            --user 'nvssa-prd-4tRcjNpunCJVFgVq7o1iYtC9pWIX-RxopTGdLecMinQ:ssap-q829TuK8H09ehhjV7Yx' \
+            --header 'Content-Type: application/x-www-form-urlencoded' \
+            --data-urlencode 'grant_type=client_credentials' \
+            --data-urlencode 'scope=nspect.verify scan.anchore' | jq -r '.access_token'
+    """, returnStdout: true).trim()
+    echo "${token}"
+    return token
+}
+
+podTemplate (cloud:'sc-ipp-blossom-prod', yaml : """
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    some-label: some-label-value
+spec:
+  imagePullSecrets:
+  - name: svc-tlt-ci-ngcimagepullsecret
+  - name: gitlab-tao-imagepullsecret
+  containers:
+  - name: docker
+    image: docker:24.0.5-dind
+    securityContext:
+      privileged: true
+    resources:
+      requests:
+        memory: "32Gi"
+      limits:
+        memory: "48Gi"
+    env:
+      - name: DOCKER_TLS_CERTDIR
+        value: ""
+  - name: base-image
+    image: nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:ff920080025e2dd12d5740c3d722f0630f1f84630ae6f55e56f872d4914fca03
+    securityContext:
+      privileged: true
+    command:
+    - cat
+    resources:
+      requests:
+        nvidia.com/gpu: 1
+        memory: "16Gi"
+      limits:
+        nvidia.com/gpu: 1
+        memory: "48Gi"
+    tty: true
+  restartPolicy: Never
+  backoffLimit: 4
+  nodeSelector:
+    kubernetes.io/os: linux
+    nvidia.com/gpu_type: A40
+    nvidia.com/driver_version: "525.60.13"
+""") {
+  node(POD_LABEL) {
+    container('base-image') {
+      def command_env = ''
+
+      stage ('checkout') {
+        gitlabCommitStatus(name: "checkout", connection: gitLabConnection('git-lab-master')) {
+          checkout scm
+          // Adding this since 22.05+ containers need this in git.
+          sh "git config --global --add safe.directory $WORKSPACE && ls -lrt"
+        }
+      }
+
+      stage ('smi') {
+        gitlabCommitStatus(name: "smi", connection: gitLabConnection('git-lab-master')) {
+          checkout scm
+          // Adding this since 22.05+ containers need this in git.
+          sh "nvidia-smi"
+        }
+      }
+
+      stage ('setup') {
+        gitlabCommitStatus(name: "setup", connection: gitLabConnection('git-lab-master')) {
+          sh "ls -rlt ./"
+          sh "ls -lh ./tests/" // check if lfs pull is successfull
+          sh "source scripts/envsetup.sh"
+        }
+      }
+
+      stage ('setup_scratch_space') {
+        sh 'apt-get update'
+        sh 'apt-get install cifs-utils -y'
+        sh 'env | sort'
+        sh 'mkdir -p /home/scratch.metropolis2'
+        sh 'ls -l /home/scratch.metropolis2'
+        withCredentials([usernamePassword(credentialsId: 'svc-tlt-ci-mount', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]){
+            sh 'mount -t cifs -o "vers=2.0,username=${USERNAME},password=${PASSWORD},dom=nvidia.com,dir_mode=0444,file_mode=0444" //dc2-cdot49-sw-svm02/scratch.metropolis2 /home/scratch.metropolis2'
+        }
+        sh 'ls -l /home/scratch.metropolis2'
+      }
+    }
+
+    // @achafale to un-comment when checkmarx issue is fixed
+    // container("docker"){
+    //   stage ('checkmarx-scans') {
+    //     gitlabCommitStatus(name: "checkmarx-scan-test", connection: gitLabConnection('git-lab-master')) {
+    //       withCredentials([usernamePassword(credentialsId: 'checkmarx-ac-account', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]){
+    //         withEnv([
+    //         "CHECKMARX_USERNAME=${USERNAME}",
+    //         "CHECKMARX_PASSWORD=${PASSWORD}",
+    //         "CX_TEAM=CxServer/SP/Company/TLT",
+    //         "CX_PROJECT=TAO-PyTorch",
+    //         "CHECKMARX_BASE_URL=https://checkmarx.nvidia.com",
+    //         "CHECKMARX_VERSION=9.0",
+    //         "CHECKMARX_SETTINGS_OVERRIDE=false",
+    //         "CHECKMARX_CONFIGURATION=Default Configuration",
+    //         "CHECKMARX_SCAN_PRESET=Checkmarx Default",
+    //         "CX_FLOW_BREAK_BUILD=true",
+    //         "CX_FLOW_ZIP_EXCLUDE=.git*,.github,dist\\/.*,allowlist\\/.*,ci\\/.*,docker\\/.*,runner\\/.*,tests\\/.*,release\\/.*,scripts\\/.*,third_party\\/.*,tao-converter\\/.*",
+    //         "CX_PARAMS=''"
+    //         ]){
+    //           docker.withRegistry('https://gitlab-master.nvidia.com:5005', 'jenkins-TLT-pkg') {
+    //             def img = 'pstooling/images/base-images/debian:cxflow-latest-prodsec-stable'
+    //             docker.image(img).inside("--entrypoint=''") {
+    //               sh '/app/check_variables.sh jenkins'
+    //               sh """
+    //               java -jar /app/cx-flow.jar \
+    //               --scan \
+    //               --bug-tracker="Csv" \
+    //               --csv.file-name-format="[TEAM]-[PROJECT]-[TIME].csv" \
+    //               --csv.include-headers="true" \
+    //               --csv.data-folder="checkmarx" \
+    //               --app="${CX_PROJECT}" \
+    //               --cx-team="${CX_TEAM}" \
+    //               --cx-project="${CX_PROJECT}" \
+    //               --spring.profiles.active="sast" \
+    //               --f=. \
+    //               ${CX_PARAMS}
+    //               """
+    //               sh '/app/check_timeout.sh'
+    //             }
+    //           }
+    //         }
+    //       }
+    //     }
+    //   }
+    // }
+
+    container('base-image') {
+      def workspace_path = pwd()
+      def pythonpath_env = 'PYTHONPATH=' + workspace_path + ':$PYTHONPATH'
+      def ci_path_env = 'CI_PROJECT_DIR=' + workspace_path
+      command_env = pythonpath_env + ' ' + ci_path_env
+
+      stage ('static_tests') {
+        gitlabCommitStatus(name: "static_tests", connection: gitLabConnection('git-lab-master')) {
+          sh "${command_env} python3 ci/run_static_tests.py"
+        }
+      }
+
+      stage ("functional_tests") {
+        gitlabCommitStatus(name: "functional_tests", connection: gitLabConnection('git-lab-master')) {
+          sh "python3 setup.py develop"
+          sh "${command_env} python3 ci/run_functional_tests.py"
+        }
+      }
+
+      stage ('build_wheel') {
+        gitlabCommitStatus(name: "build_wheel", connection: gitLabConnection('git-lab-master')) {
+            // Building the wheels for the tao source code.
+            def pytorch_cuda = 'TORCH_CUDA_ARCH_LIST="5.3 6.0 6.1 7.0 7.5 8.0 8.6 9.0"'
+            def BUILD_TYPE="dev"
+            def TAO_WHEEL_VERSION="5.2.0"
+            def VER="${TAO_WHEEL_VERSION}.${BUILD_NUMBER}.${BUILD_TYPE}0"
+            def PYTHON_VER="cp310-cp310"
+            def ARCH="linux_x86_64"
+            sh "echo '${BUILD_NUMBER}-${BUILD_TYPE}' > build.info"
+            build_env = command_env + pytorch_cuda
+            sh "${command_env} bash ${WORKSPACE}/release/docker/build_wheel.sh"
+            sh "python3 -m pip install dist/nvidia_tao_pytorch-${VER}-${PYTHON_VER}-${ARCH}.whl --force-reinstall"
+            sh "action_recognition --help"
+        }
+      }
+      stage ('cleanup_scratch_space') {
+        sh 'umount /home/scratch.metropolis2'
+        sh 'ls -l /home/scratch.metropolis2'
+      }
+
+    }
+    
+    container("docker"){
+      // stage ('wheeltamer_tests') {
+      //   gitlabCommitStatus(name: "wheeltamer_tests", connection: gitLabConnection('git-lab-master')) {
+      //     docker.withRegistry('https://gitlab-master.nvidia.com:5005', 'jenkins-TLT-pkg') {
+      //       // Pull wheeltamer container and run wheeltamer test
+      //       sh "docker pull gitlab-master.nvidia.com:5005/dl/pypi/wheel-ci-cd:wheeltamer"
+      //       sh "docker run --rm -v ${WORKSPACE}/dist:/workspace \
+      //           -e 'EXPECTED_PKG_LICENSE=NVIDIA Proprietary Software' \
+      //           -e 'ALLOWED_NOSEC_COUNT=0' \
+      //           gitlab-master.nvidia.com:5005/dl/pypi/wheel-ci-cd:wheeltamer /bin/bash -c 'wheeltamer'"
+      //     }
+      //   }
+      // }
+
+      stage ('release_docker_build') {
+        gitlabCommitStatus(name: "release_docker_build", connection: gitLabConnection('git-lab-master')) {
+          withEnv(["TAO_VERSION=5.2.0", "IMAGE_NAME=nvcr.io/nvstaging/tao/tao-toolkit-pyt", "CUDA_VERSION=12.2"]){
+            docker.withRegistry('https://nvcr.io', 'NGC_API_KEY'){
+              sh "docker build -t ${IMAGE_NAME}:v${TAO_VERSION}-${BUILD_NUMBER}-dev-cuda${CUDA_VERSION} --network=host -f ${WORKSPACE}/release/docker/Dockerfile ${WORKSPACE}"
+              sh "docker push ${IMAGE_NAME}:v${TAO_VERSION}-${BUILD_NUMBER}-dev-cuda${CUDA_VERSION}"
+            }
+          }
+        }
+      }
+
+      // Todo: @schafale to uncomment after issue in the prod-sec code-base has been resolved
+      // stage ('pulse_oss_scan') {
+      //   gitlabCommitStatus(name: "pulse_oss_scan", connection: gitLabConnection('git-lab-master')) {
+      //     withEnv(["TAO_VERSION=5.2.0", "IMAGE_NAME=nvcr.io/nvstaging/tao/tao-toolkit-pyt", "CUDA_VERSION=12.2"]){
+      //       docker.withRegistry('https://nvcr.io', 'NGC_API_KEY') {
+      //         docker.withRegistry('https://gitlab-master.nvidia.com:5005', 'jenkins-TLT-pkg') {
+      //           def NSPECT_ID="NSPECT-76DN-OP7I"
+      //           def SSA_TOKEN=getPulseToken()
+      //           def CONTAINER_TAG="${IMAGE_NAME}:v${TAO_VERSION}-${BUILD_NUMBER}-dev-cuda${CUDA_VERSION}"
+      //           def CONTAINER_ARCHIVE="container_image.tar"
+      //           def CONTAINER_SCAN_POLICY="allowlist/tao_24_03_sec_policy_v2.json"
+      //           try {
+      //             sh """
+      //               docker save ${CONTAINER_TAG} > ${CONTAINER_ARCHIVE}
+      //               wget https://raw.githubusercontent.com/achafale/Jenkins-CI/main/policy.json
+      //               ls -al
+      //               docker run -v .:/dist -w /dist gitlab-master.nvidia.com:5005/pstooling/pulse-group/pulse-container-scanner/pulse-cli:stable /bin/sh -c "pulse-cli -n $NSPECT_ID --ssa $SSA_TOKEN scan -i $CONTAINER_ARCHIVE -p $CONTAINER_SCAN_POLICY -o || true"
+      //             """
+      //           } catch (Exception e) {
+      //             echo "Continuing with the pipeline..."
+      //             echo "An error occurred: ${e.getMessage()}"
+      //           }
+      //           execution_script = '''
+      //             wget https://raw.githubusercontent.com/achafale/Jenkins-CI/main/vulnerabilities_validation.py
+      //             ls -al
+      //             python3 -m pip install pandas
+      //             python3 vulnerabilities_validation.py
+      //           '''
+      //           def shellOutput = sh(script: execution_script, returnStdout: true).toString()
+      //           echo shellOutput
+      //           if (shellOutput.contains("Scan result : FAIL")) {
+      //             error("Unsuccessful Execution . . .")
+      //           }
+      //           sh "rm -rf ${CONTAINER_ARCHIVE}"
+      //         }
+      //       }
+      //     }
+      //   }
+      // }
+      
+    }
+  }
+}
