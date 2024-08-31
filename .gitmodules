@@ -1,0 +1,6 @@
+[submodule "tao-core"]
+	path = tao-core
+	url = ssh://git@gitlab-master.nvidia.com:12051/nvidia-tao-toolkit/tao-core.git
+[submodule "tao-converter"]
+	path = tao-converter
+	url = ssh://git@gitlab-master.nvidia.com:12051/nvidia-tao-toolkit/tao-converter.git
