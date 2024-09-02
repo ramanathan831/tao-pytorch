@@ -62,6 +62,7 @@ check_jenkins_status:
               sleep 10
           fi
       done
+  timeout: 2h
   tags: ["trigger-jenkins"]
   only:
     refs:
