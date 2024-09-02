@@ -9,7 +9,7 @@ check_jenkins_status:
       FORKED_REPO_URL=$CI_MERGE_REQUEST_SOURCE_PROJECT_URL
       FORKED_REPO_BRANCH=$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME
 
-      JENKINS_URL="https://prod.blsm.nvidia.com/metropolis-iva-tlt-jenkins/"
+      JENKINS_URL="https://prod.blsm.nvidia.com/metropolis-iva-tlt-jenkins"
       
       # Step 1: Fetch the last build number before triggering a new build
       last_build_number=$(curl -s -X POST -u "$JENKINS_USER:$JENKINS_TOKEN" "$JENKINS_URL/job/tao-pytorch-develop/lastBuild/buildNumber")
