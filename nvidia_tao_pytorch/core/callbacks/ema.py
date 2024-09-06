@@ -31,7 +31,6 @@ from pytorch_lightning.utilities.exceptions import MisconfigurationException
 from pytorch_lightning.utilities.rank_zero import rank_zero_info
 
 
-
 class EMA(Callback):
     """
     Implements Exponential Moving Averaging (EMA).
@@ -272,7 +271,7 @@ class EMAOptimizer(torch.optim.Optimizer):
             opt_params = list(self.all_parameters())
 
             self.ema_params += tuple(
-                copy.deepcopy(param.data.detach()).to(self.device) for param in opt_params[len(self.ema_params) :]
+                copy.deepcopy(param.data.detach()).to(self.device) for param in opt_params[len(self.ema_params):]
             )
             self.rebuild_ema_params = False
 
