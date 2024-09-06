@@ -450,9 +450,9 @@ class LiteMLA(nn.Module):
             ),
         )
         q, k, v = (
-            qkv[:, :, 0 : self.dim],
-            qkv[:, :, self.dim : 2 * self.dim],
-            qkv[:, :, 2 * self.dim :],
+            qkv[:, :, 0:self.dim],
+            qkv[:, :, self.dim:2 * self.dim],
+            qkv[:, :, 2 * self.dim:],
         )
 
         # lightweight linear attention
@@ -487,9 +487,9 @@ class LiteMLA(nn.Module):
             ),
         )
         q, k, v = (
-            qkv[:, :, 0 : self.dim],
-            qkv[:, :, self.dim : 2 * self.dim],
-            qkv[:, :, 2 * self.dim :],
+            qkv[:, :, 0:self.dim],
+            qkv[:, :, self.dim:2 * self.dim],
+            qkv[:, :, 2 * self.dim:],
         )
 
         q = self.kernel_func(q)
