@@ -114,6 +114,7 @@ model:
 
 
 @pytest.mark.pointcloud_unit
+@pytest.mark.tensorrt
 def test_trt_engine():
     """Test TensorRT Engines."""
     model_config = EasyDict(yaml.safe_load(MODEL_CONFIG)["model"])
