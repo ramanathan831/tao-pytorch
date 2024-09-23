@@ -218,8 +218,7 @@ class ODPredictDataset(Dataset):
 
         width, height = image.size
         target = {}
-        # target["orig_size"] = torch.as_tensor([int(height), int(width)])
-        target["orig_size"] = torch.as_tensor([640, 640])
+        target["orig_size"] = torch.as_tensor([int(height), int(width)])
         target["size"] = torch.as_tensor([int(height), int(width)])
 
         if self.transforms is not None:

@@ -160,6 +160,8 @@ class ConvNeXt(nn.Module):
 
         self.return_idx = return_idx
         self.out_channels = out_channels
+
+        # TODO: @scha check if we can remove the hardcoded upsampling conv from Synthetica.
         # Add upsampling layer to match the dimension of Encoder input
         # self.conv_upsample = nn.ModuleList()
         # for i, out_c in enumerate(out_channels):
@@ -171,6 +173,7 @@ class ConvNeXt(nn.Module):
         #         padding=1
         #     )
         #     self.conv_upsample.append(conv)
+
         assert len(self.return_idx) == 3, f"ConvNext only supports num_feature_levels == 3, Got {len(self.return_idx)}"
         self.conv_512 = nn.Conv2d(dims[self.return_idx[0]], 512, kernel_size=3, stride=1, padding=1)
         self.conv_1024 = nn.Conv2d(dims[self.return_idx[1]], 1024, kernel_size=3, stride=1, padding=1)
