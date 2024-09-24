@@ -73,8 +73,8 @@ class ARModelConfig:
         display="of pretrained model path"
     )
     of_pretrained_num_classes: int = INT_FIELD(
-        value=0,
-        default_value=0,
+        value=5,
+        default_value=5,
         valid_min=0,
         valid_max="inf",
         description="The classes number of the pretrained weights for optical flow model.",
@@ -95,8 +95,8 @@ class ARModelConfig:
         display="rgb pretrained model path"
     )
     rgb_pretrained_num_classes: int = INT_FIELD(
-        value=0,
-        default_value=0,
+        value=5,
+        default_value=5,
         valid_min=0,
         valid_max="inf",
         description="The classes number of the pretrained weights for RGB model.",
