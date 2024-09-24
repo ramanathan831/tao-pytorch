@@ -22,7 +22,6 @@ from nvidia_tao_pytorch.cv.backbone.nn.ops import (
     ConvLayer,
     FusedMBConv,
     IdentityLayer,
-    DSConv,
     MBConv,
     OpSequential,
     ResBlock,
