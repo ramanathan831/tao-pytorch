@@ -49,7 +49,6 @@ class EfficientViT(EfficientViTBackbone):
         activation_checkpoint=False,
     ) -> None:
         """Initialize an efficientViT backbone for RT-DETR."""
-
         super().__init__(
             width_list=width_list,
             depth_list=depth_list,
