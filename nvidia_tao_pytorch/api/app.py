@@ -152,7 +152,7 @@ class ErrorRspSchema(Schema):
         """Class enabling sorting field values by the order in which they are declared"""
 
         ordered = True
-    error_desc = fields.Str(format="regex", regex=r'.*', validate=fields.validate.Length(max=1000))
+    error = fields.Str(format="regex", regex=r'.*', validate=fields.validate.Length(max=1000))
     error_code = fields.Int(validate=fields.validate.Range(min=-sys.maxsize - 1, max=sys.maxsize), format=sys_int_format())
 
 
@@ -430,7 +430,7 @@ def get_actions(neural_network_name):
     _, actions = module_utils.get_neural_network_actions(neural_network_name)
 
     if not actions:
-        metadata = {"error_desc": "Invalid Neural Network Name", "error_code": 1}
+        metadata = {"error": "Invalid Neural Network Name", "error_code": 1}
         schema = ErrorRspSchema()
         return make_response(jsonify(schema.dump(schema.load(metadata))), 400)
         
@@ -483,7 +483,7 @@ def list_ptms(neural_network_name):
     try:
         ngc_token = ngc_utils.get_ngc_token(key)
     except Exception as err:
-        metadata = {"error_desc": "Unauthorized: " + err, "error_code": 7}
+        metadata = {"error": "Unauthorized: " + err, "error_code": 7}
         schema = ErrorRspSchema()
         return make_response(jsonify(schema.dump(schema.load(metadata))), 401)
 
@@ -493,7 +493,7 @@ def list_ptms(neural_network_name):
         schema_dict = schema.dump(schema.load(data))
         return make_response(jsonify(schema_dict), 200)
     except Exception as err:
-        metadata = {"error_desc": f"{err}", "error_code": 8}
+        metadata = {"error": f"{err}", "error_code": 8}
         schema = ErrorRspSchema()
         return make_response(jsonify(schema.dump(schema.load(metadata))), 400)
 
@@ -534,13 +534,13 @@ def get_schema(neural_network_name, action_name):
     """
     ep_mappings = module_utils.get_entry_point_module_mapping()
     if not neural_network_name or neural_network_name not in ep_mappings.keys():
-        metadata = {"error_desc": "Invalid Neural Network Name", "error_code": 1}
+        metadata = {"error": "Invalid Neural Network Name", "error_code": 1}
         schema = ErrorRspSchema()
         return make_response(jsonify(schema.dump(schema.load(metadata))), 400)
     
     _, actions = module_utils.get_neural_network_actions(neural_network_name)
     if action_name not in actions:
-        metadata = {"error_desc": "Invalid Action Name", "error_code": 2}
+        metadata = {"error": "Invalid Action Name", "error_code": 2}
         schema = ErrorRspSchema()
         return make_response(jsonify(schema.dump(schema.load(metadata))), 400)
     
@@ -556,7 +556,7 @@ def get_schema(neural_network_name, action_name):
         print("json_schema :: ", json_schema)
         return make_response(json_schema, 200)
     except Exception as err:
-        metadata = {"error_desc": f"{err}", "error_code": 2}
+        metadata = {"error": f"{err}", "error_code": 2}
         schema = ErrorRspSchema()
         return make_response(jsonify(schema.dump(schema.load(metadata))), 400)
 
@@ -603,11 +603,11 @@ def post_action(neural_network_name, action_name):
     # Module and action validations
     module, actions = module_utils.get_neural_network_actions(neural_network_name)
     if not module:
-        metadata = {"error_desc": "Invalid Neural Network Name", "error_code": 1}
+        metadata = {"error": "Invalid Neural Network Name", "error_code": 1}
         schema = ErrorRspSchema()
         return make_response(jsonify(schema.dump(schema.load(metadata))), 400)
     if action_name not in actions:
-        metadata = {"error_desc": "Invalid Action Name", "error_code": 2}
+        metadata = {"error": "Invalid Action Name", "error_code": 2}
         schema = ErrorRspSchema()
         return make_response(jsonify(schema.dump(schema.load(metadata))), 400)
 
@@ -619,7 +619,7 @@ def post_action(neural_network_name, action_name):
     request_json_schema = dataclasses_utils.remove_none_empty_fields(request_json_schema)
     
     if request_json_schema is None:
-        metadata = {"error_desc": "No JSON data provided", "error_code": 3}
+        metadata = {"error": "No JSON data provided", "error_code": 3}
         schema = ErrorRspSchema()
         return make_response(jsonify(schema.dump(schema.load(metadata))), 400) 
     
@@ -647,13 +647,13 @@ def post_action(neural_network_name, action_name):
         print("After validation :: ")
         print("validation_status :: ", validation_status)
         if validation_status:
-            metadata = {"error_desc": validation_status, "error_code": 4}
+            metadata = {"error": validation_status, "error_code": 4}
             print(metadata)
             schema = ErrorRspSchema()
             print(schema)
             return make_response(jsonify(schema.dump(schema.load(metadata))), 400)
     except Exception as err:
-        metadata = {"error_desc": "Unexpected error encountered while processing the JSON schema", "error_code": 4}
+        metadata = {"error": "Unexpected error encountered while processing the JSON schema", "error_code": 4}
         schema = ErrorRspSchema()
         return make_response(jsonify(schema.dump(schema.load(metadata))), 400)
     
@@ -768,7 +768,7 @@ def get_job_status(neural_network_name, action_name, job_id):
                $ref: '#/components/headers/X-RateLimit-Limit'
     """
     if not is_valid_uuid(job_id):
-        metadata = {"error_desc": "Invalid Job ID Format", "error_code": 5}
+        metadata = {"error": "Invalid Job ID Format", "error_code": 5}
         schema = ErrorRspSchema()
         response = make_response(jsonify(schema.dump(schema.load(metadata))), 400)
         return response
@@ -794,7 +794,7 @@ def get_job_status(neural_network_name, action_name, job_id):
 
     # If no job is found
     if not job_details:
-        metadata = {"error_desc": "Job ID Not Present", "error_code": 6}
+        metadata = {"error": "Job ID Not Present", "error_code": 6}
         schema = ErrorRspSchema()
         response = make_response(jsonify(schema.dump(schema.load(metadata))), 400)
         return response
@@ -802,11 +802,11 @@ def get_job_status(neural_network_name, action_name, job_id):
     # Module and action validations
     module, actions = job_details['neural_network_name'], job_details['action']
     if not module:
-        metadata = {"error_desc": "Invalid Neural Network Name", "error_code": 1}
+        metadata = {"error": "Invalid Neural Network Name", "error_code": 1}
         schema = ErrorRspSchema()
         return make_response(jsonify(schema.dump(schema.load(metadata))), 400)
     if action_name not in actions:
-        metadata = {"error_desc": "Invalid Action Name", "error_code": 2}
+        metadata = {"error": "Invalid Action Name", "error_code": 2}
         schema = ErrorRspSchema()
         return make_response(jsonify(schema.dump(schema.load(metadata))), 400)
                 
@@ -849,7 +849,7 @@ def post_nvcf_action():
     except Exception as err:
         import traceback
         print(traceback.format_exc())
-        metadata = {"error_desc": str(err), "error_code": 9}
+        metadata = {"error": str(err), "error_code": 9}
         schema = ErrorRspSchema()
         return make_response(jsonify(schema.dump(schema.load(metadata))), 400)
 
