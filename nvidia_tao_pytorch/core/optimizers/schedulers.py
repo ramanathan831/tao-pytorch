@@ -17,6 +17,7 @@
 import torch
 
 
+# TODO: @scha to add the schedulder to RTDETR PL module for the next release
 class LinearWarmupScheduler(torch.optim.lr_scheduler.LambdaLR):
     """Linear Warmup scheduler."""
 

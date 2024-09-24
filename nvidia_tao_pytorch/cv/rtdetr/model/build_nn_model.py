@@ -63,11 +63,7 @@ class RTDETRModel(nn.Module):
                  multi_scale=[480, 512, 544, 576, 608, 640, 640, 640, 672, 704, 736, 768, 800],
                  activation_checkpoint=False,
                  ):
-        """Initialize RT-DETR Model.
-
-        Args:
-
-        """
+        """Initialize RT-DETR Model."""
         super().__init__()
         parser = None
         if backbone_name.startswith('resnet'):

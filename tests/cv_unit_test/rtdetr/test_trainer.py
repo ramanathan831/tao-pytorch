@@ -152,12 +152,12 @@ def _infer_spec():
 @pytest.mark.parametrize("precision", ['32-true', '16-mixed', 'bf16-mixed'])
 @pytest.mark.parametrize("distributed_strategy", ["ddp", "fsdp"])
 @pytest.mark.cv_unit
-@pytest.mark.deformable_detr
+@pytest.mark.rt_detr
 @pytest.mark.train
 def test_trainer_fit(_test_sample_json, _train_spec, precision, distributed_strategy):
 
     # Replicating this from
-    # nvidia_tao_pytorch/cv/deformable_detr/scripts/train.py
+    # nvidia_tao_pytorch/cv/rt_detr/scripts/train.py
     # to handle the find_unused_parameters
     if _train_spec.train.activation_checkpoint and \
         len(_train_spec.model.return_interm_indices) < 4 and \
@@ -192,7 +192,7 @@ def test_trainer_fit(_test_sample_json, _train_spec, precision, distributed_stra
 
 
 @pytest.mark.cv_unit
-@pytest.mark.deformable_detr
+@pytest.mark.rt_detr
 @pytest.mark.evaluate
 def test_trainer_evaluate(_test_sample_json, _eval_spec):
 
@@ -210,7 +210,7 @@ def test_trainer_evaluate(_test_sample_json, _eval_spec):
 
 
 @pytest.mark.cv_unit
-@pytest.mark.deformable_detr
+@pytest.mark.rt_detr
 @pytest.mark.inference
 def test_trainer_inference(_test_sample_json, _infer_spec):
 

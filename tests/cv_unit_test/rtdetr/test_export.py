@@ -36,38 +36,38 @@ def _test_experiment_spec():
     yield experiment_config
 
 
-# @pytest.mark.cv_unit
-# @pytest.mark.parametrize("backbone", ["resnet_50", "convnext_tiny", "efficientvit_l0"])
-# @pytest.mark.parametrize("batch_size", [-1, 4])
-# def test_rtdetr_onnx_export(_test_experiment_spec, backbone, batch_size):
-#     """Unit test for ONNX export on RTDETR model. Here, custom DMHA is used."""
-#     _test_experiment_spec["model"].backbone = backbone
-#     _test_experiment_spec["model"].aux_loss = False
+@pytest.mark.cv_unit
+@pytest.mark.parametrize("backbone", ["resnet_50", "convnext_tiny", "efficientvit_l0"])
+@pytest.mark.parametrize("batch_size", [-1, 4])
+def test_rtdetr_onnx_export(_test_experiment_spec, backbone, batch_size):
+    """Unit test for ONNX export on RTDETR model. Here, custom DMHA is used."""
+    _test_experiment_spec["model"].backbone = backbone
+    _test_experiment_spec["model"].aux_loss = False
 
-#     # Define input and output of ONNX
-#     if batch_size == -1:
-#         input_batch_size = 1
-#     else:
-#         input_batch_size = 4
-#     input_channel, input_height, input_width = 3, 640, 640
-#     input_names = ['inputs']
-#     output_names = ["pred_logits", "pred_boxes"]
+    # Define input and output of ONNX
+    if batch_size == -1:
+        input_batch_size = 1
+    else:
+        input_batch_size = 4
+    input_channel, input_height, input_width = 3, 640, 640
+    input_names = ['inputs']
+    output_names = ["pred_logits", "pred_boxes"]
 
-#     model = build_model(_test_experiment_spec, export=True)
-#     model.eval()
-#     model.cuda()
+    model = build_model(_test_experiment_spec, export=True)
+    model.eval()
+    model.cuda()
 
-#     dummy_input = torch.ones(input_batch_size, input_channel, input_height, input_width, device='cuda')
-#     os_handle, tmp_onnx_file = tempfile.mkstemp(suffix=".onnx")
-#     os.close(os_handle)
+    dummy_input = torch.ones(input_batch_size, input_channel, input_height, input_width, device='cuda')
+    os_handle, tmp_onnx_file = tempfile.mkstemp(suffix=".onnx")
+    os.close(os_handle)
 
-#     onnx_export = ONNXExporter()
-#     onnx_export.export_model(model, batch_size, tmp_onnx_file, dummy_input, input_names=input_names, output_names=output_names, do_constant_folding=False)
-#     onnx_export.check_onnx(tmp_onnx_file)
-#     onnx_export.onnx_change(tmp_onnx_file)
+    onnx_export = ONNXExporter()
+    onnx_export.export_model(model, batch_size, tmp_onnx_file, dummy_input, input_names=input_names, output_names=output_names, do_constant_folding=False)
+    onnx_export.check_onnx(tmp_onnx_file)
+    onnx_export.onnx_change(tmp_onnx_file)
 
-#     assert os.path.exists(tmp_onnx_file), "ONNX file was not generated properly!"
-#     os.remove(tmp_onnx_file)
+    assert os.path.exists(tmp_onnx_file), "ONNX file was not generated properly!"
+    os.remove(tmp_onnx_file)
 
 
 @pytest.mark.cv_unit

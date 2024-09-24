@@ -25,9 +25,9 @@ from nvidia_tao_pytorch.cv.rtdetr.dataloader.pl_od_data_module import ODDataModu
 from nvidia_tao_pytorch.cv.rtdetr.model.pl_rtdetr_model import RTDETRPlModel
 
 
-def run_experiment(experiment_config, key):
+def run_experiment(experiment_config):
     """Run experiment."""
-    results_dir, model_path, gpus = initialize_evaluation_experiment(experiment_config, key)
+    results_dir, model_path, gpus = initialize_evaluation_experiment(experiment_config)
 
     if model_path.endswith('.pth'):
         # build dataloader
@@ -64,7 +64,7 @@ spec_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 @monitor_status(name="RT-DETR", mode="evaluate")
 def main(cfg: ExperimentConfig) -> None:
     """Run the evaluate process."""
-    run_experiment(experiment_config=cfg, key=None)
+    run_experiment(experiment_config=cfg)
 
 
 if __name__ == "__main__":

@@ -25,9 +25,9 @@ from nvidia_tao_pytorch.cv.rtdetr.config.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.rtdetr.model.pl_rtdetr_model import RTDETRPlModel
 
 
-def run_experiment(experiment_config, key):
+def run_experiment(experiment_config):
     """Start the inference."""
-    results_dir, model_path, gpus = initialize_inference_experiment(experiment_config, key)
+    results_dir, model_path, gpus = initialize_inference_experiment(experiment_config)
 
     if model_path.endswith('.pth'):
 
@@ -65,8 +65,7 @@ spec_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 @monitor_status(name="RT-DETR", mode="inference")
 def main(cfg: ExperimentConfig) -> None:
     """Run the inference process."""
-    run_experiment(experiment_config=cfg,
-                   key=cfg.encryption_key)
+    run_experiment(experiment_config=cfg)
 
 
 if __name__ == "__main__":

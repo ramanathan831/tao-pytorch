@@ -29,9 +29,9 @@ from nvidia_tao_pytorch.cv.rtdetr.dataloader.pl_od_data_module import ODDataModu
 from nvidia_tao_pytorch.cv.rtdetr.model.pl_rtdetr_model import RTDETRPlModel
 
 
-def run_experiment(experiment_config, key):
+def run_experiment(experiment_config):
     """Start the training."""
-    results_dir, resume_ckpt, gpus, ptl_loggers = initialize_train_experiment(experiment_config, key)
+    results_dir, resume_ckpt, gpus, ptl_loggers = initialize_train_experiment(experiment_config)
 
     dm = ODDataModule(experiment_config.dataset)
     dm.setup(stage="fit")
@@ -134,8 +134,7 @@ spec_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 @monitor_status(name="RT-DETR", mode="train")
 def main(cfg: ExperimentConfig) -> None:
     """Run the training process."""
-    run_experiment(experiment_config=cfg,
-                   key=cfg.encryption_key)
+    run_experiment(experiment_config=cfg)
 
 
 if __name__ == "__main__":
