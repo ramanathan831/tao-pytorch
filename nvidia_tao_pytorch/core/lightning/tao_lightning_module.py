@@ -78,6 +78,39 @@ class TAOLightningModule(pl.LightningModule):
 
         return [status_logger_callback, checkpoint_callback]
 
+    # These are necessary because we sometimes have drop_last=True for the dataloaders.
+    # When the dataset is smaller than the batch size, this leads to Lightning not
+    # doing the task since it can't fill up a batch. However, it reports completion,
+    # not failure. So, we do a manaul check and throw an error.
+    def _dataloader_batch_check(self, dataloader, task):
+        batch_size = dataloader.batch_size
+        # Using a BatchSampler
+        if not batch_size:
+            assert hasattr(dataloader, "batch_sampler"), "Loader should have batch sampler initiated if batch size isn't defined."
+            batch_size = dataloader.batch_sampler.batch_size
+        dataset_len = len(dataloader.dataset)
+        total_batch_size = batch_size * self.trainer.num_devices
+
+        if dataset_len < total_batch_size:
+            raise ValueError(f"Dataset size ({dataset_len}) is smaller than the total batch size "
+                             f"({total_batch_size}). Not enough data for {task}.")
+
+    def on_fit_start(self):
+        """Before training begins."""
+        self._dataloader_batch_check(self.trainer.datamodule.train_dataloader(), "train")
+
+    def on_validation_start(self):
+        """Before validation begins."""
+        self._dataloader_batch_check(self.trainer.datamodule.val_dataloader(), "validation")
+
+    def on_test_start(self):
+        """Before testing begins."""
+        self._dataloader_batch_check(self.trainer.datamodule.test_dataloader(), "evaluation")
+
+    def on_predict_start(self):
+        """Before inference begins."""
+        self._dataloader_batch_check(self.trainer.datamodule.predict_dataloader(), "inference")
+
     def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         """
         Encrypt the checkpoint. The encryption is done in TLTCheckpointConnector.

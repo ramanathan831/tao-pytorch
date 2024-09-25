@@ -245,7 +245,7 @@ def _infer_spec():
     experiment_config.inference.color_map = {"person": "green", "face": "red", "bag": "blue"}
 
     experiment_config.dataset.infer_data_sources = {"image_dir": tmp_top_dir, "classmap": classmap_file, "captions": 'person'}
-    experiment_config.dataset.batch_size = 2
+    experiment_config.dataset.batch_size = 1
     experiment_config.dataset.workers = 0
 
     yield experiment_config

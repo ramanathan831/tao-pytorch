@@ -100,7 +100,7 @@ def _infer_spec():
 
     experiment_config.inference.num_gpus = 1
     experiment_config.inference.inference_dataset_dir = os.path.join(tmp_top_data_dir, "a")
-    experiment_config.inference.batch_size = 2
+    experiment_config.inference.batch_size = 1
 
     experiment_config.dataset.label_map = {'a': 0, 'b': 1}
 
