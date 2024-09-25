@@ -99,7 +99,7 @@ check_jenkins_status:
               sleep 10
           fi
       done
-  timeout: 2h
+  timeout: 5h
   tags: ["trigger-jenkins"]
   only:
     refs:
