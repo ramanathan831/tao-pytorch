@@ -1,7 +1,9 @@
+results_dir: ???
 export:
   input_height: 512
   input_width: 512
   input_channel: 3
+  onnx_file: ???
 model:
   input_height: 512
   input_width: 512

@@ -200,6 +200,7 @@ class MMSegmentationConfig(object):
         self.updated_config["model"]["data_preprocessor"] = self.updated_config["data_preprocessor"]
         # self.updated_config["model"]["pretrained"] = model_config["pretrained_model_path"]
         self.updated_config["model"]["backbone"] = model_config["backbone"]
+        self.updated_config["model"]["backbone"]["resolution"] = (model_config["input_width"], model_config["input_height"])
         self.updated_config["model"]["backbone"]["init_cfg"]["checkpoint"] = model_config["pretrained_model_path"]
         self.updated_config["model"]["decode_head"] = model_config["decode_head"]
         self.updated_config["model"]["train_cfg"] = {}
@@ -209,7 +210,11 @@ class MMSegmentationConfig(object):
                         "fan_tiny_8_p4_hybrid": [128, 256, 192, 192],
                         "fan_large_16_p4_hybrid": [128, 256, 480, 480],
                         "fan_small_12_p4_hybrid": [128, 256, 384, 384],
-                        "fan_base_16_p4_hybrid": [128, 256, 448, 448], }
+                        "fan_base_16_p4_hybrid": [128, 256, 448, 448],
+                        "vit_large_nvdinov2": [1024, 1024, 1024, 1024],
+                        "vit_giant_nvdinov2": [1536, 1536, 1536, 1536],
+                        "vit_base_nvclip_16_siglip": [768, 768, 768, 768],
+                        "vit_huge_nvclip_14_siglip": [1280, 1280, 1280, 1280]}
 
         if model_config["backbone"]["type"] in channels_map.keys():
             self.updated_config["model"]["decode_head"]["in_channels"] = channels_map[model_config["backbone"]["type"]]
