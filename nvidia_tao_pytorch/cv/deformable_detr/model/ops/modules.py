@@ -161,16 +161,21 @@ class MSDeformAttn(nn.Module):
         else:
             if torch.cuda.is_available() and value.is_cuda:
                 # For mixed precision training
-                if value.dtype == torch.float16:
-                    output = MSDeformAttnFunction.apply(
-                        value.to(torch.float32), input_spatial_shapes,
-                        input_level_start_index, sampling_locations.to(torch.float32),
-                        attention_weights, self.im2col_step)
-                    output = output.to(torch.float16)
-                else:
-                    output = MSDeformAttnFunction.apply(
-                        value, input_spatial_shapes, input_level_start_index,
-                        sampling_locations, attention_weights, self.im2col_step)
+                half_float = False
+                if value.dtype in [torch.float16, torch.bfloat16]:
+                    half_float = value.dtype
+                    value = value.float()
+                    sampling_locations = sampling_locations.float()
+                    attention_weights = attention_weights.float()
+
+                output = MSDeformAttnFunction.apply(
+                    value, input_spatial_shapes,
+                    input_level_start_index, sampling_locations,
+                    attention_weights, self.im2col_step)
+
+                if half_float:
+                    output = output.to(half_float)
+
             else:
                 # CPU implementation of multi-scale deformable attention
                 output = multi_scale_deformable_attn_pytorch(value, input_spatial_shapes, sampling_locations, attention_weights)

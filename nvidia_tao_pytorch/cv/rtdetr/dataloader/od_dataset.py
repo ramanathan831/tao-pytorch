@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,25 +16,47 @@
 
 import torch
 from torch.utils.data.dataset import Dataset
+from torch.utils.data import ConcatDataset
+from torchvision import tv_tensors
 
 import os
-import json
 import glob
-import numpy as np
 from PIL import Image, ImageOps
 from typing import Any, Tuple, List
 
-from nvidia_tao_pytorch.cv.deformable_detr.utils.coco import COCO
+from nvidia_tao_pytorch.cv.deformable_detr.dataloader.od_dataset import ODDataset, VALID_IMAGE_EXTENSIONS
 
 
-# List of valid image extensions
-VALID_IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".bmp", ".JPEG", ".JPG", ".PNG")
+def build_coco(data_sources, transforms, remap_mscoco_category):
+    """Load dataset
+
+    Args:
+        data_sources (str): list of different data sources.
+        transforms (dict): augmentations to apply.
+        max_labels (int): max number of labels to sample.
+    """
+    if type(data_sources).__name__ == "DictConfig":
+        data_sources = [data_sources]
+
+    dataset_list = []
+    for data_source in data_sources:
+        image_dir = data_source.image_dir
+        json_file = data_source.json_file
+        dataset_list.append(RTDataset(json_file, image_dir,
+                                      transforms=transforms,
+                                      remap_mscoco_category=True))
+
+        if len(dataset_list) > 1:
+            train_dataset = ConcatDataset(dataset_list)
+        else:
+            train_dataset = dataset_list[0]
+    return train_dataset
 
 
-class ODDataset(Dataset):
-    """Base Object Detection Dataset Class."""
+class RTDataset(ODDataset):
+    """RT-DETR Object Detection Dataset Class."""
 
-    def __init__(self, json_file: str = None, dataset_dir: str = None, transforms=None):
+    def __init__(self, json_file: str = None, dataset_dir: str = None, transforms=None, remap_mscoco_category=False):
         """Initialize the Object Detetion Dataset Class.
 
         Note that multiple loading of COCO type JSON files can lead to system memory OOM.
@@ -45,44 +67,8 @@ class ODDataset(Dataset):
             dataset_dir (str): dataset directory.
             transforms: augmentations to apply.
         """
-        self.dataset_dir = dataset_dir
-        self.transforms = transforms
-        with open(json_file, 'r') as f:
-            json_data = json.load(f)
-        self.coco = COCO(json_data)
-        self.ids = list(sorted(self.coco.imgs.keys()))
-        self.label_map = self.coco.dataset['categories']
-
-    def _load_image(self, img_id: int) -> Image.Image:
-        """Load image given image id.
-
-        Args:
-            img_id (int): image id to load.
-
-        Returns:
-            Loaded PIL Image.
-        """
-        path = self.coco.loadImgs(img_id)[0]["file_name"]
-        if not self.dataset_dir == "":
-            img_path = os.path.join(self.dataset_dir, path)
-            img = Image.open(img_path).convert("RGB")
-            return_output = (ImageOps.exif_transpose(img), img_path)
-        else:
-            img = Image.open(path).convert("RGB")
-            return_output = (ImageOps.exif_transpose(img), path)
-
-        return return_output
-
-    def _load_target(self, img_id: int) -> List[Any]:
-        """Load target (annotation) given image id.
-
-        Args:
-            img_id (int): image id to load.
-
-        Returns:
-            Loaded COCO annotation list
-        """
-        return self.coco.loadAnns(self.coco.getAnnIds(img_id))
+        super(RTDataset, self).__init__(json_file, dataset_dir, transforms)
+        self.remap_mscoco_category = remap_mscoco_category
 
     def _process_image_target(self, image: Image.Image, target: List[Any], img_id: int) -> Tuple[Any, Any]:
         """Process the image and target given image id.
@@ -105,11 +91,21 @@ class ODDataset(Dataset):
         boxes[:, 0::2].clamp_(min=0, max=width)
         boxes[:, 1::2].clamp_(min=0, max=height)
 
-        classes = [obj["category_id"] for obj in target]
+        # RT-DETR original src code remap coco category from 1 to 81
+        if self.remap_mscoco_category:
+            classes = [mscoco_category2label[obj["category_id"]] for obj in target]
+        else:
+            classes = [obj["category_id"] for obj in target]
         classes = torch.tensor(classes, dtype=torch.int64)
 
         keep = (boxes[:, 3] > boxes[:, 1]) & (boxes[:, 2] > boxes[:, 0])
         boxes = boxes[keep]
+
+        boxes = tv_tensors.BoundingBoxes(
+            boxes,
+            format='XYXY',
+            canvas_size=image.size[::-1]  # h w
+        )
 
         classes = classes[keep]
 
@@ -129,35 +125,12 @@ class ODDataset(Dataset):
 
         return image, target
 
-    def __getitem__(self, index: int) -> Tuple[Any, Any, Any]:
-        """Get image, target, image_path given index.
-
-        Args:
-            index (int): index of the image id to load.
-
-        Returns:
-            (image, target, image_path): pre-processed image, target and image_path for the model.
-        """
-        img_id = self.ids[index]
-        image, image_path = self._load_image(img_id)
-
-        target = self._load_target(img_id)
-        image, target = self._process_image_target(image, target, img_id)
-
-        if self.transforms is not None:
-            image, target = self.transforms(image, target)
-
-        return image, target, image_path
-
-    def __len__(self) -> int:
-        """__len__"""
-        return len(self.ids)
-
 
 class ODPredictDataset(Dataset):
     """Base Object Detection Predict Dataset Class."""
 
-    def __init__(self, dataset_list: List[Any], label_map_path: str, transforms=None, start_from_one=True):
+    def __init__(self, dataset_list: List[Any], label_map_path: str,
+                 transforms=None, start_from_one=False, fixed_resolution=None):
         """Initialize the Object Detetion Dataset Class for inference.
 
         Unlike ODDataset, this class does not require COCO JSON file.
@@ -166,6 +139,9 @@ class ODPredictDataset(Dataset):
             dataset_list (list): list of dataset directory.
             label_map_path (str): label mapping path.
             transforms: augmentations to apply.
+            start_from_one (bool): Whether to start the class_mapping index from 1 or not.
+            fixed_resolution (tuple): Fixed resolution (h, w) for evaluation.
+                Only needed when we resize with aspect ratio preserved.
 
         Raises:
             FileNotFoundErorr: If provided classmap, sequence, or image extension does not exist.
@@ -179,6 +155,8 @@ class ODPredictDataset(Dataset):
         with open(label_map_path, "r") as f:
             classmap = [line.rstrip() for line in f.readlines()]
         self.label_map = [{"id": i + int(start_from_one), "name": c} for i, c in enumerate(classmap)]
+
+        self.fixed_resolution = fixed_resolution
 
         self.ids = []
         for seq in dataset_list:
@@ -218,7 +196,10 @@ class ODPredictDataset(Dataset):
 
         width, height = image.size
         target = {}
-        target["orig_size"] = torch.as_tensor([int(height), int(width)])
+        if self.fixed_resolution:
+            target["orig_size"] = torch.as_tensor(list(self.fixed_resolution))
+        else:
+            target["orig_size"] = torch.as_tensor([int(height), int(width)])
         target["size"] = torch.as_tensor([int(height), int(width)])
 
         if self.transforms is not None:
@@ -231,71 +212,88 @@ class ODPredictDataset(Dataset):
         return len(self.ids)
 
 
-def CoCoDataMerge(coco_list):
-    """ Concatenate COCO Dataset.
+mscoco_category2name = {
+    1: 'person',
+    2: 'bicycle',
+    3: 'car',
+    4: 'motorcycle',
+    5: 'airplane',
+    6: 'bus',
+    7: 'train',
+    8: 'truck',
+    9: 'boat',
+    10: 'traffic light',
+    11: 'fire hydrant',
+    13: 'stop sign',
+    14: 'parking meter',
+    15: 'bench',
+    16: 'bird',
+    17: 'cat',
+    18: 'dog',
+    19: 'horse',
+    20: 'sheep',
+    21: 'cow',
+    22: 'elephant',
+    23: 'bear',
+    24: 'zebra',
+    25: 'giraffe',
+    27: 'backpack',
+    28: 'umbrella',
+    31: 'handbag',
+    32: 'tie',
+    33: 'suitcase',
+    34: 'frisbee',
+    35: 'skis',
+    36: 'snowboard',
+    37: 'sports ball',
+    38: 'kite',
+    39: 'baseball bat',
+    40: 'baseball glove',
+    41: 'skateboard',
+    42: 'surfboard',
+    43: 'tennis racket',
+    44: 'bottle',
+    46: 'wine glass',
+    47: 'cup',
+    48: 'fork',
+    49: 'knife',
+    50: 'spoon',
+    51: 'bowl',
+    52: 'banana',
+    53: 'apple',
+    54: 'sandwich',
+    55: 'orange',
+    56: 'broccoli',
+    57: 'carrot',
+    58: 'hot dog',
+    59: 'pizza',
+    60: 'donut',
+    61: 'cake',
+    62: 'chair',
+    63: 'couch',
+    64: 'potted plant',
+    65: 'bed',
+    67: 'dining table',
+    70: 'toilet',
+    72: 'tv',
+    73: 'laptop',
+    74: 'mouse',
+    75: 'remote',
+    76: 'keyboard',
+    77: 'cell phone',
+    78: 'microwave',
+    79: 'oven',
+    80: 'toaster',
+    81: 'sink',
+    82: 'refrigerator',
+    84: 'book',
+    85: 'clock',
+    86: 'vase',
+    87: 'scissors',
+    88: 'teddy bear',
+    89: 'hair drier',
+    90: 'toothbrush'
+}
 
-    We assume that the sharded JSON files were generated using `deformable_detr convert`
-    where the ids of the sharded JSON are ensured to be unique.
-    We do not perform ID deduplication for faster data loading.
-
-    Args:
-        coco_list (list): list of COCO Datasets.
-
-    Returns:
-        merged_coco_data (dict) : Merged dictionary in COCO format.
-    """
-    merged_coco_data = {"images": [], "annotations": [], "categories": None}
-
-    for idx, coco in enumerate(coco_list):
-        # Merge all the annotations to single dict
-        merged_coco_data["images"].extend(coco.dataset["images"])
-        merged_coco_data["annotations"].extend(coco.dataset["annotations"])
-        if idx == 0:
-            merged_coco_data["categories"] = coco.dataset["categories"]
-
-    return merged_coco_data
-
-
-class ConcateODDataset(torch.utils.data.ConcatDataset):
-    """ Concatenate ODDataset """
-
-    def __init__(self, datasets):
-        """Initialize the ConcateODDataset Class.
-
-        Args:
-            datasets (iterable): List of datasets to be concatenated.
-        """
-        super(ConcateODDataset, self).__init__(datasets)
-        self.datasets = list(datasets)
-        assert len(datasets) > 0, 'datasets should not be an empty iterable'
-        self.cum_sizes = np.cumsum([len(x) for x in self.datasets])
-
-        coco_list = []
-        for dataset in datasets:
-            coco_list.append(dataset.coco)
-
-        self.coco = COCO(CoCoDataMerge(coco_list))
-        self.label_map = self.coco.dataset['categories']
-
-    def __len__(self) -> int:
-        """Returns length of the concatenated dataset."""
-        return self.cum_sizes[-1]
-
-    def __getitem__(self, idx):
-        """Get sub-dataset from ConcateODDataset.
-
-        Args:
-            idx (int): index to retrieve.
-
-        Returns:
-            Sub dataset from the list.
-        """
-        super(ConcateODDataset, self).__getitem__(idx)
-        dataset_index = self.cum_sizes.searchsorted(idx, 'right')
-
-        if dataset_index == 0:
-            dataset_idx = idx
-        else:
-            dataset_idx = idx - self.cum_sizes[dataset_index - 1]
-
-        return self.datasets[dataset_index][dataset_idx]
+mscoco_category2label = {k: i for i, k in enumerate(mscoco_category2name.keys())}
+mscoco_label2category = {v: k for k, v in mscoco_category2label.items()}

@@ -51,7 +51,7 @@ def main(cl_args=None):
                     submodules_to_test = [
                         os.path.join(module, item) 
                         for item in os.listdir(os.path.join(ROOT_DIR, module))
-                        if item != "odise"
+                        if item not in ["odise", "__pycache__"]
                     ]
                 else:
                     submodules_to_test = [module]
@@ -59,7 +59,7 @@ def main(cl_args=None):
         for command in test_command:
             launch_command = command
             if not CI:
-                print("Running test in local environment.")
+                print(f"Running test in local environment. {command}")
                 launch_command = '{} -v {}:{} {} {}'.format(
                     docker_command_prefix, ROOT_DIR, DOCKER_ROOT, docker_image, command
                 )
