@@ -34,13 +34,14 @@ tmp_top_dir = tmp_top_obj.name
 lmdb_dir = os.path.join(tmp_top_dir, "lmdb")
 gt_file = os.path.join(tmp_top_dir, "gt.txt")
 character_file = os.path.join(tmp_top_dir, "character_list")
+batch_size = 32
 
 
 @pytest.fixture
 def _test_data():
     os.makedirs(tmp_top_dir, exist_ok=True)
     img = Image.fromarray(np.random.randint(low=0, high=255, size=(DEFAULT_HEIGHT, DEFAULT_WIDTH, 3), dtype=np.uint8))
-    sample_cnt = 16
+    sample_cnt = batch_size
     tmp_img_path = os.path.join(tmp_top_dir, "tmp_img.png")
     img.save(tmp_img_path)
     with open(tmp_img_path, 'rb') as f:
