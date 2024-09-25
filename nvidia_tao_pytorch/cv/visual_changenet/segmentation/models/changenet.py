@@ -34,17 +34,18 @@ import torch.nn.functional as F
 import numpy as np
 import logging
 
+from nvidia_tao_pytorch.core.distributed.comm import get_global_rank
+from nvidia_tao_pytorch.core.utils.pos_embed_interpolation import (
+    interpolate_pos_embed, interpolate_patch_embed
+)
+
 from nvidia_tao_pytorch.cv.visual_changenet.segmentation.models.changenet_utils import (
     MLP, conv_diff, make_prediction, UpsampleConvLayer,
     ResidualBlock, ConvLayer, resize, count_params,
 )
 from nvidia_tao_pytorch.cv.visual_changenet.backbone.fan import fan_model_dict
 from nvidia_tao_pytorch.cv.visual_changenet.backbone.vision_transformer.vit_adapter import vit_adapter_model_dict
-from nvidia_tao_pytorch.cv.visual_changenet.utils.pos_embed_interpolation_converter import (
-    interpolate_patch_embed, interpolate_pos_embed
-)
 from nvidia_tao_pytorch.cv.deformable_detr.utils.misc import load_pretrained_weights
-from nvidia_tao_pytorch.core.distributed.comm import get_global_rank
 
 logger = logging.getLogger(__name__)
 

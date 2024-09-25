@@ -14,8 +14,8 @@
 
 """script to interpolate n x n ViT to m x m patches"""
 
-import argparse
 import torch
+from nvidia_tao_pytorch.core.tlt_logging import logging
 
 
 def interpolate_pos_embed(checkpoint_model,
@@ -26,12 +26,14 @@ def interpolate_pos_embed(checkpoint_model,
     """Interpolate Positional Embedding from ViT.
 
     Args:
-        cheeckpoint_model (dict): ViT state_dict
-        orig_patch_size (int): original patch size
-        new_patch_size (int): new patch size
+        checkpoint_model (dict): ViT state_dict
+        orig_resolution (int, optional): Original resolution. Defaults to None.
+        orig_patch_size (int, optional): original patch size. Defaults to 14.
+        new_resolution (int, optional): target patch size. Defaults to None.
+        new_patch_size (int, optional): target patch size. Defaults to 16.
 
-    Return:
-        checkpoint_model: updated state dict
+    Returns:
+        dict: checkpoint_model with updated state dict
     """
     if 'pos_embed' in checkpoint_model:
         pos_embed_checkpoint = checkpoint_model['pos_embed']
@@ -65,9 +67,9 @@ def interpolate_pos_embed(checkpoint_model,
         new_pos_embed = torch.cat((extra_tokens, pos_tokens), dim=1)
         checkpoint_model['pos_embed'] = new_pos_embed
 
-        print(f"Resolution: {orig_resolution}")
-        print(f"Old Pos Embed: {pos_embed_checkpoint.shape}")
-        print(f"New Pos Embed: {new_pos_embed.shape}")
+        logging.info(f"Resolution: {orig_resolution}")
+        logging.info(f"Old Pos Embed: {pos_embed_checkpoint.shape}")
+        logging.info(f"New Pos Embed: {new_pos_embed.shape}")
 
     return checkpoint_model
 
@@ -76,50 +78,14 @@ def interpolate_patch_embed(checkpoint, new_patch_size=16):
     """Interpolate patch_embed.
 
     Args:
-        cheeckpoint (dict): ViT state_dict
-        new_patch_size (int): new patch size
+        checkpoint (dict): ViT state_dict
+        new_patch_size (int, optional): new patch size. Defaults to 16.
 
-    Return:
-        checkpoint: updated state dict
-
+    Returns:
+        dict: checkpoint with updated state dict
     """
     patch_embed = checkpoint['patch_embed.proj.weight']
     patch_embed = torch.nn.functional.interpolate(
         patch_embed.float(), size=(new_patch_size, new_patch_size), mode='bicubic', align_corners=False)
     checkpoint['patch_embed.proj.weight'] = patch_embed
     return checkpoint
-
-
-if __name__ == '__main__':
-    """main function."""
-    parser = argparse.ArgumentParser(description='interpolate patch_embed kernel')
-    parser.add_argument('-i', '--input', default='/path/to/eva_psz14.pt', type=str, metavar='PATH', required=True,
-                        help='path to input checkpoint')
-    parser.add_argument('-o', '--output', default='/path/to/eva_psz14to16.pt', type=str, metavar='PATH', required=True,
-                        help='path to output checkpoint')
-    parser.add_argument('-op', '--orig_patch_size', type=int, default=14,
-                        help='original patch size. (default: 14)')
-    parser.add_argument('-or', '--orig_resolution', type=int, default=None,
-                        help='original image resolution. (default: None)')
-    parser.add_argument('-np', '--new_patch_size', type=int, default=16,
-                        help='new patch size. (default: 14)')
-    parser.add_argument('-nr', '--new_resolution', type=int, default=None,
-                        help='new image resolution. (default: None)')
-    args = parser.parse_args()
-
-    checkpoint = torch.load(args.input, map_location=torch.device("cpu"))
-    checkpoint = interpolate_patch_embed(checkpoint,
-                                         new_patch_size=args.new_patch_size)
-
-    # interpolate pos_embed too
-    checkpoint = interpolate_pos_embed(checkpoint,
-                                       orig_resolution=args.orig_resolution,
-                                       orig_patch_size=args.orig_patch_size,
-                                       new_resolution=args.new_resolution,
-                                       new_patch_size=args.new_patch_size)
-
-    print('======== new state_dict ========')
-    for k, v in list(checkpoint.items()):
-        print(k, '\t', v.shape)
-
-    torch.save(checkpoint, args.output)
