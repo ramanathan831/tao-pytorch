@@ -19,7 +19,6 @@ import os
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_pytorch.core.initialize_experiments import initialize_train_experiment
-from nvidia_tao_pytorch.core.path_utils import expand_path
 from nvidia_tao_pytorch.core.tlt_logging import logging, obfuscate_logs
 from nvidia_tao_pytorch.cv.optical_inspection.dataloader.pl_oi_data_module import OIDataModule
 from nvidia_tao_pytorch.cv.visual_changenet.config.default_config import ExperimentConfig
@@ -29,22 +28,6 @@ from nvidia_tao_pytorch.cv.visual_changenet.classification.models.cn_pl_model im
 
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
-
-
-# TODO: @zbhat modify this to get model with best val accuracy for evaluation
-# TODO: @seanf this isn't used anywhere, but is it still necessary given how we now save checkpoints?
-def get_latest_tlt_model(results_dir):
-    """Utility function to return the latest tlt model in a dir."""
-    trainable_ckpts = [int(item.split('.')[0].split('_')[1]) for item in os.listdir(results_dir)
-                       if item.endswith(".tlt")]
-    num_ckpts = len(trainable_ckpts)
-    if num_ckpts == 0:
-        return None
-    latest_step = sorted(trainable_ckpts, reverse=True)[0]
-    latest_checkpoint = expand_path(os.path.join(results_dir, f"iter_{latest_step}.tlt"))
-    if not os.path.isfile(latest_checkpoint):
-        raise FileNotFoundError("Checkpoint file not found at {}")
-    return latest_checkpoint
 
 
 def run_experiment(experiment_config, key):
