@@ -222,7 +222,7 @@ class TensorBoardLogger:
     """Configuration for the tensorboard logger."""
 
     enabled: bool = BOOL_FIELD(value=False, default_value=False, description="Flag to enable tensorboard")
-    infrequent_logging_frequency: int = INT_FIELD(value=2, default_value=2, valid_min=0, valid_max="inf", description="infrequent_logging_frequency")  # Defined per epoch
+    infrequent_logging_frequency: int = INT_FIELD(value=1, default_value=1, valid_min=0, valid_max="inf", description="infrequent_logging_frequency")  # Defined per epoch
 
 
 @dataclass

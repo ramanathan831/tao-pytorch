@@ -156,7 +156,6 @@ class MLTrainExpConfig(TrainConfig):
         math_cond=">= 0.0",
         display_name="clip_grad_norm",
         description="The amount to clip the gradient by the L2 norm. A value of 0.0 specifies no clipping.",
-        automl_enabled="TRUE"
     )
     report_accuracy_per_class: bool = BOOL_FIELD(
         value=True,
