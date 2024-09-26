@@ -79,6 +79,10 @@ def process_queue():
             except Exception:
                 print(traceback.format_exc())
                 job['status'] = 'Error'
+                status_logging.get_status_logger().write(
+                    message=f"{job['action']} action failed for {job['neural_network_name']}",
+                    status_level=status_logging.Status.FAILURE
+                )
             finally:
                 # Stopping the threads
                 if cloud_storage:
