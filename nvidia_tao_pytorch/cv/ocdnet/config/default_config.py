@@ -411,8 +411,8 @@ class Dataloader:
     """Train args config."""
 
     batch_size: int = INT_FIELD(
-        value=32,
-        default_value=32,
+        value=16,
+        default_value=16,
         valid_min=1,
         valid_max="inf",
         automl_enabled="TRUE",

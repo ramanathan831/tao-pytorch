@@ -318,8 +318,8 @@ class OCRNetDatasetConfig:
         display="max label length"
     )  # Shall we check it with output feature length ?
     batch_size: int = INT_FIELD(
-        value=32,
-        default_value=32,
+        value=16,
+        default_value=16,
         description="Batch size of model input.",
         display="batch size"
     )

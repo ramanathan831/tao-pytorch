@@ -320,8 +320,8 @@ class ARDatasetConfig:
         display="label map"
     )
     batch_size: int = INT_FIELD(
-        value=32,
-        default_value=32,
+        value=2,
+        default_value=2,
         valid_min=1,
         description="Batch size of model input.",
         display="batch size"

@@ -57,7 +57,7 @@ def process_queue():
                                          data=specs,
                                          job_id=job["job_id"],
                                          network_arch=job["neural_network_name"],
-                                         ngc_api_key=job["data"].get("ngc_api_key"),
+                                         ngc_key=job["data"].get("ngc_key"),
                                          tao_api_ui_cookie=tao_api_ui_cookie,
                                          use_ngc_staging=use_ngc_staging,
                                         )

@@ -5,7 +5,7 @@ def invoke_microservices(request_dict):
     url = f"http://localhost:8000/api/v1"
     api_endpoint = request_dict.get('api_endpoint', None)
     neural_network_name = request_dict.get('neural_network_name', None)
-    ngc_api_key = request_dict.get('ngc_api_key', None)
+    ngc_key = request_dict.get('ngc_key', None)
     action_name = request_dict.get('action_name', None)
     storage = request_dict.get('storage', None)
     specs = request_dict.get('specs', None)
@@ -26,14 +26,14 @@ def invoke_microservices(request_dict):
     elif api_endpoint == "get_actions":
         response = requests.get(f"{url}/neural_networks/{neural_network_name}/actions")
     elif api_endpoint == "list_ptms":
-        req_obj = {"ngc_api_key": ngc_api_key}
+        req_obj = {"ngc_key": ngc_key}
         response = requests.post(f"{url}/neural_networks/{neural_network_name}/pretrained_models", req_obj)
     elif api_endpoint == "get_schema":
         response = requests.get(f"{url}/neural_networks/{neural_network_name}/actions/{action_name}:schema")
     elif api_endpoint == "post_action":
         req_obj = {"specs": specs,
                    "cloud_metadata": storage,
-                   "ngc_api_key": ngc_api_key,
+                   "ngc_key": ngc_key,
                    "job_id": job_id,
                    "telemetry_opt_out": telemetry_opt_out,
                    "use_ngc_staging": use_ngc_staging,
