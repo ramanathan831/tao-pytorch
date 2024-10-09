@@ -177,6 +177,21 @@ class ActionsEnum(Enum):
     convert = 'convert'
 
 
+class AllowedDockerEnvVariables(Enum):
+    """Allowed docker environment variables while launching DNN containers"""
+
+    WANDB_API_KEY = "WANDB_API_KEY"
+    WANDB_BASE_URL = "WANDB_BASE_URL"
+    WANDB_USERNAME = "WANDB_USERNAME"
+    WANDB_ENTITY = "WANDB_ENTITY"
+    WANDB_PROJECT = "WANDB_PROJECT"
+    CLEARML_WEB_HOST = "CLEARML_WEB_HOST"
+    CLEARML_API_HOST = "CLEARML_API_HOST"
+    CLEARML_FILES_HOST = "CLEARML_FILES_HOST"
+    CLEARML_API_ACCESS_KEY = "CLEARML_API_ACCESS_KEY"
+    CLEARML_API_SECRET_KEY = "CLEARML_API_SECRET_KEY"
+
+
 class MLOpsEnum(Enum):
     """Class defining MLOps enum"""
 
@@ -311,18 +326,6 @@ class CallbackSchema(Schema):
     key = fields.Str(format="regex", regex=r'.*', validate=fields.validate.Length(max=2048), allow_none=True)
 
 
-class MLOpsSchema(Schema):
-    """Class defining MLOps schema"""
-
-    class Meta:
-        """Class enabling sorting field values by the order in which they are declared"""
-
-        ordered = True
-    name = EnumField(MLOpsEnum)
-    uri = fields.Str(format="regex", regex=r'.*', validate=fields.validate.Length(max=2048), allow_none=True)
-    key = fields.Str(format="regex", regex=r'.*', validate=fields.validate.Length(max=2048), allow_none=True)
-
-
 class PostActionReqSchema(Schema):
     """Class defining Post Action Request schema"""
 
@@ -334,7 +337,6 @@ class PostActionReqSchema(Schema):
     storage = fields.Raw()
     ptm = fields.Nested(PtmSchema, allow_none=True)
     callback = fields.Nested(CallbackSchema, allow_none=True)
-    mlops = fields.Nested(MLOpsSchema, allow_none=True)
 
 
 class PostActionRspSchema(Schema):
@@ -362,7 +364,6 @@ class NVCFReqSchema(Schema):
     storage = fields.Raw()
     ptm = fields.Str(format="regex", regex=r'.*', validate=fields.validate.Length(max=1000), allow_none=True)
     callback = fields.Nested(CallbackSchema, allow_none=True)
-    mlops = fields.Nested(MLOpsSchema, allow_none=True)
     job_id = fields.Str(format="uuid", validate=fields.validate.Length(max=36), allow_none=True)
 
     telemetry_opt_out = fields.Str(format="regex", regex=r'.*', validate=fields.validate.Length(max=1000), allow_none=True)
@@ -373,6 +374,7 @@ class NVCFReqSchema(Schema):
     tao_api_status_callback_url = fields.URL(validate=fields.validate.Length(max=2048))
     automl_experiment_number = fields.Str(format="regex", regex=r'.*', validate=fields.validate.Length(max=1000), allow_none=True)
     hosted_service_interaction = fields.Str(format="regex", regex=r'.*', validate=fields.validate.Length(max=1000), allow_none=True)
+    docker_env_vars = fields.Dict(keys=EnumField(AllowedDockerEnvVariables), values=fields.Str(format="regex", regex=r'.*', validate=fields.validate.Length(max=500), allow_none=True))
 
 @app.route('/api/v1/neural_networks', methods=['GET'])
 @disk_space_check
