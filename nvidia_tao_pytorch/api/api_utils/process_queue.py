@@ -35,6 +35,10 @@ def process_queue():
                 tao_api_status_callback_url = job["data"].get('tao_api_status_callback_url', "")
                 automl_experiment_number = job["data"].get('automl_experiment_number', "")
                 hosted_service_interaction = job["data"].get('hosted_service_interaction', "")
+                docker_env_vars = job["data"].get('docker_env_vars', {})
+
+                if docker_env_vars:
+                    os.environ.update(docker_env_vars)
 
                 os.environ["CLOUD_BASED"] = hosted_service_interaction
                 os.environ["TELEMETRY_OPT_OUT"] = telemetry_opt_out
