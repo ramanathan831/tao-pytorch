@@ -4,7 +4,7 @@ import requests
 
 MODEL_CACHE = None
 
-def get_ngc_token(ngc_api_key: str = "", org: str = "nvidia", team: str = "tao"):
+def get_ngc_token(ngc_key: str = "", org: str = "nvidia", team: str = "tao"):
     """Authenticate to NGC"""
     url = "https://authn.nvidia.com/token"
     params = {"service": "ngc", "scope": "group/ngc"}
@@ -13,10 +13,10 @@ def get_ngc_token(ngc_api_key: str = "", org: str = "nvidia", team: str = "tao")
         if team:
             params["scope"] += f"&group/ngc:{org}/{team}"
     headers = {"Accept": "application/json"}
-    auth = ("$oauthtoken", ngc_api_key)
+    auth = ("$oauthtoken", ngc_key)
     response = requests.get(url, headers=headers, auth=auth, params=params)
     if response.status_code != 200:
-        raise ValueError(f"Credentials error: Invalid NGC_API_KEY")
+        raise ValueError(f"Credentials error: Invalid NGC_PERSONAL_KEY")
     return response.json()["token"]
 
 

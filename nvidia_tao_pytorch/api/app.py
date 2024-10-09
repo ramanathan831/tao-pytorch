@@ -123,7 +123,7 @@ spec.components.header("X-RateLimit-Limit", {
         "maximum": sys.maxsize,
     }
 })
-spec.components.security_scheme("api-key", {"type": "apiKey", "in": "header", "name": "ngc_api_key"})
+spec.components.security_scheme("api-key", {"type": "apiKey", "in": "header", "name": "ngc_key"})
 
 
 
@@ -286,7 +286,7 @@ class PtmReqSchema(Schema):
         """Class enabling sorting field values by the order in which they are declared"""
 
         ordered = True
-    ngc_api_key = fields.Str(format="regex", regex=r'.*', validate=fields.validate.Length(max=1000))
+    ngc_key = fields.Str(format="regex", regex=r'.*', validate=fields.validate.Length(max=1000))
 
 
 class PtmSchema(Schema):
@@ -354,7 +354,7 @@ class NVCFReqSchema(Schema):
         """Class enabling sorting field values by the order in which they are declared"""
 
         ordered = True
-    ngc_api_key = fields.Str(format="regex", regex=r'.*', validate=fields.validate.Length(max=1000), allow_none=True)
+    ngc_key = fields.Str(format="regex", regex=r'.*', validate=fields.validate.Length(max=1000), allow_none=True)
     api_endpoint = fields.Str(format="regex", regex=r'.*', validate=fields.validate.Length(max=1000), allow_none=True)
     neural_network_name = fields.Str(format="regex", regex=r'.*', validate=fields.validate.Length(max=1000), allow_none=True)
     action_name = fields.Str(format="regex", regex=r'.*', validate=fields.validate.Length(max=1000), allow_none=True)
@@ -464,7 +464,7 @@ def list_ptms(neural_network_name):
         content:
           application/json:
             schema: PtmReqSchema
-        description: Login request with ngc_api_key
+        description: Login request with NGC key
         required: true
       responses:
         200:
@@ -478,7 +478,7 @@ def list_ptms(neural_network_name):
     """
     schema = PtmReqSchema()
     request_dict = schema.dump(schema.load(request.get_json(force=True)))
-    key = request_dict.get('ngc_api_key', 'invalid_key')
+    key = request_dict.get('ngc_key', 'invalid_key')
 
     try:
         ngc_token = ngc_utils.get_ngc_token(key)
