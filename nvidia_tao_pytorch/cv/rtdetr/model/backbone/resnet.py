@@ -78,7 +78,7 @@ class ResNet(nn.Module):
 
         self.return_idx = return_idx
         out_channels = [256, 512, 1024, 2048]
-        if isinstance(block, BasicBlock):
+        if block == BasicBlock:
             out_channels = [64, 128, 256, 512]
 
         _out_strides = [4, 8, 16, 32]

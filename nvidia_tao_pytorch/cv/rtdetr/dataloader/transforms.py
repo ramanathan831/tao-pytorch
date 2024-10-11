@@ -68,12 +68,14 @@ def build_transforms(augmentation_config, subtask_config=None, dataset_mode='tra
                 ResizeAndPad(max_size=max(test_resize)),
                 T.ToImage(),
                 T.ConvertImageDtype(),
+                ConvertBox(out_fmt='cxcywh', normalize=True)
             ])
         else:
             transforms = Compose([
                 T.Resize(size=test_resize),
                 T.ToImage(),
                 T.ConvertImageDtype(),
+                ConvertBox(out_fmt='cxcywh', normalize=True)
             ])
     else:
         raise ValueError('There are only train, val, eval, and infer options in dataset_mode.')

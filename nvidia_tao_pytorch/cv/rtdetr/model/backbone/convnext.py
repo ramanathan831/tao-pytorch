@@ -112,7 +112,8 @@ class ConvNeXt(nn.Module):
                  out_channels=[512, 1024, 2048],
                  in_chans=3,
                  drop_path_rate=0,
-                 layer_scale_init_value=1e-6):
+                 layer_scale_init_value=1e-6,
+                 activation_checkpoint=False):
         """Init function.
 
         Args:
@@ -127,7 +128,7 @@ class ConvNeXt(nn.Module):
         super().__init__()
 
         self.num_stages = num_stages
-
+        self.activation_checkpoint = activation_checkpoint
         # stem and 3 intermediate downsampling conv layers
         self.downsample_layers = nn.ModuleList()
         for i in range(num_stages):
