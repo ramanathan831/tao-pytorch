@@ -205,7 +205,8 @@ def launch(args, unknown_args, subtasks, network=None):
 
     log_file = ""
     if os.getenv("JOB_ID"):
-        log_file = f"/{os.getenv('JOB_ID')}.txt"
+        logs_dir = os.getenv('TAO_MICROSERVICES_TTY_LOG', '/results')
+        log_file = f"{logs_dir}/{os.getenv('JOB_ID')}/microservices_log.txt"
 
     # Create a system call.
     if network in LIGHTNING_EXCLUDED_NETWORKS:
