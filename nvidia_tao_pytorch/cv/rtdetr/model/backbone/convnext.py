@@ -39,19 +39,21 @@ class LayerNorm(nn.Module):
         self.eps = eps
         self.data_format = data_format
         if self.data_format not in ["channels_last", "channels_first"]:
-            raise NotImplementedError
+            raise NotImplementedError(
+                f"Invalid data format: {self.data_format}"
+                f"Valid options are ['channels_last", "channels_first']"
+            )
         self.normalized_shape = (normalized_shape, )
 
     def forward(self, x):
         """Forward function."""
         if self.data_format == "channels_last":
             return F.layer_norm(x, self.normalized_shape, self.weight, self.bias, self.eps)
-        elif self.data_format == "channels_first":
-            u = x.mean(1, keepdim=True)
-            s = (x - u).pow(2).mean(1, keepdim=True)
-            x = (x - u) / torch.sqrt(s + self.eps)
-            x = self.weight[:, None, None] * x + self.bias[:, None, None]
-            return x
+        u = x.mean(1, keepdim=True)
+        s = (x - u).pow(2).mean(1, keepdim=True)
+        x = (x - u) / torch.sqrt(s + self.eps)
+        x = self.weight[:, None, None] * x + self.bias[:, None, None]
+        return x
 
 
 class Block(nn.Module):
@@ -81,7 +83,7 @@ class Block(nn.Module):
 
     def forward(self, x):
         """Forward function."""
-        input = x
+        input_tensor = x
         x = self.dwconv(x)
         x = x.permute(0, 2, 3, 1)  # (N, C, H, W) -> (N, H, W, C)
         x = self.norm(x)
@@ -92,7 +94,7 @@ class Block(nn.Module):
             x = self.gamma * x
         x = x.permute(0, 3, 1, 2)  # (N, H, W, C) -> (N, C, H, W)
 
-        x = input + self.drop_path(x)
+        x = input_tensor + self.drop_path(x)
         return x
 
 
