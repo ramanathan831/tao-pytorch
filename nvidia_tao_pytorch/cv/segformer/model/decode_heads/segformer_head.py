@@ -41,11 +41,13 @@ class TAOSegFormerHead(BaseDecodeHead):
     SegFormer: Simple and Efficient Design for Semantic Segmentation with Transformers
     """
 
-    def __init__(self, feature_strides, decoder_params, **kwargs):
+    def __init__(self, feature_strides, decoder_params, img_shape, phase, **kwargs):
         """Init Module."""
         super().__init__(input_transform='multiple_select', **kwargs)
         assert len(feature_strides) == len(self.in_channels), "The number of feature strides:{} should be equal to number of channels: {}".format(feature_strides, len(self.in_channels))
         assert min(feature_strides) == feature_strides[0], "Minimum of feature strides is not supported."
+        self.phase = phase
+        self.img_shape = img_shape
         self.feature_strides = feature_strides
         self.export = False
 
@@ -100,4 +102,20 @@ class TAOSegFormerHead(BaseDecodeHead):
         x = self.dropout(_c)
         x = self.linear_pred(x)
 
+        if self.phase == 'export':
+            x = resize(input=x, size=self.img_shape, mode='bilinear', align_corners=False)
+            x = self._postprocess_result(x)
         return x
+
+    def _postprocess_result(self, seg_logits):
+
+        _, C, _, _ = seg_logits.shape
+
+        if C > 1:
+            seg_logits = seg_logits.argmax(dim=1, keepdim=True)
+        else:
+            seg_logits = seg_logits.sigmoid()
+            seg_logits = (seg_logits >
+                          self.decode_head.threshold).to(seg_logits)
+
+        return seg_logits

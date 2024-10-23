@@ -21,6 +21,7 @@ from glob import glob
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
+from nvidia_tao_pytorch.cv.segformer.utils.onnx_export import ONNXExporter
 from nvidia_tao_pytorch.cv.segformer.config.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.segformer.utils.config import MMSegmentationConfig
 
@@ -31,11 +32,7 @@ from nvidia_tao_pytorch.cv.segformer.dataloader import * # noqa pylint: disable=
 from mmengine.config import Config
 from mmengine.logging import print_log
 from mmengine.registry.utils import init_default_scope
-from mmdeploy.apis.pytorch2onnx import torch2onnx
 
-# Triggers build of modules and registry
-# import nvidia_tao_pytorch.cv.segformer.model
-# import nvidia_tao_pytorch.cv.segformer.dataloader
 
 
 def run_experiment(experiment_config):
@@ -81,9 +78,9 @@ def run_experiment(experiment_config):
     imgs += glob(test_dir + "/*.png", recursive=True)
 
     img = imgs[0]
-
-    torch2onnx(img=img, work_dir=results_dir, save_file=onnx_path.split('/')[-1],
-               deploy_cfg=deploy_cfg, model_cfg=model_cfg, model_checkpoint=model_path)
+    onnx_export = ONNXExporter()
+    onnx_export.export_model(img=img, work_dir=results_dir, save_file=onnx_path.split('/')[-1],
+                             deploy_cfg=deploy_cfg, model_cfg=model_cfg, model_checkpoint=model_path)
 
     status_logger.write(message="Completed Export.", status_level=status_logging.Status.RUNNING)
 
