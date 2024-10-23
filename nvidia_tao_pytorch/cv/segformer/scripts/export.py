@@ -34,7 +34,6 @@ from mmengine.logging import print_log
 from mmengine.registry.utils import init_default_scope
 
 
-
 def run_experiment(experiment_config):
     """Start the Export.
     Args:
