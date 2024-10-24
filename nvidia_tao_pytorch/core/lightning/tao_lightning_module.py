@@ -56,9 +56,10 @@ class TAOLightningModule(pl.LightningModule):
             resumed_epoch = re.search('epoch_(\\d+)', resume_ckpt)
             if resumed_epoch:
                 resumed_epoch = int(resumed_epoch.group(1))
+                # Checkpoint filenames are indexed by 0, while the epoch on logging is indexed by 1, so +2 must be done to match epoch number from filename to the logging epoch_count
+                status_logger_callback.epoch_counter = resumed_epoch + 2
         else:
-            resumed_epoch = 0
-        status_logger_callback.epoch_counter = resumed_epoch + 1
+            status_logger_callback.epoch_counter = 1
 
         ModelCheckpoint.FILE_EXTENSION = ".pth"
         ModelCheckpoint.CHECKPOINT_EQUALS_CHAR = "_"
