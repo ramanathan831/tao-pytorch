@@ -547,11 +547,7 @@ def get_schema(neural_network_name, action_name):
         return make_response(jsonify(schema.dump(schema.load(metadata))), 400)
     
     try:
-        ep_module = ep_mappings[neural_network_name].split(".")
-        if neural_network_name == "classification_pyt":
-            imported_module = dataclasses_utils.import_module_from_path("nvidia_tao_pytorch.core.mmlab.mmclassification.classification_default_config")
-        else:
-            imported_module = dataclasses_utils.import_module_from_path(f"{'.'.join(ep_module[:3])}.config.default_config")
+        imported_module = dataclasses_utils.import_module_from_path(f"nvidia_tao_core.config.{neural_network_name}.default_config")
         expConfig = imported_module.ExperimentConfig()
         json_with_meta_config = dataclasses_utils.dataclass_to_json(expConfig)
         json_schema = dataclasses_utils.create_json_schema(json_with_meta_config)
@@ -627,14 +623,7 @@ def post_action(neural_network_name, action_name):
     
     try:
         # Fetching the JSON schema
-        ep_mappings = module_utils.get_entry_point_module_mapping()
-        ep_module = ep_mappings[neural_network_name].split(".")
-        if neural_network_name == "classification_pyt":
-            imported_module = dataclasses_utils.import_module_from_path("nvidia_tao_pytorch.core.mmlab.mmclassification.classification_default_config")
-        elif neural_network_name == "pointpillars":
-            imported_module = dataclasses_utils.import_module_from_path("nvidia_tao_pytorch.pointcloud.pointpillars.config.default_config")
-        else:
-            imported_module = dataclasses_utils.import_module_from_path(f"{'.'.join(ep_module[:3])}.config.default_config")
+        imported_module = dataclasses_utils.import_module_from_path(f"nvidia_tao_core.config.{neural_network_name}.default_config")
         expConfig = imported_module.ExperimentConfig()
         json_with_meta_config = dataclasses_utils.dataclass_to_json(expConfig)
         json_schema = dataclasses_utils.create_json_schema(json_with_meta_config)

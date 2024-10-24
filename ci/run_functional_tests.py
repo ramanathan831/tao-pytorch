@@ -61,12 +61,15 @@ def main(cl_args=None):
         if args["skip_slow"]:
             print("Skipping slow tests.")
             launcher_command += " -m \"not slow\""
+        tao_core_path = "/tao-pt/tao-core"
         if not CI:
             # To build the required libraries.
             launcher_command = f"python setup.py develop && {launcher_command}"
-            launcher_command = "{} -v {}:{} -e PYTHONPATH={} {} bash -c \'{} \'".format(
+            # We append tao-core to the pythonpath so imports will work
+            # The functional tests are run on the base container which does not have the core wheel installed
+            launcher_command = "{} -v {}:{} -e PYTHONPATH={}:{} {} bash -c \'{} \'".format(
                 docker_command_prefix, ROOT_DIR,
-                DOCKER_ROOT, DOCKER_ROOT,
+                DOCKER_ROOT, tao_core_path, DOCKER_ROOT,
                 docker_image, launcher_command)
         print(launcher_command)
         subprocess.check_call(launcher_command, stdout=sys.stdout, stderr=sys.stdout, shell=True)

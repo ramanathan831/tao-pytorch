@@ -1,5 +1,6 @@
 addict==2.4.0
 anyconfig==0.14.0
+apache-libcloud==3.8.0
 apispec==6.6.1
 apispec_webframeworks==1.1.0
 astroid==3.0.3
@@ -74,6 +75,7 @@ pyquaternion==0.9.9
 pyrr==0.10.3
 PyWavelets==1.5.0
 PyYAML==6.0.1
+requests==2.32.3
 rich==13.4.2
 scikit-image==0.22.0
 setuptools==69.1.0
