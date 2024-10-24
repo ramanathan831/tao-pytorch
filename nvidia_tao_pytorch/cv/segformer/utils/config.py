@@ -223,6 +223,8 @@ class MMSegmentationConfig(object):
             self.updated_config["model"]["decode_head"]["channels"] = 256
 
         self.updated_config["model"]["decode_head"]["num_classes"] = self.num_classes
+        self.updated_config["model"]["decode_head"]["img_shape"] = [model_config["input_height"], model_config["input_width"]]
+        self.updated_config["model"]["decode_head"]["phase"] = self.phase
 
         # This is done by recommendation of mmseg
         # It will automatically set threshold = 0.3

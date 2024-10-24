@@ -41,7 +41,7 @@ class LayerNorm(nn.Module):
         if self.data_format not in ["channels_last", "channels_first"]:
             raise NotImplementedError(
                 f"Invalid data format: {self.data_format}"
-                f"Valid options are ['channels_last", "channels_first']"
+                f"Valid options are ['channels_last', 'channels_first']"
             )
         self.normalized_shape = (normalized_shape, )
 
