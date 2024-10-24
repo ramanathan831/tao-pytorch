@@ -1,4 +1,4 @@
-FROM nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:ff920080025e2dd12d5740c3d722f0630f1f84630ae6f55e56f872d4914fca03
+FROM nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:c2edfbd141eb96adf36aafdbb6e75ecc6b9749b729e8fcfbed6aa2e7843ff472
 
 # Installing the TLT packages.
 WORKDIR /opt/nvidia
@@ -25,6 +25,11 @@ RUN pip install --upgrade pip && \
 
 RUN rm -rf /opt/nvidia/entrypoint.d/*.txt
 COPY release/docker/entrypoint.d/* /opt/nvidia/entrypoint.d/
+
+COPY tao-core tao-core
+RUN cd tao-core && bash release/python/build_wheel.sh && \
+    find dist/ -name "nvidia_tao_core*.whl" -type f | xargs -n 1 pip install && \
+    rm -rf *
 
 # Copying tlt-converter and building it in the docker.
 ENV TRT_LIB_PATH="/usr/lib/x86_64-linux-gnu"
