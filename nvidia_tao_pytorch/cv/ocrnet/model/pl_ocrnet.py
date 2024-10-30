@@ -322,7 +322,9 @@ class OCRNetModel(TAOLightningModule):
 
     def on_test_epoch_start(self):
         """Test epoch start"""
-        self.test_accuracy = torchmetrics.Accuracy()
+        self.test_accuracy = torchmetrics.Accuracy(compute_on_cpu=False,
+                                                   sync_on_compute=False,
+                                                   dist_sync_on_step=True)
 
     def test_step(self, batch, batch_idx):
         """Test step"""
@@ -345,16 +347,16 @@ class OCRNetModel(TAOLightningModule):
     def on_test_epoch_end(self):
         """Test epoch end"""
         test_acc = self.test_accuracy.compute().item() * 100
-        print(f'Accuracy: {test_acc:0.3f}')
-        self.dm.console_logger.info(f"Accuracy: {test_acc:0.3f}")
-        self.status_logging_dict = {}
-        self.status_logging_dict["test_acc"] = test_acc
-        status_logging.get_status_logger().kpi = self.status_logging_dict
-        status_logging.get_status_logger().write(
-            message="Test metrics generated.",
-            status_level=status_logging.Status.RUNNING
-        )
-        self.test_accuracy = None
+        if self.trainer.local_rank == 0:
+            self.dm.console_logger.info(f"Accuracy: {test_acc:0.3f}")
+            self.status_logging_dict = {}
+            self.status_logging_dict["test_acc"] = test_acc
+            status_logging.get_status_logger().kpi = self.status_logging_dict
+            status_logging.get_status_logger().write(
+                message="Test metrics generated.",
+                status_level=status_logging.Status.RUNNING
+            )
+            self.test_accuracy = None
 
     def on_predict_epoch_start(self):
         """Predict epoch start"""
