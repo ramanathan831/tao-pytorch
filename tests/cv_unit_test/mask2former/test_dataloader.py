@@ -19,8 +19,9 @@ import numpy as np
 import tempfile
 from PIL import Image
 from omegaconf import OmegaConf
-from nvidia_tao_pytorch.cv.mask2former.config.dataset import AugmentationConfig
-from nvidia_tao_pytorch.cv.mask2former.config.default_config import Mask2FormerDatasetConfig
+
+from nvidia_tao_core.config.mask2former.dataset import AugmentationConfig
+from nvidia_tao_core.config.mask2former.default_config import Mask2FormerDatasetConfig
 from nvidia_tao_pytorch.cv.mask2former.dataloader.pl_data_module import SemSegmDataModule
 
 
