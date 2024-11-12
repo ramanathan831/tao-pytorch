@@ -21,7 +21,7 @@ import onnx
 import onnxruntime as ort
 import torch
 
-from nvidia_tao_pytorch.cv.rtdetr.config.default_config import RTModelConfig, RTDatasetConfig, ExperimentConfig
+from nvidia_tao_core.config.rtdetr.default_config import RTModelConfig, RTDatasetConfig, ExperimentConfig
 from nvidia_tao_pytorch.cv.rtdetr.model.build_nn_model import build_model
 from nvidia_tao_pytorch.cv.deformable_detr.utils.onnx_export import ONNXExporter
 

@@ -22,7 +22,7 @@ from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_pytorch.core.tlt_logging import logging
 from nvidia_tao_pytorch.core.initialize_experiments import initialize_train_experiment
 
-from nvidia_tao_pytorch.cv.rtdetr.config.default_config import ExperimentConfig
+from nvidia_tao_core.config.rtdetr.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.deformable_detr.utils.misc import load_pretrained_weights
 
 from nvidia_tao_pytorch.cv.rtdetr.dataloader.pl_od_data_module import ODDataModule

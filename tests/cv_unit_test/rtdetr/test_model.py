@@ -14,7 +14,7 @@
 
 import pytest
 from omegaconf import OmegaConf
-from nvidia_tao_pytorch.cv.rtdetr.config.default_config import RTModelConfig, RTDatasetConfig, ExperimentConfig
+from nvidia_tao_core.config.rtdetr.default_config import RTModelConfig, RTDatasetConfig, ExperimentConfig
 from nvidia_tao_pytorch.cv.rtdetr.model.build_nn_model import build_model
 
 

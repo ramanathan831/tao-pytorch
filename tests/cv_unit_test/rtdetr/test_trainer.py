@@ -23,7 +23,7 @@ from pytorch_lightning import Trainer
 from omegaconf import OmegaConf
 
 from nvidia_tao_pytorch.core.utilities import check_and_create
-from nvidia_tao_pytorch.cv.rtdetr.config.default_config import ExperimentConfig
+from nvidia_tao_core.config.rtdetr.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.rtdetr.dataloader.pl_od_data_module import ODDataModule
 from nvidia_tao_pytorch.cv.rtdetr.model.pl_rtdetr_model import RTDETRPlModel
 
