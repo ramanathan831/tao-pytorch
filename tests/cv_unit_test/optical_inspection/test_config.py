@@ -20,7 +20,7 @@ import json
 
 from omegaconf import OmegaConf
 
-from nvidia_tao_pytorch.cv.optical_inspection.config.default_config import (
+from nvidia_tao_core.config.optical_inspection.default_config import (
     ModelConfig,
     OptimConfig,
     RandomFlip, 
