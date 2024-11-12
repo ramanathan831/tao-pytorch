@@ -20,7 +20,7 @@ import json
 
 from omegaconf import OmegaConf
 
-from nvidia_tao_pytorch.pointcloud.pointpillars.config.default_config import (
+from nvidia_tao_core.config.pointpillars.default_config import (
     ExperimentConfig,
     PPDatasetConfig,
     PPModelConfig,
