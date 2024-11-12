@@ -26,7 +26,7 @@
 # from mmengine.runner import Runner
 # from mmengine.dist import get_rank, get_world_size
 
-# from nvidia_tao_pytorch.cv.segformer.config.default_config import SFModelConfig, ExperimentConfig, seg_class
+# from nvidia_tao_core.config.segformer.default_config import SFModelConfig, ExperimentConfig, seg_class
 # from nvidia_tao_pytorch.cv.segformer.utils.common_utils import check_and_create, check_and_delete
 
 # # Triggers build of custom modules

@@ -20,7 +20,7 @@ import os
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.initialize_experiments import initialize_evaluation_experiment
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
-from nvidia_tao_pytorch.cv.segformer.config.default_config import ExperimentConfig
+from nvidia_tao_core.config.segformer.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.segformer.utils.config import MMSegmentationConfig
 
 # Triggers build of custom modules
