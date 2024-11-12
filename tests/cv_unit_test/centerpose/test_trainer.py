@@ -22,7 +22,7 @@ from pytorch_lightning import Trainer
 
 from omegaconf import OmegaConf
 from nvidia_tao_pytorch.core.utilities import check_and_create
-from nvidia_tao_pytorch.cv.centerpose.config.default_config import ExperimentConfig
+from nvidia_tao_core.config.centerpose.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.centerpose.dataloader.pl_cp_data_module import CPDataModule
 from nvidia_tao_pytorch.cv.centerpose.model.pl_centerpose_model import CenterPosePlModel
 

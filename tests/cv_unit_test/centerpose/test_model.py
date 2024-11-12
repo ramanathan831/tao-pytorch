@@ -14,7 +14,11 @@
 
 import pytest
 from omegaconf import OmegaConf
-from nvidia_tao_pytorch.cv.centerpose.config.default_config import CenterPoseModelConfig, CenterPoseDatasetConfig, ExperimentConfig
+
+from nvidia_tao_core.config.centerpose.default_config import ExperimentConfig
+from nvidia_tao_core.config.centerpose.dataset import CenterPoseDatasetConfig
+from nvidia_tao_core.config.centerpose.model import CenterPoseModelConfig
+
 from nvidia_tao_pytorch.cv.centerpose.model.centerpose import create_model
 
 
