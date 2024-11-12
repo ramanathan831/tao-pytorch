@@ -20,9 +20,9 @@ import json
 
 from omegaconf import OmegaConf
 
-from nvidia_tao_pytorch.cv.action_recognition.config.default_config import (ARModelConfig, ARDatasetConfig,
-                                                                            ARAugmentationConfig, ARTrainExpConfig,
-                                                                            OptimConfig, ExperimentConfig)
+from nvidia_tao_core.config.action_recognition.default_config import (ARModelConfig, ARDatasetConfig,
+                                                                             ARAugmentationConfig, ARTrainExpConfig,
+                                                                             OptimConfig, ExperimentConfig)
 from nvidia_tao_pytorch.config.json_schema_validation import validate_jsonschema
 from nvidia_tao_pytorch.config.utils import (
     create_json_schema, dataclass_to_json

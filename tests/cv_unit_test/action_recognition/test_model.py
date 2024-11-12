@@ -19,7 +19,7 @@ import os
 import pytest
 import torch
 from omegaconf import OmegaConf
-from nvidia_tao_pytorch.cv.action_recognition.config.default_config import ARModelConfig, ARDatasetConfig
+from nvidia_tao_core.config.action_recognition.default_config import ARModelConfig, ARDatasetConfig
 from nvidia_tao_pytorch.cv.action_recognition.model.build_nn_model import build_ar_model
 
 
