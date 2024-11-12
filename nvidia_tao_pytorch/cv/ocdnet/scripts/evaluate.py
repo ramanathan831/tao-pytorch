@@ -25,9 +25,9 @@ import torch
 from omegaconf import OmegaConf
 from pytorch_lightning import Trainer
 
+from nvidia_tao_core.config.ocdnet.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.initialize_experiments import initialize_evaluation_experiment
-from nvidia_tao_pytorch.cv.ocdnet.config.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.ocdnet.data_loader.pl_ocd_data_module import OCDDataModule
 from nvidia_tao_pytorch.cv.ocdnet.utils.util import load_checkpoint
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner

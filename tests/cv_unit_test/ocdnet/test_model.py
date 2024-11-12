@@ -15,7 +15,7 @@
 import torch
 import pytest
 from omegaconf import OmegaConf
-from nvidia_tao_pytorch.cv.ocdnet.config.default_config import OCDNetModelConfig
+from nvidia_tao_core.config.ocdnet.default_config import OCDNetModelConfig
 from nvidia_tao_pytorch.cv.ocdnet.model.model import Model
 
 
