@@ -20,7 +20,8 @@ import tempfile
 from PIL import Image
 import json
 from omegaconf import OmegaConf
-from nvidia_tao_pytorch.cv.mal.config.default_config import ExperimentConfig
+
+from nvidia_tao_core.config.mal.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.mal.datasets.pl_wsi_data_module import WSISDataModule
 
 TEST_BATCH_SIZE = 4
