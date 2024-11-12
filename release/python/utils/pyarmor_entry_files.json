@@ -84,8 +84,7 @@
             "scripts/inference.py",
             "scripts/train.py",
             "scripts/distill.py",
-            "utils/__init__.py",
-            "utils/pos_embed_interpolation_converter.py"
+            "utils/__init__.py"
         ],
         "grounding_dino":[
             "__init__.py",
@@ -388,7 +387,8 @@
         "mmlab/mmclassification/__init__.py",
         "modules/__init__.py",
         "modules/activation/__init__.py",
-        "telemetry/__init__.py"
+        "telemetry/__init__.py",
+        "utils/__init__.py"
     ],
     "pruning":[
         "__init__.py",
