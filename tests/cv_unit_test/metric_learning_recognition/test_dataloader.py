@@ -14,8 +14,9 @@
 
 import pytest
 from omegaconf import OmegaConf
+
+from nvidia_tao_core.config.metric_learning_recognition.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.metric_learning_recognition.dataloader.build_data_loader import build_dataloader, build_inference_dataloader
-from nvidia_tao_pytorch.cv.metric_learning_recognition.config.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.metric_learning_recognition.dataloader.datasets.image_datasets import MetricLearnImageFolder
 from nvidia_tao_pytorch.cv.metric_learning_recognition.dataloader.transforms import build_transforms
 
