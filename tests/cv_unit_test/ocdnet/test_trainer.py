@@ -20,7 +20,7 @@ import tempfile
 from pytorch_lightning import Trainer
 from omegaconf import OmegaConf
 
-from nvidia_tao_pytorch.cv.ocdnet.config.default_config import ExperimentConfig
+from nvidia_tao_core.config.ocdnet.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.ocdnet.data_loader.pl_ocd_data_module import OCDDataModule
 from nvidia_tao_pytorch.cv.ocdnet.model.pl_ocd_model import OCDnetModel
 

@@ -20,7 +20,7 @@ import json
 
 from omegaconf import OmegaConf
 
-from nvidia_tao_pytorch.cv.ocdnet.config.default_config import ExperimentConfig, OCDNetDataConfig, OCDNetModelConfig, OCDNetTrainExpConfig
+from nvidia_tao_core.config.ocdnet.default_config import ExperimentConfig, OCDNetDataConfig, OCDNetModelConfig, OCDNetTrainExpConfig
 from nvidia_tao_pytorch.config.json_schema_validation import validate_jsonschema
 from nvidia_tao_pytorch.config.utils import (
     create_json_schema, dataclass_to_json
