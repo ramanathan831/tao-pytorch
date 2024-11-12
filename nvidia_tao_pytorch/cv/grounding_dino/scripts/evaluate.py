@@ -19,10 +19,10 @@ import pytorch_lightning as pl
 from pytorch_lightning import Trainer
 import tempfile
 
+from nvidia_tao_core.config.grounding_dino.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_pytorch.core.initialize_experiments import initialize_evaluation_experiment
-from nvidia_tao_pytorch.cv.grounding_dino.config.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.grounding_dino.dataloader.pl_odvg_data_module import ODVGDataModule
 from nvidia_tao_pytorch.cv.grounding_dino.model.pl_gdino_model import GDINOPlModel
 from nvidia_tao_pytorch.cv.grounding_dino.utils.misc import parse_checkpoint

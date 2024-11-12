@@ -22,7 +22,9 @@ import onnxruntime as ort
 import numpy as np
 import torch
 
-from nvidia_tao_pytorch.cv.grounding_dino.config.default_config import GDINOModelConfig, GDINODatasetConfig, ExperimentConfig
+from nvidia_tao_core.config.grounding_dino.default_config import ExperimentConfig
+from nvidia_tao_core.config.grounding_dino.dataset import GDINODatasetConfig
+from nvidia_tao_core.config.grounding_dino.model import GDINOModelConfig
 from nvidia_tao_pytorch.cv.grounding_dino.model.build_nn_model import build_model
 from nvidia_tao_pytorch.cv.grounding_dino.utils.onnx_export import ONNXExporter
 
