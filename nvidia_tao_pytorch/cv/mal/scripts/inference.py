@@ -11,10 +11,10 @@ import warnings
 
 from pytorch_lightning import Trainer
 
+from nvidia_tao_core.config.mal.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_pytorch.core.initialize_experiments import initialize_inference_experiment
-from nvidia_tao_pytorch.cv.mal.config.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.mal.datasets.pl_wsi_data_module import WSISDataModule
 from nvidia_tao_pytorch.cv.mal.models.mal import MALPseudoLabels
 from nvidia_tao_pytorch.cv.mal.utils.config_utils import update_config

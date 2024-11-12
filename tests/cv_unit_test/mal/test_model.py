@@ -14,7 +14,8 @@
 
 import pytest
 from omegaconf import OmegaConf
-from nvidia_tao_pytorch.cv.mal.config.default_config import (
+
+from nvidia_tao_core.config.mal.default_config import (
     ExperimentConfig,
     MALModelConfig
 )

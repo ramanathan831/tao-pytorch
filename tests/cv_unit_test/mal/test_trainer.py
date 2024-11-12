@@ -21,7 +21,7 @@ import numpy as np
 from pytorch_lightning import Trainer
 from omegaconf import OmegaConf
 
-from nvidia_tao_pytorch.cv.mal.config.default_config import ExperimentConfig
+from nvidia_tao_core.config.mal.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.mal.datasets.pl_wsi_data_module import WSISDataModule
 from nvidia_tao_pytorch.cv.mal.models.mal import MAL, MALPseudoLabels
 from nvidia_tao_pytorch.cv.mal.utils.config_utils import update_config
