@@ -22,9 +22,9 @@ import tempfile
 import torch
 from mmengine.runner import Runner
 
+from nvidia_tao_core.config.classification_pyt.default_config import ExperimentConfig
 import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
 from nvidia_tao_pytorch.core.mmlab.common.utils import get_latest_pth_model
-from nvidia_tao_pytorch.core.mmlab.mmclassification.classification_default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.mmlab.mmclassification.logistic_regression_trainer import LogisticRegressionTrainer as LRTrainer
 from nvidia_tao_pytorch.core.mmlab.mmclassification.utils import MMPretrainConfig
 from nvidia_tao_pytorch.core.utilities import check_and_create, check_and_delete

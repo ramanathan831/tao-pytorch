@@ -18,12 +18,11 @@ import copy
 import os
 import tempfile
 from abc import abstractmethod
-import dataclasses
 from omegaconf import OmegaConf
 
 import torch
 
-from nvidia_tao_pytorch.core.mmlab.mmclassification.model_params_mapping import map_params, map_input_lr_head, map_clip_model_cfg
+from nvidia_tao_core.config.classification_pyt.model_params_mapping import map_params, map_input_lr_head, map_clip_model_cfg
 
 from mmengine.runner.checkpoint import load_checkpoint
 from mmpretrain.models import build_classifier
@@ -44,7 +43,7 @@ class MMPretrainConfig(object):
                  config,
                  phase="train"):
         """Init Function."""
-        self.config = dataclasses.asdict(OmegaConf.to_object(config))
+        self.config = OmegaConf.to_container(config, resolve=True)
         self.updated_config = {}
         self.phase = phase
         self.update_config(phase=phase)

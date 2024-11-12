@@ -20,7 +20,7 @@ import json
 
 from omegaconf import OmegaConf
 
-from nvidia_tao_pytorch.core.mmlab.mmclassification.classification_default_config import (
+from nvidia_tao_core.config.classification_pyt.default_config import (
     ImgNormConfig,
     TrainData,
     ValData,
