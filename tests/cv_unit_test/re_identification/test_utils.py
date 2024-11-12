@@ -21,12 +21,12 @@ from torch.utils.data import DataLoader
 from omegaconf import OmegaConf
 from nvidia_tao_pytorch.core.connectors.checkpoint_connector import encrypt_checkpoint
 from nvidia_tao_pytorch.core.utilities import patch_decrypt_checkpoint
+from nvidia_tao_core.config.re_identification.default_config import ReIDModelConfig, ReIDDatasetConfig, ReIDTrainExpConfig
 from nvidia_tao_pytorch.cv.re_identification.dataloader.build_data_loader import train_collate_fn
 from nvidia_tao_pytorch.cv.re_identification.dataloader.datasets.bases import ImageDataset
 from nvidia_tao_pytorch.cv.re_identification.dataloader.datasets.market1501 import Market1501
 from nvidia_tao_pytorch.cv.re_identification.dataloader.transforms import build_transforms
 from nvidia_tao_pytorch.cv.re_identification.dataloader.sampler import RandomIdentitySampler
-from nvidia_tao_pytorch.cv.re_identification.config.default_config import ReIDModelConfig, ReIDDatasetConfig, ReIDTrainExpConfig
 from nvidia_tao_pytorch.cv.re_identification.model.losses.triplet_loss import TripletLoss, CrossEntropyLabelSmooth
 from nvidia_tao_pytorch.cv.re_identification.model.losses.center_loss import CenterLoss
 from nvidia_tao_pytorch.cv.re_identification.model.losses.metric_learning import ContrastiveLoss, CircleLoss, Arcface, Cosface, AMSoftmax

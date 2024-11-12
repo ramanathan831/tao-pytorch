@@ -19,7 +19,7 @@ from nvidia_tao_pytorch.core.connectors.checkpoint_connector import TLTCheckpoin
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_pytorch.core.initialize_experiments import initialize_train_experiment
-from nvidia_tao_pytorch.cv.re_identification.config.default_config import ExperimentConfig
+from nvidia_tao_core.config.re_identification.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.re_identification.dataloader.pl_reid_data_module import REIDDataModule
 from nvidia_tao_pytorch.cv.re_identification.model.pl_reid_model import ReIdentificationModel
 

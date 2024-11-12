@@ -20,7 +20,7 @@ import json
 
 from omegaconf import OmegaConf
 
-from nvidia_tao_pytorch.cv.re_identification.config.default_config import ReIDModelConfig, OptimConfig, ReIDDatasetConfig, ReIDReRankingConfig, ReIDTrainExpConfig, ReIDInferenceExpConfig, ReIDEvalExpConfig, ReIDExportExpConfig, ExperimentConfig
+from nvidia_tao_core.config.re_identification.default_config import ReIDModelConfig, OptimConfig, ReIDDatasetConfig, ReIDReRankingConfig, ReIDTrainExpConfig, ReIDInferenceExpConfig, ReIDEvalExpConfig, ReIDExportExpConfig, ExperimentConfig
 from nvidia_tao_pytorch.config.utils import create_json_schema, dataclass_to_json
 
 sample_model_config = """
