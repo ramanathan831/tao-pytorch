@@ -20,10 +20,10 @@ import json
 
 from omegaconf import OmegaConf
 
-from nvidia_tao_pytorch.cv.rtdetr.config.dataset import RTDatasetConfig, RTAugmentationConfig
-from nvidia_tao_pytorch.cv.rtdetr.config.model import RTModelConfig
-from nvidia_tao_pytorch.cv.rtdetr.config.train import RTTrainExpConfig, OptimConfig
-from nvidia_tao_pytorch.cv.rtdetr.config.default_config import ExperimentConfig
+from nvidia_tao_core.config.rtdetr.dataset import RTDatasetConfig, RTAugmentationConfig
+from nvidia_tao_core.config.rtdetr.model import RTModelConfig
+from nvidia_tao_core.config.rtdetr.train import RTTrainExpConfig, OptimConfig
+from nvidia_tao_core.config.rtdetr.default_config import ExperimentConfig
 from nvidia_tao_pytorch.config.json_schema_validation import validate_jsonschema
 from nvidia_tao_pytorch.config.utils import (
     create_json_schema, dataclass_to_json

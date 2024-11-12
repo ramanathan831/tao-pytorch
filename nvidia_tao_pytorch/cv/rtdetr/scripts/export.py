@@ -21,7 +21,7 @@ from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_pytorch.core.tlt_logging import logging
 from nvidia_tao_pytorch.cv.deformable_detr.utils.onnx_export import ONNXExporter
-from nvidia_tao_pytorch.cv.rtdetr.config.default_config import ExperimentConfig
+from nvidia_tao_core.config.rtdetr.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.rtdetr.model.pl_rtdetr_model import RTDETRPlModel
 
 
