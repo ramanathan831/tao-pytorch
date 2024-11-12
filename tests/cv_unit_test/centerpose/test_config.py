@@ -20,9 +20,10 @@ import json
 
 from omegaconf import OmegaConf
 
-from nvidia_tao_pytorch.cv.centerpose.config.default_config import ExperimentConfig, CenterPoseDatasetConfig
-from nvidia_tao_pytorch.cv.centerpose.config.model import CenterPoseModelConfig
-from nvidia_tao_pytorch.cv.centerpose.config.train import CenterPoseTrainExpConfig, OptimConfig
+from nvidia_tao_core.config.centerpose.default_config import ExperimentConfig
+from nvidia_tao_core.config.centerpose.dataset import CenterPoseDatasetConfig
+from nvidia_tao_core.config.centerpose.model import CenterPoseModelConfig
+from nvidia_tao_core.config.centerpose.train import CenterPoseTrainExpConfig, OptimConfig
 from nvidia_tao_pytorch.config.json_schema_validation import validate_jsonschema
 from nvidia_tao_pytorch.config.utils import (
     create_json_schema, dataclass_to_json
