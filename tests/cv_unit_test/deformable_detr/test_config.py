@@ -20,10 +20,10 @@ import json
 
 from omegaconf import OmegaConf
 
-from nvidia_tao_pytorch.cv.deformable_detr.config.dataset import DDDatasetConfig, DDAugmentationConfig
-from nvidia_tao_pytorch.cv.deformable_detr.config.model import DDModelConfig
-from nvidia_tao_pytorch.cv.deformable_detr.config.train import DDTrainExpConfig, OptimConfig
-from nvidia_tao_pytorch.cv.deformable_detr.config.default_config import ExperimentConfig
+from nvidia_tao_core.config.deformable_detr.dataset import DDDatasetConfig, DDAugmentationConfig
+from nvidia_tao_core.config.deformable_detr.model import DDModelConfig
+from nvidia_tao_core.config.deformable_detr.train import DDTrainExpConfig, OptimConfig
+from nvidia_tao_core.config.deformable_detr.default_config import ExperimentConfig
 from nvidia_tao_pytorch.config.json_schema_validation import validate_jsonschema
 from nvidia_tao_pytorch.config.utils import (
     create_json_schema, dataclass_to_json
