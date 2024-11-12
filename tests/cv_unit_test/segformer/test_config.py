@@ -20,7 +20,7 @@ import json
 
 from omegaconf import OmegaConf
 
-from nvidia_tao_pytorch.cv.segformer.config.default_config import (
+from nvidia_tao_core.config.segformer.default_config import (
     NormConfig,
     TestModelConfig,
     LossDecodeConfig,

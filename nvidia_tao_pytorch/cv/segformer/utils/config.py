@@ -17,7 +17,6 @@
 import os
 import copy
 from abc import abstractmethod
-import dataclasses
 from omegaconf import OmegaConf
 from nvidia_tao_pytorch.cv.segformer.dataloader.data_utils import build_palette, build_target_class_list
 from mmengine.logging import print_log
@@ -32,7 +31,7 @@ class MMSegmentationConfig(object):
                  config,
                  phase="train"):
         """Init Function."""
-        self.config = dataclasses.asdict(OmegaConf.to_object(config))
+        self.config = OmegaConf.to_container(config, resolve=True)
         self.updated_config = {}
         self.deploy_config = {}
         self.phase = phase
