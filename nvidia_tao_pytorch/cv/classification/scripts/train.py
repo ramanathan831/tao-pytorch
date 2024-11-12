@@ -14,9 +14,9 @@
 
 """ MMClassification Train Module """
 
+from nvidia_tao_core.config.classification_pyt.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
-from nvidia_tao_pytorch.core.mmlab.mmclassification.classification_default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.mmlab.mmclassification.utils import MMPretrainConfig
 from nvidia_tao_pytorch.cv.classification.heads import *  # noqa pylint: disable=W0401, W0614
 from nvidia_tao_pytorch.cv.classification.models import *  # noqa pylint: disable=W0401, W0614

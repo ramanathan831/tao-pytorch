@@ -17,7 +17,6 @@
 from abc import abstractmethod
 from tqdm import tqdm
 from typing import Optional
-import dataclasses
 from omegaconf import OmegaConf
 import time
 from datetime import timedelta
@@ -48,7 +47,7 @@ class LogisticRegressionTrainer(object):
             updated_config (Any): Updated configuration. Defaults to None.
             status_logger (StatusLogger): Logger for tracking status.
         """
-        self.train_cfg = dataclasses.asdict(OmegaConf.to_object(train_cfg))
+        self.train_cfg = OmegaConf.to_container(train_cfg, resolve=True)
         self.classifier = None
         self.train_features = None
         self.train_labels = None
