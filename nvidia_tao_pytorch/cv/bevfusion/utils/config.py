@@ -17,7 +17,6 @@
 import os
 import copy
 from abc import abstractmethod
-import dataclasses
 from omegaconf import OmegaConf
 
 from mmengine.dist import get_dist_info, init_dist
@@ -31,7 +30,7 @@ class BEVFusionConfig(object):
                  config,
                  phase='train'):
         """Init Function."""
-        self.config = dataclasses.asdict(OmegaConf.to_object(config))
+        self.config = OmegaConf.to_container(config, resolve=True)
         self.input_modality = self.config['input_modality']
 
         self.updated_config = {}
