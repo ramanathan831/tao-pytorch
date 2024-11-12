@@ -17,12 +17,12 @@ import os
 
 from pytorch_lightning import Trainer
 
+from nvidia_tao_core.config.deformable_detr.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.connectors.checkpoint_connector import TLTCheckpointConnector
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_pytorch.core.tlt_logging import logging
 from nvidia_tao_pytorch.core.initialize_experiments import initialize_train_experiment
-from nvidia_tao_pytorch.cv.deformable_detr.config.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.deformable_detr.dataloader.pl_od_data_module import ODDataModule
 from nvidia_tao_pytorch.cv.deformable_detr.model.pl_dd_model import DeformableDETRModel
 from nvidia_tao_pytorch.cv.deformable_detr.utils.misc import load_pretrained_weights

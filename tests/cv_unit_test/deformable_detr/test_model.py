@@ -14,7 +14,10 @@
 
 import pytest
 from omegaconf import OmegaConf
-from nvidia_tao_pytorch.cv.deformable_detr.config.default_config import DDModelConfig, DDDatasetConfig, ExperimentConfig
+
+from nvidia_tao_core.config.deformable_detr.default_config import ExperimentConfig
+from nvidia_tao_core.config.deformable_detr.model import DDModelConfig
+from nvidia_tao_core.config.deformable_detr.dataset import DDDatasetConfig
 from nvidia_tao_pytorch.cv.deformable_detr.model.build_nn_model import build_model
 
 
