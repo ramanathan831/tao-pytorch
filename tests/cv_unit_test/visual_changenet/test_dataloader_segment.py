@@ -24,7 +24,7 @@ import numpy as np
 import tempfile
 
 from nvidia_tao_pytorch.core.utilities import check_and_create
-from nvidia_tao_pytorch.cv.visual_changenet.config.default_config import ExperimentConfig
+from nvidia_tao_core.config.visual_changenet.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.visual_changenet.segmentation.dataloader.pl_changenet_data_module import CNDataModule
 
 

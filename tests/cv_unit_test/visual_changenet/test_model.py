@@ -18,7 +18,7 @@ Visual ChangeNet-Segmentation/Classification Model builder Unit Tests
 import pytest
 from omegaconf import OmegaConf
 
-from nvidia_tao_pytorch.cv.visual_changenet.config.default_config import CNModelConfig, CNDatasetConfig, ExperimentConfig
+from nvidia_tao_core.config.visual_changenet.default_config import CNModelConfig, CNDatasetConfig, ExperimentConfig
 from nvidia_tao_pytorch.cv.visual_changenet.classification.models.changenet import build_model, ChangeNetClassify
 from nvidia_tao_pytorch.cv.visual_changenet.segmentation.models.changenet import build_model as build_model_segment
 from nvidia_tao_pytorch.cv.visual_changenet.segmentation.models.changenet import ChangeNetSegment

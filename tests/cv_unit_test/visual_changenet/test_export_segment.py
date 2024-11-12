@@ -26,7 +26,7 @@ import onnxruntime as ort
 from omegaconf import OmegaConf
 
 from nvidia_tao_pytorch.core.utilities import check_and_create
-from nvidia_tao_pytorch.cv.visual_changenet.config.default_config import ExperimentConfig
+from nvidia_tao_core.config.visual_changenet.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.visual_changenet.segmentation.models.cn_pl_model import ChangeNetPlModel as ChangeNetPlSegment
 from nvidia_tao_pytorch.cv.visual_changenet.utils.onnx_export import ONNXExporter
 
