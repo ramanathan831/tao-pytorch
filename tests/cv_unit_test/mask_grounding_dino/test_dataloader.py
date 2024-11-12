@@ -21,8 +21,9 @@ import numpy as np
 import tempfile
 from PIL import Image
 from omegaconf import OmegaConf
-from nvidia_tao_pytorch.cv.grounding_dino.config.dataset import GDINOAugmentationConfig
-from nvidia_tao_pytorch.cv.mask_grounding_dino.config.default_config import MaskGDINODatasetConfig
+
+from nvidia_tao_core.config.grounding_dino.dataset import GDINOAugmentationConfig
+from nvidia_tao_core.config.mask_grounding_dino.default_config import MaskGDINODatasetConfig
 from nvidia_tao_pytorch.cv.mask_grounding_dino.dataloader.od_data_module import ODVGDataModule
 from nvidia_tao_pytorch.cv.deformable_detr.dataloader.transforms import build_transforms
 from nvidia_tao_pytorch.core.utilities import check_and_create

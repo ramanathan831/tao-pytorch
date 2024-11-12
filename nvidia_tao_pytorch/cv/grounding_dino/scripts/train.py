@@ -24,7 +24,7 @@ from nvidia_tao_pytorch.core.tlt_logging import logging
 from nvidia_tao_pytorch.core.initialize_experiments import initialize_train_experiment
 from nvidia_tao_pytorch.cv.deformable_detr.utils.misc import load_pretrained_weights
 
-from nvidia_tao_pytorch.cv.grounding_dino.config.default_config import ExperimentConfig
+from nvidia_tao_core.config.grounding_dino.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.grounding_dino.dataloader.pl_odvg_data_module import ODVGDataModule
 from nvidia_tao_pytorch.cv.grounding_dino.model.pl_gdino_model import GDINOPlModel
 from nvidia_tao_pytorch.cv.grounding_dino.utils.misc import parse_checkpoint

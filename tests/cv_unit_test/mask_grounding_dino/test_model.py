@@ -14,7 +14,8 @@
 
 import pytest
 from omegaconf import OmegaConf
-from nvidia_tao_pytorch.cv.mask_grounding_dino.config.default_config import MaskGDINOModelConfig, MaskGDINODatasetConfig, ExperimentConfig
+
+from nvidia_tao_core.config.mask_grounding_dino.default_config import MaskGDINOModelConfig, MaskGDINODatasetConfig, ExperimentConfig
 from nvidia_tao_pytorch.cv.mask_grounding_dino.model.build_nn_model import build_model
 
 

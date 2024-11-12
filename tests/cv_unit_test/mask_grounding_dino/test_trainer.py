@@ -23,7 +23,7 @@ from PIL import Image
 from pytorch_lightning import Trainer
 
 from omegaconf import OmegaConf
-from nvidia_tao_pytorch.cv.mask_grounding_dino.config.default_config import ExperimentConfig
+from nvidia_tao_core.config.mask_grounding_dino.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.mask_grounding_dino.dataloader.od_data_module import ODVGDataModule
 from nvidia_tao_pytorch.cv.mask_grounding_dino.model.pl_gdino_model import MaskGDINOPlModel
 from nvidia_tao_pytorch.core.utilities import check_and_create

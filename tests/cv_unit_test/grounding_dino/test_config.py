@@ -20,10 +20,10 @@ import json
 
 from omegaconf import OmegaConf
 
-from nvidia_tao_pytorch.cv.grounding_dino.config.dataset import GDINODatasetConfig, GDINOAugmentationConfig
-from nvidia_tao_pytorch.cv.grounding_dino.config.model import GDINOModelConfig
-from nvidia_tao_pytorch.cv.grounding_dino.config.train import GDINOTrainExpConfig, OptimConfig
-from nvidia_tao_pytorch.cv.grounding_dino.config.default_config import ExperimentConfig
+from nvidia_tao_core.config.grounding_dino.dataset import GDINODatasetConfig, GDINOAugmentationConfig
+from nvidia_tao_core.config.grounding_dino.model import GDINOModelConfig
+from nvidia_tao_core.config.grounding_dino.train import GDINOTrainExpConfig, OptimConfig
+from nvidia_tao_core.config.grounding_dino.default_config import ExperimentConfig
 from nvidia_tao_pytorch.config.json_schema_validation import validate_jsonschema
 from nvidia_tao_pytorch.config.utils import (
     create_json_schema, dataclass_to_json
