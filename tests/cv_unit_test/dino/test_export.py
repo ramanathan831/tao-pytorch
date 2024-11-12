@@ -21,7 +21,9 @@ import onnx
 import onnxruntime as ort
 import torch
 
-from nvidia_tao_pytorch.cv.dino.config.default_config import DINOModelConfig, DINODatasetConfig, ExperimentConfig
+from nvidia_tao_core.config.dino.dataset import DINODatasetConfig
+from nvidia_tao_core.config.dino.default_config import ExperimentConfig
+from nvidia_tao_core.config.dino.model import DINOModelConfig
 from nvidia_tao_pytorch.cv.dino.model.build_nn_model import build_model
 from nvidia_tao_pytorch.cv.dino.utils.onnx_export import ONNXExporter
 

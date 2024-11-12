@@ -17,11 +17,11 @@ import os
 
 from pytorch_lightning import Trainer
 
+from nvidia_tao_core.config.dino.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_pytorch.core.initialize_experiments import initialize_inference_experiment
 from nvidia_tao_pytorch.cv.deformable_detr.dataloader.pl_od_data_module import ODDataModule
-from nvidia_tao_pytorch.cv.dino.config.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.dino.model.pl_dino_model import DINOPlModel
 
 
