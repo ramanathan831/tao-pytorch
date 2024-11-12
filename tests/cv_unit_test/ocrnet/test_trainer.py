@@ -21,7 +21,7 @@ import tempfile
 from pytorch_lightning import Trainer
 from omegaconf import OmegaConf
 
-from nvidia_tao_pytorch.cv.ocrnet.config.default_config import ExperimentConfig
+from nvidia_tao_core.config.ocrnet.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.ocrnet.dataloader.pl_ocr_data_module import OCRDataModule
 from nvidia_tao_pytorch.cv.ocrnet.model.pl_ocrnet import OCRNetModel
 
