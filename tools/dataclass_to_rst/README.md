@@ -12,7 +12,7 @@
     Process a dataclass and export to an RST file.
 
     positional arguments:
-    module_path           Dotted path to the module (e.g., nvidia_tao_pytorch.cv.re_identification.config.default_config)
+    module_path           Dotted path to the module (e.g., nvidia_tao_core.config.re_identification.default_config)
     output_file           Output file path (e.g., experiment_config.rst)
 
     options:

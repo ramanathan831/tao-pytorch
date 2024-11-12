@@ -14,7 +14,7 @@
 
 import pytest
 from omegaconf import OmegaConf
-from nvidia_tao_pytorch.cv.re_identification.config.default_config import ReIDModelConfig, ReIDTrainExpConfig
+from nvidia_tao_core.config.re_identification.default_config import ReIDModelConfig, ReIDTrainExpConfig
 from nvidia_tao_pytorch.cv.re_identification.model.build_nn_model import build_model
 
 

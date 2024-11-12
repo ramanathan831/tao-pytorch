@@ -107,13 +107,13 @@ def main():
     Main function to parse command-line arguments and generate an RST file for a dataclass.
 
     Command-line Arguments:
-        module_path (str): Dotted path to the module (e.g., nvidia_tao_pytorch.cv.re_identification.config.default_config).
+        module_path (str): Dotted path to the module (e.g., nvidia_tao_core.config.re_identification.default_config).
         output_file (str): Output file path (e.g., experiment_config.rst).
         --metadata (str): Optional metadata fields to include.
 
     """
     parser = argparse.ArgumentParser(description='Process a dataclass and export to an RST file.')
-    parser.add_argument('module_path', type=str, help='Dotted path to the module (e.g., nvidia_tao_pytorch.cv.re_identification.config.default_config)')
+    parser.add_argument('module_path', type=str, help='Dotted path to the module (e.g., nvidia_tao_core.config.re_identification.default_config)')
     parser.add_argument('output_file', type=str, help='Output file path (e.g., experiment_config.rst)')
     parser.add_argument('--metadata', type=str, nargs='*', help='Optional metadata fields to include (e.g., math_cond, required, popular, etc.)')
 
