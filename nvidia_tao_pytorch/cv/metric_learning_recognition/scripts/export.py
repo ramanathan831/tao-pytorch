@@ -21,9 +21,9 @@ from nvidia_tao_pytorch.cv.metric_learning_recognition.dataloader.pl_ml_data_mod
 from onnxsim import simplify
 import onnx
 
+from nvidia_tao_core.config.metric_learning_recognition.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
-from nvidia_tao_pytorch.cv.metric_learning_recognition.config.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.metric_learning_recognition.model.pl_ml_recog_model import MLRecogModel
 from nvidia_tao_pytorch.core.tlt_logging import obfuscate_logs
 import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
