@@ -273,7 +273,6 @@
             "__init__.py",
             "backbone/__init__.py",
             "classification/__init__.py",
-            "classification/inference/__init__.py",
             "classification/losses/__init__.py",
             "classification/models/__init__.py",
             "config/__init__.py",

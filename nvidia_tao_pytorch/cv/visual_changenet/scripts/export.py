@@ -23,7 +23,7 @@ from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_pytorch.core.utilities import encrypt_onnx
 from nvidia_tao_pytorch.cv.optical_inspection.dataloader.pl_oi_data_module import OIDataModule
 from nvidia_tao_pytorch.cv.visual_changenet.utils.onnx_export import ONNXExporter
-from nvidia_tao_pytorch.cv.visual_changenet.config.default_config import ExperimentConfig
+from nvidia_tao_core.config.visual_changenet.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.visual_changenet.segmentation.models.cn_pl_model import ChangeNetPlModel as ChangeNetPlSegment
 from nvidia_tao_pytorch.cv.visual_changenet.classification.models.cn_pl_model import ChangeNetPlModel as ChangeNetPlClassifier
 

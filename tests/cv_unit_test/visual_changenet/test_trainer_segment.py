@@ -28,7 +28,7 @@ from omegaconf import OmegaConf
 from nvidia_tao_pytorch.core.utilities import check_and_create
 from nvidia_tao_pytorch.cv.optical_inspection.dataloader.build_data_loader import build_dataloader
 from nvidia_tao_pytorch.cv.optical_inspection.model.build_nn_model import AOIMetrics
-from nvidia_tao_pytorch.cv.visual_changenet.config.default_config import ExperimentConfig
+from nvidia_tao_core.config.visual_changenet.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.visual_changenet.segmentation.dataloader.pl_changenet_data_module import CNDataModule
 from nvidia_tao_pytorch.cv.visual_changenet.segmentation.models.cn_pl_model import ChangeNetPlModel as ChangeNetPlSegment
 from pytorch_lightning import Trainer

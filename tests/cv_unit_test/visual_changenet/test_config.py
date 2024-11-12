@@ -20,7 +20,7 @@ import json
 
 from omegaconf import OmegaConf
 
-from nvidia_tao_pytorch.cv.visual_changenet.config.default_config import (
+from nvidia_tao_core.config.visual_changenet.default_config import (
     CNDatasetConfig, 
     CNAugmentationClassifyConfig, 
     DataPathFormat, 
