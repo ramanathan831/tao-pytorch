@@ -20,10 +20,10 @@ import json
 
 from omegaconf import OmegaConf
 
+from nvidia_tao_core.api_utils.dataclass2json_converter import create_json_schema, dataclass_to_json
 from nvidia_tao_core.config.ocrnet.default_config import (OCRNetModelConfig, OCRNetDatasetConfig,
                                                           OCRNetAugmentationConfig, OCRNetTrainExpConfig,
                                                           OptimConfig, ExperimentConfig)
-from nvidia_tao_pytorch.config.utils import create_json_schema, dataclass_to_json
 
 sample_dataset_config = """
 train_dataset_dir: []

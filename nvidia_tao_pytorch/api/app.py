@@ -25,14 +25,14 @@ import pycuda.autoinit
 from apispec import APISpec
 from apispec.ext.marshmallow import MarshmallowPlugin
 from apispec_webframeworks.flask import FlaskPlugin
-from nvidia_tao_pytorch.api.api_utils import (
+from nvidia_tao_core.api_utils import (
     microservice_utils,
-    module_utils, 
-    ngc_utils, 
+    module_utils,
+    ngc_utils,
     process_queue,
+    json_schema_validation,
+    dataclass2json_converter as dataclasses_utils
 )
-import nvidia_tao_pytorch.config.json_schema_validation as json_schema_validation
-import nvidia_tao_pytorch.config.utils as dataclasses_utils
 from flask import Flask, jsonify, make_response, render_template, request
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address

@@ -20,14 +20,12 @@ import json
 
 from omegaconf import OmegaConf
 
+from nvidia_tao_core.api_utils.dataclass2json_converter import create_json_schema, dataclass_to_json
+from nvidia_tao_core.api_utils.json_schema_validation import validate_jsonschema
 from nvidia_tao_core.config.metric_learning_recognition.dataset import MLDatasetConfig, ColorAugmentation
 from nvidia_tao_core.config.metric_learning_recognition.model import MLModelConfig
 from nvidia_tao_core.config.metric_learning_recognition.train import MLTrainExpConfig, OptimConfig
 from nvidia_tao_core.config.metric_learning_recognition.default_config import ExperimentConfig
-from nvidia_tao_pytorch.config.json_schema_validation import validate_jsonschema
-from nvidia_tao_pytorch.config.utils import (
-    create_json_schema, dataclass_to_json
-)
 
 
 sample_dataset_config = """

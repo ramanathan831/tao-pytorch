@@ -20,8 +20,8 @@ import json
 
 from omegaconf import OmegaConf
 
+from nvidia_tao_core.api_utils.dataclass2json_converter import create_json_schema, dataclass_to_json
 from nvidia_tao_core.config.re_identification.default_config import ReIDModelConfig, OptimConfig, ReIDDatasetConfig, ReIDReRankingConfig, ReIDTrainExpConfig, ReIDInferenceExpConfig, ReIDEvalExpConfig, ReIDExportExpConfig, ExperimentConfig
-from nvidia_tao_pytorch.config.utils import create_json_schema, dataclass_to_json
 
 sample_model_config = """
 backbone: swin_tiny_patch4_window7_224
