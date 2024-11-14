@@ -20,6 +20,7 @@ import json
 
 from omegaconf import OmegaConf
 
+from nvidia_tao_core.api_utils.dataclass2json_converter import create_json_schema, dataclass_to_json
 from nvidia_tao_core.config.classification_pyt.default_config import (
     ImgNormConfig,
     TrainData,
@@ -51,7 +52,6 @@ from nvidia_tao_core.config.classification_pyt.default_config import (
     GenTrtEngineExpConfig,
     ExperimentConfig
 )
-from nvidia_tao_pytorch.config.utils import create_json_schema, dataclass_to_json
 
 sample_dataset_config = """
 data:

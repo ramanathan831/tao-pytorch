@@ -9,7 +9,6 @@
         ],
         "action_recognition":[
             "__init__.py",
-            "config/__init__.py",
             "dataloader/__init__.py",
             "entrypoint/__init__.py",
             "entrypoint/action_recognition.py",
@@ -26,7 +25,6 @@
         ],
         "centerpose":[
             "__init__.py",
-            "config/__init__.py",
             "dataloader/__init__.py",
             "entrypoint/__init__.py",
             "entrypoint/centerpose.py",
@@ -55,7 +53,6 @@
         ],
         "deformable_detr":[
             "__init__.py",
-            "config/__init__.py",
             "dataloader/__init__.py",
             "entrypoint/__init__.py",
             "entrypoint/deformable_detr.py",
@@ -71,7 +68,6 @@
         ],
         "dino":[
             "__init__.py",
-            "config/__init__.py",
             "distillation/__init__.py",
             "entrypoint/__init__.py",
             "entrypoint/dino.py",
@@ -88,7 +84,6 @@
         ],
         "grounding_dino":[
             "__init__.py",
-            "config/__init__.py",
             "entrypoint/__init__.py",
             "entrypoint/grounding_dino.py",
             "model/__init__.py",
@@ -101,7 +96,6 @@
         ],
         "mask_grounding_dino":[
             "__init__.py",
-            "config/__init__.py",
             "entrypoint/__init__.py",
             "entrypoint/mask_grounding_dino.py",
             "model/__init__.py",
@@ -114,7 +108,6 @@
         ],
         "mask2former":[
             "__init__.py",
-            "config/__init__.py",
             "dataloader/__init__.py",
             "entrypoint/__init__.py",
             "entrypoint/mask2former.py",
@@ -133,7 +126,6 @@
         ],
         "mal":[
             "__init__.py",
-            "config/__init__.py",
             "datasets/__init__.py",
             "entrypoint/__init__.py",
             "entrypoint/mal.py",
@@ -148,7 +140,6 @@
         ], 
         "metric_learning_recognition":[
             "__init__.py",
-            "config/__init__.py",
             "dataloader/__init__.py",
             "dataloader/datasets/__init__.py",
             "entrypoint/__init__.py",
@@ -164,7 +155,6 @@
         "ocdnet":[
             "__init__.py",
             "base/__init__.py",
-            "config/__init__.py",
             "data_loader/__init__.py",
             "data_loader/modules/__init__.py",
             "entrypoint/__init__.py",
@@ -191,7 +181,6 @@
         ],
         "ocrnet":[
             "__init__.py",
-            "config/__init__.py",
             "dataloader/__init__.py",
             "entrypoint/__init__.py",
             "entrypoint/ocrnet.py",
@@ -207,7 +196,6 @@
         ],
         "optical_inspection":[
             "__init__.py",
-            "config/__init__.py",
             "dataloader/__init__.py",
             "entrypoint/__init__.py",
             "entrypoint/optical_inspection.py",
@@ -222,7 +210,6 @@
         ],
         "pose_classification":[
             "__init__.py",
-            "config/__init__.py",
             "dataloader/__init__.py",
             "entrypoint/__init__.py",
             "entrypoint/pose_classification.py",
@@ -237,7 +224,6 @@
         ],
         "re_identification":[
             "__init__.py",
-            "config/__init__.py",
             "dataloader/__init__.py",
             "dataloader/datasets/__init__.py",
             "entrypoint/__init__.py",
@@ -255,7 +241,6 @@
         ],
         "segformer":[
             "__init__.py",
-            "config/__init__.py",
             "dataloader/__init__.py",
             "entrypoint/__init__.py",
             "entrypoint/segformer.py",
@@ -274,7 +259,6 @@
             "classification/__init__.py",
             "classification/losses/__init__.py",
             "classification/models/__init__.py",
-            "config/__init__.py",
             "entrypoint/__init__.py",
             "entrypoint/visual_changenet.py",
             "scripts/evaluate.py",
@@ -291,7 +275,6 @@
         ],
         "bevfusion":[
             "__init__.py",
-            "config/__init__.py",
             "datasets/__init__.py",
             "datasets/dataset_converter/__init__.py",
             "entrypoint/__init__.py",
