@@ -23,6 +23,7 @@ from omegaconf import OmegaConf
 import torch
 
 from nvidia_tao_core.config.classification_pyt.model_params_mapping import map_params, map_input_lr_head, map_clip_model_cfg
+from nvidia_tao_pytorch.cv.backbone.radio.model_cfg import radio_model_cfg
 
 from mmengine.runner.checkpoint import load_checkpoint
 from mmpretrain.models import build_classifier
@@ -174,6 +175,11 @@ class MMPretrainConfig(object):
         if self.updated_config["model"]["backbone"]["type"] == "open_clip":
             self.updated_config["model"]["backbone"]["model_cfg"] = map_clip_model_cfg.get(bb_type)
 
+        # Add input image resolution for RADIO model
+        if radio_model_cfg.get(self.updated_config["model"]["backbone"]["type"]) is not None:
+            resize_scale = self._get_scale_size()
+            self.updated_config["model"]["backbone"]["resolution"] = (resize_scale, resize_scale)
+
     def get_updated_optimizer(self, cfg):
         """Get the updated optimizer"""
         optim_wrapper = {}
@@ -208,13 +214,21 @@ class MMPretrainConfig(object):
         """
         resize_scale = map_input_lr_head.get(self.config["model"]["backbone"]["type"])
         if not resize_scale:
-            for pipeline in self.config["dataset"]["data"][self.PHASE_MAP[self.phase]]["pipeline"]:
-                if pipeline["type"] == "Resize" or pipeline["type"] == "RandomResizedCrop":
-                    resize_scale = pipeline["scale"]
-                    break
+            resize_scale = self._get_scale_size()
+
         pipeline = {"type": "Resize", "scale": resize_scale}
         self.updated_config["test_dataloader"]["dataset"]["pipeline"] = [{"type": "LoadImageFromFile"}] + \
             [pipeline] + [{"type": "PackInputs"}]
+
+    def _get_scale_size(self):
+        resize_scale = None
+
+        for pipeline in self.config["dataset"]["data"][self.PHASE_MAP[self.phase]]["pipeline"]:
+            if pipeline["type"] == "Resize" or pipeline["type"] == "RandomResizedCrop":
+                resize_scale = pipeline["scale"]
+                break
+
+        return resize_scale if resize_scale else 224
 
 
 def load_model(model_path, mmcls_config=None, return_ckpt=False):
