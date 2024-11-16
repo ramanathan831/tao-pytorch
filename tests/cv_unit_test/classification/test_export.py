@@ -87,6 +87,9 @@ def _test_exp_spec():
                           ("gc_vit_xxtiny", "TAOLinearClsHead", None, None, 224, None),
                           ("gc_vit_large_384", "TAOLinearClsHead", None, None, 384, None),
                           ("vit_large_patch14_dinov2_swiglu", "TAOLinearClsHead", {"in_channels": 1024}, None, 224, None),
+                          ("c_radio_p1_vit_huge_patch16_224_mlpnorm", "TAOLinearClsHead", {"in_channels": 3840}, None, 224, None),
+                          ("c_radio_p2_vit_huge_patch16_224_mlpnorm", "TAOLinearClsHead", {"in_channels": 5120}, None, 224, None),
+                          ("c_radio_p3_vit_huge_patch16_224_mlpnorm", "TAOLinearClsHead", {"in_channels": 3840}, None, 224, None),
                           ("fan_tiny_8_p4_hybrid", "TAOLinearClsHead", {"head_init_scale": 1.0}, None, 224, None),
                           ("open_clip", "TAOLinearClsHead", None, {"model_name":"ViT-B-32"}, 224, "laion2b_s34b_b79k"),
                           ("open_clip", "TAOLinearClsHead", None, {"model_name":"ViT-B-32"}, 336, "laion2b_s34b_b79k"),
@@ -101,6 +104,9 @@ def _test_exp_spec():
                           ("gc_vit_xxtiny", "LogisticRegressionHead", None, None, 224, None),
                           ("gc_vit_large_384", "LogisticRegressionHead", None, None, 384, None),
                           ("vit_large_patch14_dinov2_swiglu", "LogisticRegressionHead", {"in_channels": 1024}, None, 224, None),
+                          ("c_radio_p1_vit_huge_patch16_224_mlpnorm", "LogisticRegressionHead", {"in_channels": 3840}, None, 224, None),
+                          ("c_radio_p2_vit_huge_patch16_224_mlpnorm", "LogisticRegressionHead", {"in_channels": 5120}, None, 224, None),
+                          ("c_radio_p3_vit_huge_patch16_224_mlpnorm", "LogisticRegressionHead", {"in_channels": 3840}, None, 224, None),
                           ("fan_tiny_8_p4_hybrid", "LogisticRegressionHead", {"head_init_scale": 1.0}, None, 224, None),
                           ("open_clip", "LogisticRegressionHead", None, {"model_name":"ViT-B-32"}, 224, "laion2b_s34b_b79k"),
                           ("open_clip", "LogisticRegressionHead", None, {"model_name":"ViT-B-32"}, 336, "laion2b_s34b_b79k"),
@@ -151,7 +157,12 @@ def test_cls_onnx_export(_test_exp_spec, _test_dir, model_config, opset_version)
         runner = Runner.from_cfg(train_cfg)
         model = runner.model
 
-    onnx_path = os.path.join(tmp_results_dir, f"{backbone}_opset{opset_version}.onnx")
+    model_name = bb_custom_args.get("model_name", "") if bb_custom_args else ""
+    onnx_out_dir = os.path.join(tmp_results_dir,
+                                f"{backbone}_{head}_{model_name}_{input_resolution}_{opset_version}")
+    check_and_create(onnx_out_dir)
+
+    onnx_path = os.path.join(onnx_out_dir, f"{backbone}_opset{opset_version}.onnx")
     if head == "LogisticRegressionHead":
         checkpoint = {}
         with torch.no_grad():
@@ -160,12 +171,12 @@ def test_cls_onnx_export(_test_exp_spec, _test_dir, model_config, opset_version)
             biases = lr_trainer.classifier.intercept_
             model.head.fc.bias.data.copy_(torch.from_numpy(biases))
         checkpoint['state_dict'] = model.state_dict()
-        torch.save(checkpoint, os.path.join(tmp_results_dir, "model_lrHead_0.pth"))
+        torch.save(checkpoint, os.path.join(onnx_out_dir, "model_lrHead_0.pth"))
         mmpretrain_config = MMPretrainConfig(_test_exp_spec, phase="evaluate")
         export_cfg = mmpretrain_config.updated_config
-        model = load_model(os.path.join(tmp_results_dir, "model_lrHead_0.pth"), export_cfg)
-        onnx_path = os.path.join(tmp_results_dir, f"{backbone}_lrhead_opset{opset_version}.onnx")
-        os.remove(os.path.join(tmp_results_dir, "model_lrHead_0.pth"))
+        model = load_model(os.path.join(onnx_out_dir, "model_lrHead_0.pth"), export_cfg)
+        onnx_path = os.path.join(onnx_out_dir, f"{backbone}_lrhead_opset{opset_version}.onnx")
+        os.remove(os.path.join(onnx_out_dir, "model_lrHead_0.pth"))
 
     input_shape = [1, 3, input_resolution, input_resolution]
     # export binary model
@@ -187,28 +198,45 @@ def test_cls_onnx_export(_test_exp_spec, _test_dir, model_config, opset_version)
     reason='Skipping running on CI.'
 )
 @pytest.mark.parametrize("model_config",
-                         [("fan_tiny_12_p16_224", "TAOLinearClsHead", 224),
-                          ("gc_vit_xxtiny", "TAOLinearClsHead", 224),
-                          ("vit_large_patch14_dinov2_swiglu", "TAOLinearClsHead", 224),
-                          ("open_clip", "TAOLinearClsHead", 224),
-                          ("open_clip", "TAOLinearClsHead", 336),
-                          ("faster_vit_0_224", "TAOLinearClsHead", 224),
-                          ("fan_tiny_8_p4_hybrid", "LogisticRegressionHead", 224),
-                          ("gc_vit_xxtiny", "LogisticRegressionHead", 224),
-                          ("vit_large_patch14_dinov2_swiglu", "LogisticRegressionHead", 224),
-                          ("open_clip", "LogisticRegressionHead", 224),
-                          ("open_clip", "LogisticRegressionHead", 336),
-                          ("faster_vit_0_224", "LogisticRegressionHead", 224),
+                         [("fan_tiny_12_p16_224", "TAOLinearClsHead", {"head_init_scale": 1.0}, None, 224, None),
+                          ("gc_vit_xxtiny", "TAOLinearClsHead", None, None, 224, None),
+                          ("vit_large_patch14_dinov2_swiglu", "TAOLinearClsHead", {"in_channels": 1024}, None, 224, None),
+                          ("c_radio_p1_vit_huge_patch16_224_mlpnorm", "TAOLinearClsHead", {"in_channels": 3840}, None, 224, None),
+                          ("c_radio_p2_vit_huge_patch16_224_mlpnorm", "TAOLinearClsHead", {"in_channels": 5120}, None, 224, None),
+                          ("c_radio_p3_vit_huge_patch16_224_mlpnorm", "TAOLinearClsHead", {"in_channels": 3840}, None, 224, None),
+                          ("open_clip", "TAOLinearClsHead", None, {"model_name":"ViT-B-32"}, 224, "laion2b_s34b_b79k"),
+                          ("open_clip", "TAOLinearClsHead", None, {"model_name":"ViT-B-32"}, 336, "laion2b_s34b_b79k"),
+                          ("open_clip", "TAOLinearClsHead", {"in_channels": 1024}, {"model_name":"ViT-H-14-SigLIP-CLIPA-224"}, 224, None),
+                          ("open_clip", "TAOLinearClsHead", {"in_channels": 768}, {"model_name":"ViT-L-14-SigLIP-CLIPA-336"}, 336, None),
+                          ("open_clip", "TAOLinearClsHead", {"in_channels": 768}, {"model_name":"ViT-L-14-SigLIP-CLIPA-224"}, 224, None),
+                          ("faster_vit_0_224", "TAOLinearClsHead", None, None, 224, None),
+                          ("fan_tiny_8_p4_hybrid", "TAOLinearClsHead", {"head_init_scale": 1.0}, None, 224, None),
+                          ("gc_vit_xxtiny", "LogisticRegressionHead", None, None, 224, None),
+                          ("vit_large_patch14_dinov2_swiglu", "LogisticRegressionHead", {"in_channels": 1024}, None, 224, None),
+                          ("c_radio_p1_vit_huge_patch16_224_mlpnorm", "LogisticRegressionHead", {"in_channels": 3840}, None, 224, None),
+                          ("c_radio_p2_vit_huge_patch16_224_mlpnorm", "LogisticRegressionHead", {"in_channels": 5120}, None, 224, None),
+                          ("c_radio_p3_vit_huge_patch16_224_mlpnorm", "LogisticRegressionHead", {"in_channels": 3840}, None, 224, None),
+                          ("open_clip", "LogisticRegressionHead", None, {"model_name":"ViT-B-32"}, 224, "laion2b_s34b_b79k"),
+                          ("open_clip", "LogisticRegressionHead", None, {"model_name":"ViT-B-32"}, 336, "laion2b_s34b_b79k"),
+                          ("open_clip", "LogisticRegressionHead", {"in_channels": 1024}, {"model_name":"ViT-H-14-SigLIP-CLIPA-224"}, 224, None),
+                          ("open_clip", "LogisticRegressionHead", {"in_channels": 768}, {"model_name":"ViT-L-14-SigLIP-CLIPA-336"}, 336, None),
+                          ("open_clip", "LogisticRegressionHead", {"in_channels": 768}, {"model_name":"ViT-L-14-SigLIP-CLIPA-224"}, 224, None),
+                          ("faster_vit_0_224", "LogisticRegressionHead", None, None, 224, None),
                           ])
 @pytest.mark.parametrize("opset_version", [15])  # TODO: Add 17 when we upgrade to DLFW 23.04+
 @pytest.mark.parametrize("batch_size", [1, 4])
 def test_cls_trtexec(model_config, opset_version, batch_size):
     check_and_create(tmp_top_dir)
-    backbone, head, input_resolution = model_config
+    # backbone, head, input_resolution = model_config
+    backbone, head, head_custom_args, bb_custom_args, input_resolution, pretrained = model_config
 
-    onnx_path = os.path.join(tmp_results_dir, f"{backbone}_opset{opset_version}.onnx")
+    model_name = bb_custom_args.get("model_name", "") if bb_custom_args else ""
+    onnx_root_dir = os.path.join(tmp_results_dir,
+                                 f"{backbone}_{head}_{model_name}_{input_resolution}_{opset_version}")
+    onnx_path = os.path.join(onnx_root_dir, f"{backbone}_opset{opset_version}.onnx")
+
     if head == "LogisticRegressionHead":
-        onnx_path = os.path.join(tmp_results_dir, f"{backbone}_lrhead_opset{opset_version}.onnx")
+        onnx_path = os.path.join(onnx_root_dir, f"{backbone}_lrhead_opset{opset_version}.onnx")
 
     # Test TensorRT engine generation for dynamic batch size ONNX
     call = (
