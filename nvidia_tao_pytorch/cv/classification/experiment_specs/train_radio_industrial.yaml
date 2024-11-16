@@ -1,0 +1,75 @@
+results_dir: ???
+
+dataset:
+  data:
+    samples_per_gpu: 512
+    workers_per_gpu: 8
+    train:
+      data_prefix: ???
+      classes: ???
+      pipeline: # Augmentations alone
+        - type: RandomResizedCrop
+          scale: 224
+        - type: RandomFlip
+          prob: 0.5
+          direction: "horizontal"
+        - type: ColorJitter
+          brightness: 0.4
+          contrast: 0.4
+          saturation: 0.4
+    val:
+      data_prefix: ???
+      classes: ???
+    test:
+      data_prefix: ???
+      classes: ???
+
+model:
+  backbone:
+    type: "c_radio_p2_vit_huge_patch16_224_mlpnorm"
+    freeze: true
+    init_cfg:
+      checkpoint: ???
+  head:
+    type: TAOLinearClsHead
+    custom_args:
+      head_init_scale: 1
+    num_classes: 1000
+    in_channels: 5120
+    loss:
+      type: CrossEntropyLoss
+      loss_weight: 1.0
+      use_soft: False
+    topk: [1, 5]
+
+train:
+  exp_config:
+    manual_seed: 49
+  train_config:
+    find_unused_parameters: True
+    optimizer:
+      type: AdamW
+      lr: 1e-3
+      weight_decay: 0.1
+    lr_config:
+      type: CosineAnnealingLR
+      T_max: 10
+      by_epoch: True
+      begin: 2
+      end: 10
+    optimizer_config:
+      grad_clip:
+        max_norm: 5.0
+    runner:
+      max_epochs: 10
+    checkpoint_config:
+      interval: 1
+    logging:
+      interval: 50
+    validate: True
+    evaluation:
+      interval: 1
+    custom_hooks:
+      - type: "EMAHook"
+        momentum: 4e-5
+        priority: "ABOVE_NORMAL"
