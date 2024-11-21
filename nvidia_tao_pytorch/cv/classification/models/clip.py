@@ -65,7 +65,7 @@ class open_clip(nn.Module):
         """
         Interpolate the position encodings for the model to accept any image size.
         """
-        npatch = (w * h) // (self.model.visual.patch_size[0] ** self.model.visual.patch_size[1])
+        npatch = (w * h) // (self.model.visual.patch_size[0] * self.model.visual.patch_size[1])
         N = self.model.visual.positional_embedding.shape[0] - 1
 
         if npatch == N and w == h:
