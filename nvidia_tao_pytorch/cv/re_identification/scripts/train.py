@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Train Re-Identification model."""
+import math
 import os
 
 from nvidia_tao_pytorch.core.connectors.checkpoint_connector import TLTCheckpointConnector
@@ -45,11 +46,21 @@ def run_experiment(experiment_config, key):
     results_dir, resume_ckpt, gpus, ptl_loggers = initialize_train_experiment(experiment_config, key)
 
     dm = REIDDataModule(experiment_config)
+    dm.setup('fit')
     reid_model = ReIdentificationModel(experiment_config, prepare_for_training=True)
 
     num_epochs = experiment_config['train']['num_epochs']
     validation_interval = experiment_config['train']['validation_interval']
     grad_clip = experiment_config['train']['grad_clip']
+
+    # @seanf: there's some buggy behavior with Lightning/Pytorch when using custom samplers
+    # Patch fix is to either (a) set the length of the sampler to infinity, but then the progress bar will
+    # show ? for the number of epochs (though it will function correctly), or (b) have it do the validation
+    # check right before the last batch. We choose the latter
+    # See: https://github.com/Lightning-AI/pytorch-lightning/issues/10290
+    num_batches = len(dm.train_dataloader())
+    # Round down to 2 decimal places
+    val_check_interval = math.floor(((num_batches - 1) / num_batches) * 100) / 100
 
     acc_flag = 'auto'
     if len(gpus) > 1:
@@ -61,7 +72,7 @@ def run_experiment(experiment_config, key):
                       check_val_every_n_epoch=validation_interval,
                       default_root_dir=results_dir,
                       num_sanity_val_steps=0,
-                      val_check_interval=0.99,
+                      val_check_interval=val_check_interval,
                       precision='16-mixed',
                       accelerator='gpu',
                       strategy=acc_flag,
