@@ -14,6 +14,7 @@
 
 """Train metric-learning recognition model."""
 
+import math
 import os
 
 from pytorch_lightning import Trainer
@@ -41,6 +42,7 @@ def run_experiment(experiment_config):
     experiment_config['train']['resume_training_checkpoint_path'] = resume_ckpt
 
     dm = MLDataModule(experiment_config)
+    dm.setup('fit')
 
     metric_learning_recognition = MLRecogModel(
         experiment_config,
@@ -52,11 +54,15 @@ def run_experiment(experiment_config):
     clip_grad = experiment_config['train']['clip_grad_norm']
     val_inter = experiment_config['train']['validation_interval']
 
+    # See REID for why we do this
+    num_batches = len(dm.train_dataloader())
+    val_check_interval = math.floor(((num_batches - 1) / num_batches) * 100) / 100
+
     trainer = Trainer(logger=ptl_loggers,
                       devices=gpus,
                       max_epochs=total_epochs,
                       check_val_every_n_epoch=val_inter,
-                      val_check_interval=0.99,
+                      val_check_interval=val_check_interval,
                       default_root_dir=results_dir,
                       num_sanity_val_steps=0,
                       accelerator='gpu',
