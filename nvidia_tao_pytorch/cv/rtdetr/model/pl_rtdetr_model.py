@@ -64,13 +64,11 @@ class RTDETRPlModel(TAOLightningModule):
         # This is called when trainer.fit() is called
         callbacks = []
         results_dir = self.experiment_spec["results_dir"]
-        num_epochs = self.experiment_spec["train"]["num_epochs"]
         checkpoint_interval = self.experiment_spec["train"]["checkpoint_interval"]
 
         status_logger_callback = TAOStatusLogger(
             results_dir,
-            append=True,
-            num_epochs=num_epochs
+            append=True
         )
 
         resume_ckpt = self.experiment_spec["train"]["resume_training_checkpoint_path"] or get_latest_checkpoint(results_dir)
