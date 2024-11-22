@@ -15,7 +15,6 @@
 """
 Evaluate OCRNet script.
 """
-import logging
 import os
 from pytorch_lightning import Trainer
 
@@ -37,9 +36,6 @@ def run_experiment(experiment_spec, key):
         if experiment_spec["dataset"]["val_gt_file"] == "":
             experiment_spec["dataset"]["val_gt_file"] = None
     results_dir, model_path, gpus = initialize_evaluation_experiment(experiment_spec, key)
-    if len(gpus) > 1:
-        gpus = [gpus[0]]
-        logging.log(f"OCRNet does not support multi-GPU evaluation at this time. Using only GPU {gpus}")
 
     dm = OCRDataModule(experiment_spec)
     dm.setup(stage='test')
