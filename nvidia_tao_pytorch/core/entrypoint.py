@@ -259,12 +259,12 @@ def launch(args, unknown_args, subtasks, network=None):
             if proc.returncode == 0:
                 process_passed = True
 
-    except (KeyboardInterrupt, SystemExit) as e:
-        logging.info("Command was interrupted due to ", e)
+    except (KeyboardInterrupt, SystemExit):
+        logging.exception("Command was interrupted")
         process_passed = True
     except subprocess.CalledProcessError as e:
         if e.output is not None:
-            logging.info(e.output)
+            logging.exception(e.output)
         process_passed = False
 
     end = time()
