@@ -15,14 +15,13 @@
 """Common Lightning Module"""
 
 from typing import Any, Dict, Sequence
-import re
 
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import Callback, ModelCheckpoint
 
 from nvidia_tao_pytorch.core.callbacks.loggers import TAOStatusLogger
 from nvidia_tao_pytorch.core.cookbooks.tlt_pytorch_cookbook import TLTPyTorchCookbook
-from nvidia_tao_pytorch.core.utilities import get_latest_checkpoint, patch_decrypt_checkpoint
+from nvidia_tao_pytorch.core.utilities import patch_decrypt_checkpoint
 
 
 class TAOLightningModule(pl.LightningModule):
@@ -42,24 +41,12 @@ class TAOLightningModule(pl.LightningModule):
         # This is called when trainer.fit() is called
 
         results_dir = self.experiment_spec["results_dir"]
-        num_epochs = self.experiment_spec["train"]["num_epochs"]
         checkpoint_interval = self.experiment_spec["train"]["checkpoint_interval"]
 
         status_logger_callback = TAOStatusLogger(
             results_dir,
-            append=True,
-            num_epochs=num_epochs
+            append=True
         )
-
-        resume_ckpt = self.experiment_spec["train"]["resume_training_checkpoint_path"] or get_latest_checkpoint(results_dir)
-        if resume_ckpt:
-            resumed_epoch = re.search('epoch_(\\d+)', resume_ckpt)
-            if resumed_epoch:
-                resumed_epoch = int(resumed_epoch.group(1))
-                # Checkpoint filenames are indexed by 0, while the epoch on logging is indexed by 1, so +2 must be done to match epoch number from filename to the logging epoch_count
-                status_logger_callback.epoch_counter = resumed_epoch + 2
-        else:
-            status_logger_callback.epoch_counter = 1
 
         ModelCheckpoint.FILE_EXTENSION = ".pth"
         ModelCheckpoint.CHECKPOINT_EQUALS_CHAR = "_"
@@ -74,7 +61,7 @@ class TAOLightningModule(pl.LightningModule):
                                               monitor=None,
                                               save_top_k=-1,
                                               save_last='link',
-                                              filename='model_{epoch:03d}',
+                                              filename='model_{epoch:03d}_{step:05d}',
                                               enable_version_counter=False)
 
         return [status_logger_callback, checkpoint_callback]
