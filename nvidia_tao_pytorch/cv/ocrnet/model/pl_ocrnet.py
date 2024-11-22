@@ -464,7 +464,10 @@ class OCRNetModel(TAOLightningModule):
                 pred_max_prob = pred_max_prob[:pred_EOS]
 
             # calculate confidence score (= multiply of pred_max_prob)
-            confidence_score = pred_max_prob.cumprod(dim=0)[-1]
+            try:
+                confidence_score = pred_max_prob.cumprod(dim=0)[-1]
+            except Exception:
+                confidence_score = 0  # for empty pred case, when prune after "end of sentence" token ([s])
 
             self.table_data.append((img_name, pred, f"{confidence_score:0.4f}"))
 
