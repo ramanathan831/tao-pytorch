@@ -14,7 +14,6 @@
 
 """Evaluate a trained action recognition model."""
 import csv
-import logging
 import os
 from pytorch_lightning import Trainer
 
@@ -52,9 +51,6 @@ def dump_cm(csv_path, cm, id2name):
 def run_experiment(experiment_config, key):
     """Run experiment."""
     results_dir, model_path, gpus = initialize_evaluation_experiment(experiment_config, key)
-    if len(gpus) > 1:
-        gpus = [gpus[0]]
-        logging.log(f"Action Recognition does not support multi-GPU evaluation at this time. Using only GPU {gpus}")
 
     dm = ARDataModule(experiment_config)
     model = ActionRecognitionModel.load_from_checkpoint(model_path,
