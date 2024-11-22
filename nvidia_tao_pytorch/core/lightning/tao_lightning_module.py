@@ -21,6 +21,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import Callback, ModelCheckpoint
 
 from nvidia_tao_pytorch.core.callbacks.loggers import TAOStatusLogger
+from nvidia_tao_pytorch.core.callbacks.model_checkpoint import TAOExceptionCheckpoint
 from nvidia_tao_pytorch.core.cookbooks.tlt_pytorch_cookbook import TLTPyTorchCookbook
 from nvidia_tao_pytorch.core.utilities import get_latest_checkpoint, patch_decrypt_checkpoint
 
@@ -77,7 +78,12 @@ class TAOLightningModule(pl.LightningModule):
                                               filename='model_{epoch:03d}',
                                               enable_version_counter=False)
 
-        return [status_logger_callback, checkpoint_callback]
+        # For now, we use our custom one since Lightning's callback for this is minimal
+        TAOExceptionCheckpoint.FILE_EXTENSION = ModelCheckpoint.FILE_EXTENSION
+        TAOExceptionCheckpoint.CHECKPOINT_NAME_LAST = ModelCheckpoint.CHECKPOINT_NAME_LAST
+        exception_checkpoint_callback = TAOExceptionCheckpoint(dirpath=results_dir)
+
+        return [status_logger_callback, checkpoint_callback, exception_checkpoint_callback]
 
     # These are necessary because we sometimes have drop_last=True for the dataloaders.
     # When the dataset is smaller than the batch size, this leads to Lightning not
