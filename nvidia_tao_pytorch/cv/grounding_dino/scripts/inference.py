@@ -30,7 +30,7 @@ from nvidia_tao_pytorch.cv.grounding_dino.utils.misc import parse_checkpoint
 
 def run_experiment(experiment_config):
     """Start the inference."""
-    results_dir, model_path, gpus = initialize_inference_experiment(experiment_config)
+    model_path, trainer_kwargs = initialize_inference_experiment(experiment_config)
 
     if model_path.endswith('.pth'):
 
@@ -53,10 +53,7 @@ def run_experiment(experiment_config):
                                                   experiment_spec=experiment_config,
                                                   cap_lists=cap_lists)
 
-        trainer = Trainer(devices=gpus,
-                          default_root_dir=results_dir,
-                          accelerator="gpu",
-                          strategy="auto")
+        trainer = Trainer(**trainer_kwargs)
 
         trainer.predict(model, datamodule=dm)
 

@@ -30,7 +30,7 @@ from nvidia_tao_pytorch.cv.grounding_dino.utils.misc import parse_checkpoint
 
 def run_experiment(experiment_config):
     """Run experiment."""
-    results_dir, model_path, gpus = initialize_evaluation_experiment(experiment_config)
+    model_path, trainer_kwargs = initialize_evaluation_experiment(experiment_config)
 
     if model_path.endswith('.pth'):
         # build dataloader
@@ -53,10 +53,7 @@ def run_experiment(experiment_config):
                                                   experiment_spec=experiment_config,
                                                   cap_lists=cap_lists)
 
-        trainer = Trainer(devices=gpus,
-                          default_root_dir=results_dir,
-                          accelerator='gpu',
-                          strategy='auto')
+        trainer = Trainer(**trainer_kwargs)
 
         trainer.test(model, datamodule=dm)
 

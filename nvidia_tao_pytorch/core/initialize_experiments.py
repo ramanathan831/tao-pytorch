@@ -88,7 +88,17 @@ def initialize_train_experiment(cfg, key=None):
             )
             loggers.append(wandb_logger)
 
-    return results_dir, resume_ckpt, gpus, loggers
+    trainer_kwargs = {'logger': loggers,
+                      'devices': gpus,
+                      'max_epochs': total_epochs,
+                      'check_val_every_n_epoch': validation_interval,
+                      'default_root_dir': results_dir,
+                      'accelerator': 'gpu',
+                      # This is false since we define our own ModelCheckpoint callbacks
+                      'enable_checkpointing': False
+                      }
+
+    return resume_ckpt, trainer_kwargs
 
 
 def initialize_evaluation_experiment(cfg, key=None):
@@ -111,7 +121,13 @@ def initialize_evaluation_experiment(cfg, key=None):
     cfg["evaluate"]["num_gpus"] = len(gpus)
     cfg["evaluate"]["gpu_ids"] = gpus
 
-    return results_dir, model_path, gpus
+    trainer_kwargs = {'devices': gpus,
+                      'default_root_dir': results_dir,
+                      'accelerator': 'gpu',
+                      'strategy': 'auto'
+                      }
+
+    return model_path, trainer_kwargs
 
 
 def initialize_inference_experiment(cfg, key=None):
@@ -135,4 +151,10 @@ def initialize_inference_experiment(cfg, key=None):
     cfg["inference"]["num_gpus"] = len(gpus)
     cfg["inference"]["gpu_ids"] = gpus
 
-    return results_dir, model_path, gpus
+    trainer_kwargs = {'devices': gpus,
+                      'default_root_dir': results_dir,
+                      'accelerator': 'gpu',
+                      'strategy': 'auto'
+                      }
+
+    return model_path, trainer_kwargs

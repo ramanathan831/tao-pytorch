@@ -28,24 +28,16 @@ from pytorch_lightning import Trainer
 
 def run_experiment(experiment_config, key):
     """Start the training."""
-    results_dir, resume_ckpt, gpus, ptl_loggers = initialize_train_experiment(experiment_config, key)
+    resume_ckpt, trainer_kwargs = initialize_train_experiment(experiment_config, key)
 
     dm = ARDataModule(experiment_config)
 
     ar_model = ActionRecognitionModel(experiment_config, dm)
 
-    total_epochs = experiment_config['train']['num_epochs']
-    validation_interval = experiment_config['train']['validation_interval']
     clip_grad = experiment_config['train']['clip_grad_norm']
 
-    trainer = Trainer(logger=ptl_loggers,
-                      devices=gpus,
-                      max_epochs=total_epochs,
-                      check_val_every_n_epoch=validation_interval,
-                      default_root_dir=results_dir,
-                      accelerator='gpu',
+    trainer = Trainer(**trainer_kwargs,
                       strategy='auto',
-                      enable_checkpointing=False,
                       gradient_clip_val=clip_grad)
 
     # Overload connector to enable intermediate ckpt encryption & decryption.

@@ -28,7 +28,7 @@ from nvidia_tao_pytorch.cv.optical_inspection.model.pl_oi_model import OpticalIn
 
 def run_experiment(experiment_config, key):
     """Start the inference."""
-    results_dir, model_path, gpus = initialize_inference_experiment(experiment_config, key)
+    model_path, trainer_kwargs = initialize_inference_experiment(experiment_config, key)
 
     dm = OIDataModule(experiment_config)
 
@@ -39,10 +39,7 @@ def run_experiment(experiment_config, key):
         dm=dm
     )
 
-    trainer = Trainer(devices=gpus,
-                      default_root_dir=results_dir,
-                      accelerator='gpu',
-                      strategy='auto')
+    trainer = Trainer(**trainer_kwargs)
 
     trainer.predict(model, datamodule=dm)
 

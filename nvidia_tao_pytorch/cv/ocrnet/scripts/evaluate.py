@@ -35,7 +35,8 @@ def run_experiment(experiment_spec, key):
     if "val_gt_file" in experiment_spec["dataset"]:
         if experiment_spec["dataset"]["val_gt_file"] == "":
             experiment_spec["dataset"]["val_gt_file"] = None
-    results_dir, model_path, gpus = initialize_evaluation_experiment(experiment_spec, key)
+
+    model_path, trainer_kwargs = initialize_evaluation_experiment(experiment_spec, key)
 
     dm = OCRDataModule(experiment_spec)
     dm.setup(stage='test')
@@ -50,10 +51,7 @@ def run_experiment(experiment_spec, key):
 
     model.model.load_state_dict(ckpt.state_dict(), strict=True)
 
-    trainer = Trainer(devices=gpus,
-                      default_root_dir=results_dir,
-                      accelerator='gpu',
-                      strategy='auto')
+    trainer = Trainer(**trainer_kwargs)
 
     trainer.test(model, datamodule=dm)
 

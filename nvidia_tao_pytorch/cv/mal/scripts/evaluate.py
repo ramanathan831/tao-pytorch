@@ -28,7 +28,7 @@ spec_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 @monitor_status(name="MAL", mode="evaluate")
 def run_evaluation(cfg: ExperimentConfig) -> None:
     """Run evaluation."""
-    results_dir, model_path, gpus = initialize_evaluation_experiment(cfg)
+    model_path, trainer_kwargs = initialize_evaluation_experiment(cfg)
     cfg = update_config(cfg, 'evaluate')
 
     cfg.train.lr = 0
@@ -48,11 +48,8 @@ def run_evaluation(cfg: ExperimentConfig) -> None:
                                      categories=dm.val_dataset.coco.dataset['categories'])
 
     trainer = Trainer(
-        devices=gpus,
+        **trainer_kwargs,
         num_nodes=cfg.evaluate.num_nodes,
-        strategy='auto',
-        accelerator='gpu',
-        default_root_dir=results_dir,
         max_epochs=-1,
         precision='16-mixed',
         check_val_every_n_epoch=1,

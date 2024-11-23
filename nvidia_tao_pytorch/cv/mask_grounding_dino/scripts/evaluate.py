@@ -27,7 +27,7 @@ from nvidia_tao_pytorch.cv.mask_grounding_dino.model.pl_gdino_model import MaskG
 
 def run_experiment(experiment_config):
     """Run experiment."""
-    results_dir, model_path, gpus = initialize_evaluation_experiment(experiment_config)
+    model_path, trainer_kwargs = initialize_evaluation_experiment(experiment_config)
     # build dataset and model for mask branch
     experiment_config.dataset.has_mask = True
     experiment_config.model.has_mask = True
@@ -48,10 +48,7 @@ def run_experiment(experiment_config):
             experiment_spec=experiment_config,
             cap_lists=cap_lists)
 
-        trainer = Trainer(devices=gpus,
-                          default_root_dir=results_dir,
-                          accelerator='gpu',
-                          strategy='auto')
+        trainer = Trainer(**trainer_kwargs)
 
         trainer.test(model, datamodule=dm)
 

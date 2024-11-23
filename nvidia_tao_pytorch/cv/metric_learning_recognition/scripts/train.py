@@ -33,10 +33,9 @@ def run_experiment(experiment_config):
 
     Args:
         experiment_config (DictConfig): Configuration dictionary
-        results_dir (str): Output directory
 
     """
-    results_dir, resume_ckpt, gpus, ptl_loggers = initialize_train_experiment(experiment_config)
+    resume_ckpt, trainer_kwargs = initialize_train_experiment(experiment_config)
 
     # update experiment_config in Trainer
     experiment_config['train']['resume_training_checkpoint_path'] = resume_ckpt
@@ -46,28 +45,19 @@ def run_experiment(experiment_config):
 
     metric_learning_recognition = MLRecogModel(
         experiment_config,
-        results_dir,
         dm,
         subtask="train")
 
-    total_epochs = experiment_config['train']['num_epochs']
     clip_grad = experiment_config['train']['clip_grad_norm']
-    val_inter = experiment_config['train']['validation_interval']
 
     # See REID for why we do this
     num_batches = len(dm.train_dataloader())
     val_check_interval = math.floor(((num_batches - 1) / num_batches) * 100) / 100
 
-    trainer = Trainer(logger=ptl_loggers,
-                      devices=gpus,
-                      max_epochs=total_epochs,
-                      check_val_every_n_epoch=val_inter,
+    trainer = Trainer(**trainer_kwargs,
                       val_check_interval=val_check_interval,
-                      default_root_dir=results_dir,
                       num_sanity_val_steps=0,
-                      accelerator='gpu',
                       strategy='auto',
-                      enable_checkpointing=False,
                       gradient_clip_val=clip_grad)
 
     trainer.fit(metric_learning_recognition, dm, ckpt_path=resume_ckpt)

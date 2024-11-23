@@ -59,7 +59,6 @@ def run_export(args):
         pl_model = MLRecogModel.load_from_checkpoint(experiment_config["export"]["checkpoint"],
                                                      map_location="cpu",
                                                      experiment_spec=experiment_config,
-                                                     results_dir=results_dir,
                                                      dm=dm,
                                                      subtask="export")
         # Set default output filename if the filename
@@ -72,7 +71,6 @@ def run_export(args):
 
     else:
         pl_model = MLRecogModel(experiment_config,
-                                results_dir,
                                 dm,
                                 subtask="export")
         if experiment_config['export']['onnx_file'] is None:

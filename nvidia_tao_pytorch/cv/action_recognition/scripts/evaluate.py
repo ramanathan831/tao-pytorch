@@ -50,7 +50,7 @@ def dump_cm(csv_path, cm, id2name):
 
 def run_experiment(experiment_config, key):
     """Run experiment."""
-    results_dir, model_path, gpus = initialize_evaluation_experiment(experiment_config, key)
+    model_path, trainer_kwargs = initialize_evaluation_experiment(experiment_config, key)
 
     dm = ARDataModule(experiment_config)
     model = ActionRecognitionModel.load_from_checkpoint(model_path,
@@ -58,10 +58,7 @@ def run_experiment(experiment_config, key):
                                                         experiment_spec=experiment_config,
                                                         dm=dm)
 
-    trainer = Trainer(devices=gpus,
-                      default_root_dir=results_dir,
-                      accelerator='gpu',
-                      strategy='auto')
+    trainer = Trainer(**trainer_kwargs)
 
     trainer.test(model, datamodule=dm)
 

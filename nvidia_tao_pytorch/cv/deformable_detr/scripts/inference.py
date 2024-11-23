@@ -27,7 +27,7 @@ from nvidia_tao_pytorch.cv.deformable_detr.model.pl_dd_model import DeformableDE
 
 def run_experiment(experiment_config, key):
     """Start the inference."""
-    results_dir, model_path, gpus = initialize_inference_experiment(experiment_config, key)
+    model_path, trainer_kwargs = initialize_inference_experiment(experiment_config, key)
     if model_path.endswith('.tlt') or model_path.endswith('.pth'):
 
         # build data module
@@ -39,10 +39,7 @@ def run_experiment(experiment_config, key):
                                                          map_location="cpu",
                                                          experiment_spec=experiment_config)
 
-        trainer = Trainer(devices=gpus,
-                          default_root_dir=results_dir,
-                          accelerator='gpu',
-                          strategy='auto')
+        trainer = Trainer(**trainer_kwargs)
 
         trainer.predict(model, datamodule=dm)
 

@@ -42,16 +42,14 @@ class MLRecogModel(TAOLightningModule):
     only supports running on a single GPU.
     """
 
-    def __init__(self, experiment_spec, results_dir, dm, subtask="train"):
+    def __init__(self, experiment_spec, dm, subtask="train"):
         """Initializes training for Metric Learning Recognition model.
 
         Args:
             experiment_spec (DictConfig): Configuration File
-            results_dir (String): Path to save results
             subtask (String): The purpose of the model. Can be "train", "evaluate", "export", "inference" only
         """
         super().__init__(experiment_spec)
-        self.results_dir = results_dir
         self.subtask = subtask
         self.dm = dm
 
@@ -331,7 +329,7 @@ class MLRecogModel(TAOLightningModule):
         self.inference_model = InferenceModel(self.model,
                                               knn_func=infernce_knn_func)
         self.inference_model.train_knn(self.dm.dataset_dict["gallery"])
-        self.csv_f = os.path.join(self.results_dir, 'result.csv')
+        self.csv_f = os.path.join(self.trainer.default_root_dir, 'result.csv')
 
         if os.path.exists(self.csv_f):
             os.remove(self.csv_f)
@@ -430,6 +428,6 @@ class MLRecogModel(TAOLightningModule):
         df = pd.DataFrame.from_dict(output, orient='index')
         if save_results:
             df.to_csv(os.path.join(
-                self.results_dir,
+                self.trainer.default_root_dir,
                 "accuracy_per_class.csv"))
         return df

@@ -27,17 +27,14 @@ from nvidia_tao_pytorch.cv.visual_changenet.segmentation.models.cn_pl_model impo
 from nvidia_tao_pytorch.cv.visual_changenet.classification.models.cn_pl_model import ChangeNetPlModel as ChangeNetPlClassifier
 
 from pytorch_lightning import Trainer
-from pytorch_lightning.loggers import TensorBoardLogger
 
 
 def run_experiment(experiment_config, key):
     """Start the training."""
-    results_dir, resume_ckpt, gpus, ptl_loggers = initialize_train_experiment(experiment_config, key)
+    resume_ckpt, trainer_kwargs = initialize_train_experiment(experiment_config, key)
 
     task = experiment_config.task
     num_nodes = experiment_config.train.num_nodes
-    total_epochs = experiment_config.train.num_epochs
-    validation_interval = experiment_config.train.validation_interval
     enable_tensorboard = experiment_config.train.tensorboard.enabled
 
     # Load pretrained model as starting point if pretrained path is provided
@@ -45,7 +42,6 @@ def run_experiment(experiment_config, key):
 
     precision = '32-true'
     sync_batchnorm = False
-    trainer_kwargs = {}
 
     assert task in ['segment', 'classify'], "Visual ChangeNet only supports 'segment' and 'classify' tasks."
     if task == 'classify':
@@ -63,14 +59,9 @@ def run_experiment(experiment_config, key):
         strategy = 'auto'
 
         if enable_tensorboard:
-            ptl_loggers.append(
-                TensorBoardLogger(
-                    save_dir=results_dir
-                )
-            )
             infrequent_logging_frequency = experiment_config.train.tensorboard.infrequent_logging_frequency
-            assert max(0, infrequent_logging_frequency) <= total_epochs, (
-                f"infrequent_logging_frequency {infrequent_logging_frequency} must be < num_epochs {total_epochs}"
+            assert max(0, infrequent_logging_frequency) <= trainer_kwargs['max_epochs'], (
+                f"infrequent_logging_frequency {infrequent_logging_frequency} must be < num_epochs {trainer_kwargs['max_epochs']}"
             )
             logging.info("Tensorboard logging enabled.")
         else:
@@ -90,25 +81,18 @@ def run_experiment(experiment_config, key):
             model = ChangeNetPlSegment(experiment_config)
 
         strategy = 'auto'
-        if len(gpus) > 1:
+        if len(trainer_kwargs['devices']) > 1:
             strategy = 'ddp_find_unused_parameters_true'
 
     else:
         raise NotImplementedError('Only tasks supported by Visual ChangeNet are: "segment" and "classify"')
 
-    trainer = Trainer(logger=ptl_loggers,
-                      devices=gpus,
+    trainer = Trainer(**trainer_kwargs,
                       num_nodes=num_nodes,
-                      max_epochs=total_epochs,
-                      check_val_every_n_epoch=validation_interval,
-                      default_root_dir=results_dir,
-                      accelerator='gpu',
                       strategy=strategy,
                       precision=precision,
                       use_distributed_sampler=False,
                       sync_batchnorm=sync_batchnorm,
-                      enable_checkpointing=False,
-                      **trainer_kwargs
                       )
 
     trainer.fit(model, dm, ckpt_path=resume_ckpt)
