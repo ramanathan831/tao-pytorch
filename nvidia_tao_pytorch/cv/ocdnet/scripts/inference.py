@@ -41,7 +41,7 @@ pyc_ctx = pyc_dev.retain_primary_context()
 def run_experiment(experiment_config):
     """Run experiment."""
     experiment_config = OmegaConf.to_container(experiment_config)
-    results_dir, model_path, gpus = initialize_inference_experiment(experiment_config)
+    model_path, trainer_kwargs = initialize_inference_experiment(experiment_config)
 
     experiment_config['model']['pretrained'] = False
 
@@ -51,10 +51,7 @@ def run_experiment(experiment_config):
     model = OCDnetModel(experiment_config, dm, 'predict')
     model.model.load_state_dict(checkpoint)
 
-    trainer = Trainer(devices=gpus,
-                      default_root_dir=results_dir,
-                      accelerator='gpu',
-                      strategy='auto')
+    trainer = Trainer(**trainer_kwargs)
 
     trainer.predict(model, datamodule=dm)
 

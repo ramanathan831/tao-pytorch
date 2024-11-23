@@ -93,7 +93,7 @@ def test_trainer_fit(_train_spec):
 
     dm = MLDataModule(_train_spec)
     dm.setup('fit')
-    model = MLRecogModel(_train_spec, _train_spec.results_dir, dm, subtask='train')
+    model = MLRecogModel(_train_spec, dm, subtask='train')
 
     trainer = Trainer(devices=_train_spec.train.num_gpus,
                       num_nodes=_train_spec.train.num_nodes,
@@ -113,7 +113,7 @@ def test_trainer_evaluate(_eval_spec):
 
     dm = MLDataModule(_eval_spec)
     dm.setup('test')
-    model = MLRecogModel(_eval_spec, _eval_spec.results_dir, dm, subtask='evaluate')
+    model = MLRecogModel(_eval_spec, dm, subtask='evaluate')
 
     trainer = Trainer(devices=_eval_spec.evaluate.num_gpus,
                       default_root_dir=_eval_spec.results_dir,
@@ -130,7 +130,7 @@ def test_trainer_inference(_infer_spec):
 
     dm = MLDataModule(_infer_spec)
     dm.setup('predict')
-    model = MLRecogModel(_infer_spec, _infer_spec.results_dir, dm, subtask='inference')
+    model = MLRecogModel(_infer_spec, dm, subtask='inference')
 
     trainer = Trainer(devices=_infer_spec.inference.num_gpus,
                       default_root_dir=_infer_spec.results_dir,

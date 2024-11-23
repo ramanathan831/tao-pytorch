@@ -34,7 +34,7 @@ def run_experiment(experiment_config):
         experiment_config (DictConfig): Configuration dictionary
 
     """
-    results_dir, model_path, gpus = initialize_inference_experiment(experiment_config)
+    model_path, trainer_kwargs = initialize_inference_experiment(experiment_config)
 
     dm = MLDataModule(experiment_config)
     dm.setup(stage='predict')
@@ -43,14 +43,10 @@ def run_experiment(experiment_config):
         model_path,
         map_location="cpu",
         experiment_spec=experiment_config,
-        results_dir=results_dir,
         dm=dm,
         subtask="inference")
 
-    trainer = Trainer(devices=gpus,
-                      default_root_dir=results_dir,
-                      accelerator='gpu',
-                      strategy='auto')
+    trainer = Trainer(**trainer_kwargs)
 
     trainer.predict(metric_learning_recognition, datamodule=dm)
 

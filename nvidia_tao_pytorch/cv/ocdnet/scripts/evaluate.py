@@ -44,7 +44,7 @@ pyc_ctx = pyc_dev.retain_primary_context()
 def run_experiment(experiment_config):
     """Run experiment."""
     experiment_config = OmegaConf.to_container(experiment_config)
-    results_dir, model_path, gpus = initialize_evaluation_experiment(experiment_config)
+    model_path, trainer_kwargs = initialize_evaluation_experiment(experiment_config)
 
     experiment_config['model']['pretrained'] = False
     experiment_config["dataset"]["train_dataset"] = experiment_config["dataset"]["validate_dataset"]
@@ -144,10 +144,7 @@ def run_experiment(experiment_config):
                 ckpt[new_layer] = checkpoint[layer]
             model.model.load_state_dict(ckpt)
 
-    trainer = Trainer(devices=gpus,
-                      default_root_dir=results_dir,
-                      accelerator='gpu',
-                      strategy='auto')
+    trainer = Trainer(**trainer_kwargs)
 
     trainer.test(model, datamodule=dm)
 

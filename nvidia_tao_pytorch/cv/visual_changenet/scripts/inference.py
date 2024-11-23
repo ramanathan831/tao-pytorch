@@ -32,7 +32,7 @@ from pytorch_lightning import Trainer
 
 def run_experiment(experiment_config, key):
     """Start the inference."""
-    results_dir, model_path, gpus = initialize_inference_experiment(experiment_config, key)
+    model_path, trainer_kwargs = initialize_inference_experiment(experiment_config, key)
 
     task = experiment_config.task
 
@@ -64,9 +64,7 @@ def run_experiment(experiment_config, key):
     else:
         raise NotImplementedError('Only tasks supported by Visual ChangeNet are: "segment" and "classify"')
 
-    trainer = Trainer(devices=gpus,
-                      default_root_dir=results_dir,
-                      accelerator='auto')
+    trainer = Trainer(**trainer_kwargs)
 
     trainer.predict(model, datamodule=dm)
 

@@ -26,7 +26,7 @@ from nvidia_tao_pytorch.cv.dino.model.pl_dino_model import DINOPlModel
 
 def run_experiment(experiment_config, key):
     """Run experiment."""
-    results_dir, model_path, gpus = initialize_evaluation_experiment(experiment_config, key)
+    model_path, trainer_kwargs = initialize_evaluation_experiment(experiment_config, key)
 
     # tlt inference
     if model_path.endswith('.tlt') or model_path.endswith('.pth'):
@@ -39,10 +39,7 @@ def run_experiment(experiment_config, key):
                                                  map_location="cpu",
                                                  experiment_spec=experiment_config)
 
-        trainer = Trainer(devices=gpus,
-                          default_root_dir=results_dir,
-                          accelerator='gpu',
-                          strategy='auto')
+        trainer = Trainer(**trainer_kwargs)
 
         trainer.test(model, datamodule=dm)
 

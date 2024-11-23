@@ -29,7 +29,7 @@ spec_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 @monitor_status(name="MAL", mode="inference")
 def run_inference(cfg: ExperimentConfig) -> None:
     """Run pseudo-label generation."""
-    results_dir, model_path, gpus = initialize_inference_experiment(cfg)
+    model_path, trainer_kwargs = initialize_inference_experiment(cfg)
     cfg = update_config(cfg, 'inference')
 
     cfg.train.lr = 0
@@ -58,10 +58,7 @@ def run_inference(cfg: ExperimentConfig) -> None:
                                                  categories=dm.val_dataset.coco.dataset['categories'])
 
     trainer = Trainer(
-        devices=gpus,
-        strategy='auto',
-        default_root_dir=results_dir,
-        accelerator='gpu',
+        **trainer_kwargs,
         precision='16-mixed',
         check_val_every_n_epoch=1
     )

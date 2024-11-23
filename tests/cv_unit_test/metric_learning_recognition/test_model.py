@@ -69,5 +69,5 @@ def test_MLRecog_pl_model(_test_experiment_spec, backbone, feat_dim, batch_size,
     if subtask != "train":
         _test_experiment_spec[subtask]["checkpoint"] = "placeholder"
     dm = MLDataModule(_test_experiment_spec)
-    MLRecogModel(_test_experiment_spec, _test_experiment_spec.results_dir, dm, subtask)
+    MLRecogModel(_test_experiment_spec, dm, subtask)
     shutil.rmtree(TEST_OUTPUT_DIR)

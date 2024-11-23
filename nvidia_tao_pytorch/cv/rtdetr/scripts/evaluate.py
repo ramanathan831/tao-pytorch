@@ -27,7 +27,7 @@ from nvidia_tao_pytorch.cv.rtdetr.model.pl_rtdetr_model import RTDETRPlModel
 
 def run_experiment(experiment_config):
     """Run experiment."""
-    results_dir, model_path, gpus = initialize_evaluation_experiment(experiment_config)
+    model_path, trainer_kwargs = initialize_evaluation_experiment(experiment_config)
 
     if model_path.endswith('.pth'):
         # build dataloader
@@ -39,10 +39,7 @@ def run_experiment(experiment_config):
                                                    map_location="cpu",
                                                    experiment_spec=experiment_config)
 
-        trainer = Trainer(devices=gpus,
-                          default_root_dir=results_dir,
-                          accelerator='gpu',
-                          strategy='auto')
+        trainer = Trainer(**trainer_kwargs)
 
         trainer.test(model, datamodule=dm)
 

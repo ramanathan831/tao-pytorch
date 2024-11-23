@@ -67,20 +67,17 @@ def run_experiment(experiment_config, key):
     Raises:
         Exception: If any error occurs during the evaluation process.
     """
-    results_dir, model_path, gpus = initialize_evaluation_experiment(experiment_config, key)
-    if len(gpus) > 1:
-        gpus = [gpus[0]]
-        logging.log(f"Pose Classification does not support multi-GPU evaluation at this time. Using only GPU {gpus}")
+    model_path, trainer_kwargs = initialize_evaluation_experiment(experiment_config, key)
+    if len(trainer_kwargs['devices']) > 1:
+        trainer_kwargs['devices'] = [trainer_kwargs['devices'][0]]
+        logging.log(f"Pose Classification does not support multi-GPU evaluation at this time. Using only GPU {trainer_kwargs['devices']}")
 
     dm = PCDataModule(experiment_config)
     model = PoseClassificationModel.load_from_checkpoint(model_path,
                                                          map_location="cpu",
                                                          experiment_spec=experiment_config)
 
-    trainer = Trainer(devices=gpus,
-                      default_root_dir=results_dir,
-                      accelerator='gpu',
-                      strategy='auto')
+    trainer = Trainer(**trainer_kwargs)
 
     trainer.test(model, datamodule=dm)
 

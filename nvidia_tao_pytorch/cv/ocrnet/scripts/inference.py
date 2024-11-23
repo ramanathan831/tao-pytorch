@@ -37,10 +37,11 @@ def run_experiment(experiment_spec, key):
     if "val_gt_file" in experiment_spec["dataset"]:
         if experiment_spec["dataset"]["val_gt_file"] == "":
             experiment_spec["dataset"]["val_gt_file"] = None
-    results_dir, model_path, gpus = initialize_inference_experiment(experiment_spec, key)
-    if len(gpus) > 1:
-        gpus = [gpus[0]]
-        logging.log(f"OCRNet does not support multi-GPU inference at this time. Using only GPU {gpus}")
+
+    model_path, trainer_kwargs = initialize_inference_experiment(experiment_spec, key)
+    if len(trainer_kwargs['devices']) > 1:
+        trainer_kwargs['devices'] = [trainer_kwargs['devices'][0]]
+        logging.log(f"OCRNet does not support multi-GPU inference at this time. Using only GPU {trainer_kwargs['devices']}")
 
     dm = OCRDataModule(experiment_spec)
     dm.setup(stage='predict')
@@ -55,10 +56,7 @@ def run_experiment(experiment_spec, key):
 
     model.model.load_state_dict(ckpt.state_dict(), strict=True)
 
-    trainer = Trainer(devices=gpus,
-                      default_root_dir=results_dir,
-                      accelerator='gpu',
-                      strategy='auto')
+    trainer = Trainer(**trainer_kwargs)
 
     trainer.predict(model, datamodule=dm)
 

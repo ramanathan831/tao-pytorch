@@ -34,7 +34,7 @@ def run_experiment(experiment_config):
         experiment_config (DictConfig): Configuration dictionary
 
     """
-    results_dir, model_path, gpus = initialize_evaluation_experiment(experiment_config)
+    model_path, trainer_kwargs = initialize_evaluation_experiment(experiment_config)
 
     dm = MLDataModule(experiment_config)
     # Trigger setup() here so that get_query_accuracy() below will have access to necessary variables
@@ -44,14 +44,10 @@ def run_experiment(experiment_config):
         model_path,
         map_location="cpu",
         experiment_spec=experiment_config,
-        results_dir=results_dir,
         dm=dm,
         subtask="evaluate")
 
-    trainer = Trainer(devices=gpus,
-                      default_root_dir=results_dir,
-                      accelerator='gpu',
-                      strategy='auto')
+    trainer = Trainer(**trainer_kwargs)
 
     trainer.test(metric_learning_recognition, datamodule=dm)
 
