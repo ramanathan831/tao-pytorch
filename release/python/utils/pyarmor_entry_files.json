@@ -378,5 +378,33 @@
     ],
     "api": [
         "__init__.py"
-    ]
+    ],
+    "sdg":{
+        ".": [
+            "__init__.py"
+        ],
+        "stylegan_xl":[
+            "__init__.py",
+            "config/__init__.py",
+            "dataloader/__init__.py",
+            "entrypoint/__init__.py",
+            "entrypoint/stylegan_xl.py",
+            "model/__init__.py",
+            "model/discriminator/__init__.py",
+            "model/feature_networks/__init__.py",
+            "model/feature_networks/clip/__init__.py",
+            "model/generator/__init__.py",
+            "model/labeller/__init__.py",
+            "model/loss/__init__.py",
+            "model/metrics/__init__.py",
+            "scripts/evaluate.py",
+            "scripts/inference.py",
+            "scripts/train.py",
+            "scripts/export.py",
+            "scripts/__init__.py",
+            "utils/__init__.py",
+            "utils/dnnlib/__init__.py",
+            "utils/ops/__init__.py"
+        ]
+    }
 }
