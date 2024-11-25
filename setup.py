@@ -82,6 +82,8 @@ setuptools.setup(
             'visual_changenet=nvidia_tao_pytorch.cv.visual_changenet.entrypoint.visual_changenet:main',
             'centerpose=nvidia_tao_pytorch.cv.centerpose.entrypoint.centerpose:main',
             'mask2former=nvidia_tao_pytorch.cv.mask2former.entrypoint.mask2former:main',
+            # SDG entry point
+            'stylegan_xl=nvidia_tao_pytorch.sdg.stylegan_xl.entrypoint.stylegan_xl:main',
         ]
     },
     cmdclass={'build_ext': BuildExtension},
@@ -140,6 +142,41 @@ setuptools.setup(
             include_dirs=['src'],
             define_macros=[("WITH_CUDA", None)],
             extra_flags = utils.get_extra_compile_args()
+        ),
+        utils.make_cuda_ext(
+            name='filtered_lrelu_plugin',
+            module='nvidia_tao_pytorch.sdg.stylegan_xl.utils.ops',
+            sources=[
+                'filtered_lrelu.cpp',
+                'filtered_lrelu_wr.cu',
+                'filtered_lrelu_rd.cu',
+                'filtered_lrelu_ns.cu'
+            ],
+            include_dirs=['.'],  # Set to the folder with headers
+            define_macros=[("WITH_CUDA", None)],
+            extra_flags={'nvcc': ['--use_fast_math']}
+        ),
+        utils.make_cuda_ext(
+            name='upfirdn2d_plugin',
+            module='nvidia_tao_pytorch.sdg.stylegan_xl.utils.ops',
+            sources=[
+                'upfirdn2d.cpp',
+                'upfirdn2d_cuda.cu'
+            ],
+            include_dirs=['.'],  # Set to the folder containing upfirdn2d.h
+            define_macros=[("WITH_CUDA", None)],
+            extra_flags={'nvcc': ['--use_fast_math']}
+        ),
+        utils.make_cuda_ext(
+            name='bias_act_plugin',
+            module='nvidia_tao_pytorch.sdg.stylegan_xl.utils.ops',
+            sources=[
+                'bias_act.cpp',
+                'bias_act_cuda.cu'
+            ],
+            include_dirs=['.'],  # Set to the folder containing bias_act.h
+            define_macros=[("WITH_CUDA", None)],
+            extra_flags={'nvcc': ['--use_fast_math']}
         )
     ],
 )
