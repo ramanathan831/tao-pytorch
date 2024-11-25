@@ -47,7 +47,7 @@ train:
       type: AdamW
       lr: 0.005
       weight_decay: 0.05
-   lr_config:
+    lr_config:
       type: CosineAnnealingLR
       T_max: 200
       by_epoch: True

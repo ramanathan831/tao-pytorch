@@ -127,11 +127,15 @@ ROOT_DIR = os.path.dirname(
 CONFIG_ROOT = os.path.join(
     ROOT_DIR,"nvidia_tao_pytorch/cv/classification/experiment_specs/"
 )
-train_config = os.path.join(CONFIG_ROOT, "train_lr_head_industrial.yaml")
 
-with open(train_config, "r") as config_file:
-    sample_experiment_config = config_file.read()
+all_experiment_configs = []
+for cnt, experiment_config in enumerate(os.listdir(CONFIG_ROOT), 1):
+    experiment_config = os.path.join(CONFIG_ROOT, experiment_config)
 
+    with open(experiment_config, "r") as config_file:
+        sample_experiment_config = config_file.read()
+
+    all_experiment_configs.append(sample_experiment_config)
 
 @pytest.fixture
 def _test_img_norm_spec():
@@ -512,13 +516,13 @@ def test_gen_trt_engine_jsonschema_conversion(_test_gen_trt_engine_spec):
     assert json.dumps(json_schema, indent=4), "Json schema generation failed."
 
 
-
 TEST_CONFIG_BLOCKS = [
     (sample_model_config, ModelConfig),
     (sample_dataset_config, DatasetConfig),
     (sample_train_config, TrainExpConfig),
-    (sample_experiment_config, ExperimentConfig),
 ]
+
+TEST_CONFIG_BLOCKS.extend(list(zip(all_experiment_configs, [ExperimentConfig] * cnt)))
 
 @pytest.mark.cv_unit
 @pytest.mark.config

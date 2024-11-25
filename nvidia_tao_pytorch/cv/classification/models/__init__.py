@@ -19,6 +19,11 @@ from nvidia_tao_pytorch.cv.classification.models.gc_vit import GCViT
 from nvidia_tao_pytorch.cv.classification.models.dinov2_vit import DinoV2ViT
 from nvidia_tao_pytorch.cv.classification.models.clip import open_clip
 from nvidia_tao_pytorch.cv.classification.models.faster_vit import FasterViT
+from nvidia_tao_pytorch.cv.classification.models.radio import (
+    c_radio_p1_vit_huge_patch16_224_mlpnorm,
+    c_radio_p2_vit_huge_patch16_224_mlpnorm,
+    c_radio_p3_vit_huge_patch16_224_mlpnorm
+)
 
 
 __all__ = ["FAN",
@@ -26,4 +31,7 @@ __all__ = ["FAN",
            "DinoV2ViT",
            "open_clip",
            "FasterViT",
+           "c_radio_p1_vit_huge_patch16_224_mlpnorm",
+           "c_radio_p2_vit_huge_patch16_224_mlpnorm",
+           "c_radio_p3_vit_huge_patch16_224_mlpnorm"
            ]
