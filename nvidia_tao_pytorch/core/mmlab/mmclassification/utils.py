@@ -162,6 +162,13 @@ class MMPretrainConfig(object):
             bb_type = self.updated_config["model"]["backbone"]["type"]
         self.updated_config["model"]["head"] = self.assign_arch_specific_params(self.updated_config["model"]["head"], map_params_head, bb_type)
 
+        # Allow users to specify backbone checkpoint path using either 'pretrained' or 'init_cfg.pretrained'.
+        if self.updated_config["model"]["backbone"]['pretrained'] is None and self.updated_config["model"]["backbone"]["init_cfg"]:
+            self.updated_config["model"]["backbone"]['pretrained'] = self.updated_config["model"]["backbone"]["init_cfg"]['checkpoint']
+        elif self.updated_config["model"]["backbone"]['pretrained'] and self.updated_config["model"]["backbone"]["init_cfg"] is None:
+            self.updated_config["model"]["backbone"]["init_cfg"] = {"type": "Pretrained",
+                                                                    "checkpoint": self.updated_config["model"]["backbone"]['pretrained']}
+
         #  Update backbone params from the map json
         map_params_backbone = map_params.get("backbone", None)
         self.updated_config["model"]["backbone"] = self.assign_arch_specific_params(self.updated_config["model"]["backbone"], map_params_backbone, bb_type)
