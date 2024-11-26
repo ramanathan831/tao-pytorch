@@ -34,7 +34,7 @@ from nvidia_tao_pytorch.cv.visual_changenet.utils.onnx_export import ONNXExporte
 tmp_top_obj = tempfile.TemporaryDirectory()
 tmp_top_dir = tmp_top_obj.name
 BATCH_SIZE = 2
-OUTPUT_SHAPE = 256
+OUTPUT_SHAPE = 224
 
 
 @pytest.fixture
@@ -50,7 +50,10 @@ def _test_experiment_spec():
 @pytest.mark.cv_unit
 @pytest.mark.parametrize("backbone",
                          [("fan_tiny_8_p4_hybrid"),
-                          ("vit_large_nvdinov2")])
+                          ("vit_large_nvdinov2"),
+                          ("c_radio_p1_vit_huge_patch16_224_mlpnorm"),
+                          ("c_radio_p2_vit_huge_patch16_224_mlpnorm"),
+                          ("c_radio_p3_vit_huge_patch16_224_mlpnorm")])
 @pytest.mark.parametrize("task", ['segment'])
 @pytest.mark.parametrize("batch_size", [-1])
 @pytest.mark.parametrize("opset_version", [16])
@@ -101,8 +104,7 @@ def test_changenet_onnx_compare_output(_test_experiment_spec, backbone, batch_si
 
     # Load ONNX and ONNXRuntime
     ort.set_seed(47)
-    onnx_model = onnx.load(onnx_path)
-    onnx.checker.check_model(onnx_model)
+    onnx.checker.check_model(onnx_path)
     sess = ort.InferenceSession(
         onnx_path,
         providers=['CPUExecutionProvider']
@@ -124,7 +126,10 @@ def test_changenet_onnx_compare_output(_test_experiment_spec, backbone, batch_si
 @pytest.mark.cv_unit
 @pytest.mark.parametrize("backbone",
                          [("fan_tiny_8_p4_hybrid"),
-                          ("vit_large_nvdinov2")])
+                          ("vit_large_nvdinov2"),
+                          ("c_radio_p1_vit_huge_patch16_224_mlpnorm"),
+                          ("c_radio_p2_vit_huge_patch16_224_mlpnorm"),
+                          ("c_radio_p3_vit_huge_patch16_224_mlpnorm")])
 @pytest.mark.parametrize("task", ['segment'])
 @pytest.mark.parametrize("batch_size", [-1])
 @pytest.mark.parametrize("opset_version", [16])
@@ -179,7 +184,10 @@ def test_changenet_onnx_export(_test_experiment_spec, backbone, batch_size, task
 @pytest.mark.parametrize("batch_size", [1])
 @pytest.mark.parametrize("backbone",
                          [("fan_tiny_8_p4_hybrid"),
-                          ("vit_large_nvdinov2")])
+                          ("vit_large_nvdinov2"),
+                          ("c_radio_p1_vit_huge_patch16_224_mlpnorm"),
+                          ("c_radio_p2_vit_huge_patch16_224_mlpnorm"),
+                          ("c_radio_p3_vit_huge_patch16_224_mlpnorm")])
 @pytest.mark.parametrize("opset_version", [16])
 def test_cls_trtexec(_test_experiment_spec, backbone, batch_size, opset_version):
     check_and_create(tmp_top_dir)

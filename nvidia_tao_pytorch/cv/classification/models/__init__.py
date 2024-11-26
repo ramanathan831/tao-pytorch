@@ -25,7 +25,6 @@ from nvidia_tao_pytorch.cv.classification.models.radio import (
     c_radio_p3_vit_huge_patch16_224_mlpnorm
 )
 
-
 __all__ = ["FAN",
            "GCViT",
            "DinoV2ViT",

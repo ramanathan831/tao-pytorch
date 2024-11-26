@@ -170,7 +170,10 @@ def _infer_spec():
                           ("fan_large_16_p4_hybrid"),
                           ("fan_small_12_p4_hybrid"),
                           ("fan_base_16_p4_hybrid"),
-                          ("vit_large_nvdinov2")])
+                          ("vit_large_nvdinov2"),
+                          ("c_radio_p1_vit_huge_patch16_224_mlpnorm"),
+                          ("c_radio_p2_vit_huge_patch16_224_mlpnorm"),
+                          ("c_radio_p3_vit_huge_patch16_224_mlpnorm")])
 @pytest.mark.parametrize("task", ['classify'])
 def test_trainer_fit(_test_dir, _train_spec, loss, difference_module, backbone, task):
 
@@ -209,7 +212,10 @@ def test_trainer_fit(_test_dir, _train_spec, loss, difference_module, backbone, 
                           ("fan_large_16_p4_hybrid"),
                           ("fan_small_12_p4_hybrid"),
                           ("fan_base_16_p4_hybrid"),
-                          ("vit_large_nvdinov2")])
+                          ("vit_large_nvdinov2"),
+                          ("c_radio_p1_vit_huge_patch16_224_mlpnorm"),
+                          ("c_radio_p2_vit_huge_patch16_224_mlpnorm"),
+                          ("c_radio_p3_vit_huge_patch16_224_mlpnorm")])
 @pytest.mark.parametrize("task", ['classify'])
 def test_trainer_evaluate(_test_dir, _eval_spec, loss, difference_module, backbone, task):
 
@@ -244,7 +250,10 @@ def test_trainer_evaluate(_test_dir, _eval_spec, loss, difference_module, backbo
                           ("fan_large_16_p4_hybrid"),
                           ("fan_small_12_p4_hybrid"),
                           ("fan_base_16_p4_hybrid"),
-                          ("vit_large_nvdinov2")])
+                          ("vit_large_nvdinov2"),
+                          ("c_radio_p1_vit_huge_patch16_224_mlpnorm"),
+                          ("c_radio_p2_vit_huge_patch16_224_mlpnorm"),
+                          ("c_radio_p3_vit_huge_patch16_224_mlpnorm")])
 @pytest.mark.parametrize("task", ['classify'])
 def test_trainer_infer(_test_dir, _infer_spec, loss, difference_module, backbone, task):
 

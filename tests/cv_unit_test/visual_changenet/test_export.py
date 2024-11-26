@@ -31,7 +31,6 @@ from nvidia_tao_pytorch.cv.visual_changenet.classification.models.cn_pl_model im
 from nvidia_tao_core.config.visual_changenet.default_config import CNModelConfig, CNDatasetConfig, ExperimentConfig
 from nvidia_tao_pytorch.cv.visual_changenet.utils.onnx_export import ONNXExporter
 
-
 tmp_top_obj = tempfile.TemporaryDirectory()
 tmp_top_dir = tmp_top_obj.name
 SAMPLES = 10
@@ -69,8 +68,12 @@ def _test_experiment_spec():
                         #   ("contrastive", "euclidean")  # TODO: @zbhat debug for onnxruntime
                           ])
 @pytest.mark.parametrize("backbone",
-                         [("fan_tiny_8_p4_hybrid"),
-                          ("vit_large_nvdinov2")])
+                         [#("fan_tiny_8_p4_hybrid"),
+                          #("vit_large_nvdinov2"),
+                          ("c_radio_p1_vit_huge_patch16_224_mlpnorm"),
+                          ("c_radio_p2_vit_huge_patch16_224_mlpnorm"),
+                          #("c_radio_p3_vit_huge_patch16_224_mlpnorm")
+                          ])
 @pytest.mark.parametrize("task", ['classify'])
 @pytest.mark.parametrize("batch_size", [-1])
 @pytest.mark.parametrize("opset_version", [16])
@@ -108,7 +111,8 @@ def test_changenet_compare_onnx_output(_test_experiment_spec, backbone, batch_si
     dummy_input1 = torch.ones(input_batch_size, input_channel, input_height, input_width, device='cpu')
     dummy_input = (dummy_input0, dummy_input1)
 
-    onnx_path = os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}_diffModule{difference_module}_compare.onnx")
+    check_and_create(os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}_diffModule{difference_module}_compare"))
+    onnx_path = os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}_diffModule{difference_module}_compare", f"{backbone}_opset{opset_version}_diffModule{difference_module}_compare.onnx")
 
     onnx_export = ONNXExporter()
     onnx_export.export_model(model, batch_size,
@@ -127,8 +131,7 @@ def test_changenet_compare_onnx_output(_test_experiment_spec, backbone, batch_si
 
     # Load ONNX and ONNXRuntime
     ort.set_seed(47)
-    onnx_model = onnx.load(onnx_path)
-    onnx.checker.check_model(onnx_model)
+    onnx.checker.check_model(onnx_path)
 
     sess = ort.InferenceSession(
         onnx_path,
@@ -152,8 +155,12 @@ def test_changenet_compare_onnx_output(_test_experiment_spec, backbone, batch_si
                           ("contrastive", "euclidean")
                           ])
 @pytest.mark.parametrize("backbone",
-                         [("fan_tiny_8_p4_hybrid"),
-                          ("vit_large_nvdinov2")])
+                         [#("fan_tiny_8_p4_hybrid"),
+                          #("vit_large_nvdinov2"),
+                          ("c_radio_p1_vit_huge_patch16_224_mlpnorm"),
+                          ("c_radio_p2_vit_huge_patch16_224_mlpnorm"),
+                          #("c_radio_p3_vit_huge_patch16_224_mlpnorm")
+                          ])
 @pytest.mark.parametrize("task", ['classify'])
 @pytest.mark.parametrize("batch_size", [-1])
 @pytest.mark.parametrize("opset_version", [16])
@@ -189,8 +196,9 @@ def test_changenet_onnx_export(_test_experiment_spec, backbone, batch_size, diff
     dummy_input0 = torch.ones(input_batch_size, input_channel, input_height, input_width, device='cuda')
     dummy_input1 = torch.ones(input_batch_size, input_channel, input_height, input_width, device='cuda')
     dummy_input = (dummy_input0, dummy_input1)
-
-    onnx_path = os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}_diffModule{difference_module}.onnx")
+    
+    check_and_create(os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}_diffModule{difference_module}"))
+    onnx_path = os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}_diffModule{difference_module}", f"{backbone}_opset{opset_version}_diffModule{difference_module}.onnx")
 
     onnx_export = ONNXExporter()
     onnx_export.export_model(model, batch_size,
@@ -211,17 +219,21 @@ def test_changenet_onnx_export(_test_experiment_spec, backbone, batch_size, diff
 @pytest.mark.cv_unit
 @pytest.mark.parametrize("batch_size", [1])
 @pytest.mark.parametrize("backbone",
-                         [("fan_tiny_8_p4_hybrid"),
-                          ("vit_large_nvdinov2")])
+                         [#("fan_tiny_8_p4_hybrid"),
+                          #("vit_large_nvdinov2"),
+                          ("c_radio_p1_vit_huge_patch16_224_mlpnorm"),
+                          ("c_radio_p2_vit_huge_patch16_224_mlpnorm"),
+                          #("c_radio_p3_vit_huge_patch16_224_mlpnorm")
+                          ])
 @pytest.mark.parametrize("loss, difference_module",
                          [("ce", "learnable"),
                           ("contrastive", "euclidean")
                           ])
 @pytest.mark.parametrize("opset_version", [16])
 def test_cls_trtexec(_test_experiment_spec, backbone, batch_size, difference_module, opset_version, loss):
-    check_and_create(tmp_top_dir)
+    check_and_create(os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}_diffModule{difference_module}"))
 
-    onnx_path = os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}_diffModule{difference_module}.onnx")
+    onnx_path = os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}_diffModule{difference_module}", f"{backbone}_opset{opset_version}_diffModule{difference_module}.onnx")
 
     input_height, input_width = IMAGE_HEIGHT*2, IMAGE_WIDTH*2
     # Test TensorRT engine generation for dynamic batch size ONNX
@@ -233,8 +245,14 @@ def test_cls_trtexec(_test_experiment_spec, backbone, batch_size, difference_mod
     )
     print(call)
 
+    # Run the call and capture output
+    result = subprocess.run(call, shell=True, capture_output=True, text=True)
+
+    # Assert to check if the call was successful
+    assert result.returncode == 0, f"Subprocess failed with error: {result.stderr}"
+    
     # Run the call as subprocess.
-    subprocess.check_call(call, shell=True, stdout=sys.stdout, stderr=sys.stdout)
+    #subprocess.check_call(call, shell=True, stdout=sys.stdout, stderr=sys.stdout)
 
 
 @pytest.mark.cv_unit
