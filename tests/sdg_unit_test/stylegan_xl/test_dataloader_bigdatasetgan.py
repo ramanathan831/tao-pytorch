@@ -22,8 +22,8 @@ from PIL import Image
 import numpy as np
 import tempfile
 
+from nvidia_tao_core.config.stylegan_xl.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.utilities import check_and_create
-from nvidia_tao_pytorch.sdg.stylegan_xl.config.default_config import ExperimentConfig
 from nvidia_tao_pytorch.sdg.stylegan_xl.dataloader.pl_bg_data_module import BGDataModule
 
 

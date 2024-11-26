@@ -23,8 +23,8 @@ import numpy as np
 import tempfile
 import json
 
+from nvidia_tao_core.config.stylegan_xl.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.utilities import check_and_create
-from nvidia_tao_pytorch.sdg.stylegan_xl.config.default_config import ExperimentConfig
 from nvidia_tao_pytorch.sdg.stylegan_xl.dataloader.pl_sx_data_module import SXDataModule
 
 

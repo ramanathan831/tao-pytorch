@@ -20,11 +20,8 @@ import json
 
 from omegaconf import OmegaConf
 
-from nvidia_tao_pytorch.sdg.stylegan_xl.config.default_config import DatasetConfig
-from nvidia_tao_pytorch.sdg.stylegan_xl.config.default_config import ModelConfig
-from nvidia_tao_pytorch.sdg.stylegan_xl.config.default_config import TrainExpConfig
-from nvidia_tao_pytorch.sdg.stylegan_xl.config.default_config import ExperimentConfig
-from nvidia_tao_pytorch.config.utils import create_json_schema, dataclass_to_json
+from nvidia_tao_core.config.stylegan_xl.default_config import DatasetConfig, ModelConfig, TrainExpConfig, ExperimentConfig
+from nvidia_tao_core.api_utils.dataclass2json_converter import create_json_schema, dataclass_to_json
 
 sample_dataset_config = """
   common:

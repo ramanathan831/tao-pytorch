@@ -385,7 +385,6 @@
         ],
         "stylegan_xl":[
             "__init__.py",
-            "config/__init__.py",
             "dataloader/__init__.py",
             "entrypoint/__init__.py",
             "entrypoint/stylegan_xl.py",

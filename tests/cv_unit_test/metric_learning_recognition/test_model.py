@@ -17,7 +17,7 @@ import shutil
 import pytest
 from omegaconf import OmegaConf
 
-from nvidia_tao_core.config.metric_learning_recognition.default_config import ExperimentConfig
+from nvidia_tao_core.config.ml_recog.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.metric_learning_recognition.dataloader.pl_ml_data_module import MLDataModule
 from nvidia_tao_pytorch.cv.metric_learning_recognition.model.build_nn_model import build_model
 from nvidia_tao_pytorch.cv.metric_learning_recognition.model.pl_ml_recog_model import MLRecogModel

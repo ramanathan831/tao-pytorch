@@ -21,12 +21,12 @@ import numpy as np
 import PIL
 import onnxruntime
 
+from nvidia_tao_core.config.stylegan_xl.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.cookbooks.tlt_pytorch_cookbook import TLTPyTorchCookbook
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_pytorch.core.utilities import encrypt_onnx
 from nvidia_tao_pytorch.sdg.stylegan_xl.utils.onnx_export import ONNXExporter, patch_affine_grid_generator
-from nvidia_tao_pytorch.sdg.stylegan_xl.config.default_config import ExperimentConfig
 from nvidia_tao_pytorch.sdg.stylegan_xl.model.sx_pl_model import StyleganPlModel
 from nvidia_tao_pytorch.sdg.stylegan_xl.model.bg_pl_model import BigdatasetganPlModel
 from nvidia_tao_pytorch.sdg.stylegan_xl.dataloader.pl_sx_data_module import SXDataModule

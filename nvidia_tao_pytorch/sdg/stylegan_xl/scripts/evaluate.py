@@ -17,11 +17,11 @@
 import os
 from pytorch_lightning import Trainer
 
+from nvidia_tao_core.config.stylegan_xl.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_pytorch.core.initialize_experiments import initialize_evaluation_experiment
 from nvidia_tao_pytorch.core.tlt_logging import obfuscate_logs
-from nvidia_tao_pytorch.sdg.stylegan_xl.config.default_config import ExperimentConfig
 from nvidia_tao_pytorch.sdg.stylegan_xl.dataloader.pl_sx_data_module import SXDataModule
 from nvidia_tao_pytorch.sdg.stylegan_xl.dataloader.pl_bg_data_module import BGDataModule
 from nvidia_tao_pytorch.sdg.stylegan_xl.model.sx_pl_model import StyleganPlModel
