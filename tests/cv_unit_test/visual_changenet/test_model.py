@@ -43,7 +43,10 @@ def _test_experiment_spec():
                           ("fan_large_16_p4_hybrid"),
                           ("fan_small_12_p4_hybrid"),
                           ("fan_base_16_p4_hybrid"),
-                          ("vit_large_nvdinov2")])
+                          ("vit_large_nvdinov2"),
+                          ("c_radio_p1_vit_huge_patch16_224_mlpnorm"),
+                          ("c_radio_p2_vit_huge_patch16_224_mlpnorm"),
+                          ("c_radio_p3_vit_huge_patch16_224_mlpnorm")])
 @pytest.mark.parametrize("export", [False, True])
 @pytest.mark.parametrize("difference_module", ['learnable', 'euclidean'])
 @pytest.mark.parametrize("task", ['classify'])
@@ -64,7 +67,10 @@ def test_changenet_model(_test_experiment_spec, backbone, export, task, differen
                           ("fan_large_16_p4_hybrid"),
                           ("fan_small_12_p4_hybrid"),
                           ("fan_base_16_p4_hybrid"),
-                          ("vit_large_nvdinov2")])
+                          ("vit_large_nvdinov2"),
+                          ("c_radio_p1_vit_huge_patch16_224_mlpnorm"),
+                          ("c_radio_p2_vit_huge_patch16_224_mlpnorm"),
+                          ("c_radio_p3_vit_huge_patch16_224_mlpnorm")])
 @pytest.mark.parametrize("export", [False, True])
 @pytest.mark.parametrize("task", ['segment'])
 def test_changenet_model_segment(_test_experiment_spec, backbone, export, task):

@@ -44,6 +44,7 @@ from nvidia_tao_pytorch.cv.visual_changenet.segmentation.models.changenet_utils 
 )
 from nvidia_tao_pytorch.cv.visual_changenet.backbone.fan import fan_model_dict
 from nvidia_tao_pytorch.cv.visual_changenet.backbone.vision_transformer.dinov2_vit import vit_model_dict
+from nvidia_tao_pytorch.cv.visual_changenet.backbone.vision_transformer.radio import radio_model_dict
 from nvidia_tao_pytorch.cv.visual_changenet.backbone.vision_transformer.vit_adapter import vit_adapter_model_dict
 from nvidia_tao_pytorch.cv.deformable_detr.utils.misc import load_pretrained_weights
 
@@ -232,7 +233,8 @@ class ChangeNetClassify(nn.Module):
     def __init__(self, input_nc=3, output_nc=2, embed_dim=256, model='fan_tiny_8_p4_hybrid_256',
                  embed_dims=[128, 256, 384, 384], feature_strides=[4, 8, 16, 16], in_index=[0, 1, 2, 3],
                  difference_module='learnable', num_input=1, output_shape=[128, 128], embedding_vectors=5, embed_dec=30,
-                 feat_downsample=False, return_interm_indices=[0, 1, 2, 3], learnable_difference_modules=4, pretrained_backbone_path=None, activation_checkpoint=False, freeze_backbone=False):
+                 feat_downsample=False, return_interm_indices=[0, 1, 2, 3], learnable_difference_modules=4, pretrained_backbone_path=None,
+                 activation_checkpoint=False, freeze_backbone=False, use_summary_token=True):
         """Initialize Visual ChangeNetSegment class"""
         super(ChangeNetClassify, self).__init__()
 
@@ -255,6 +257,7 @@ class ChangeNetClassify(nn.Module):
         self.model_name = model
         self.embed_dims = embed_dims
         self.difference_module = difference_module
+        self.use_summary_token = use_summary_token
 
         logger.info(f"Number of output classes: {output_nc}")
 
@@ -267,6 +270,22 @@ class ChangeNetClassify(nn.Module):
                 num_classes=output_nc,
                 checkpoint_path='',
                 feat_downsample=feat_downsample)
+
+        elif 'radio' in self.model_name:
+            assert output_shape[0] == output_shape[1], 'ViT Backbones only support square input image where input_width == input_height'
+            if self.difference_module == 'learnable':
+                self.backbone = vit_adapter_model_dict[self.model_name](
+                    out_indices=return_interm_indices,
+                    resolution=output_shape[0],
+                    activation_checkpoint=activation_checkpoint,
+                    use_summary_token=use_summary_token)
+
+            elif self.difference_module == 'euclidean':
+                self.backbone = radio_model_dict[self.model_name](
+                    resolution=[224, 224],
+                    init_cfg={'checkpoint': pretrained_backbone_path}
+                )
+                pretrained_backbone_ckp = None
 
         elif 'vit' in self.model_name:
             assert output_shape[0] == output_shape[1], 'ViT Backbones only support square input image where input_width == input_height'
@@ -317,7 +336,9 @@ class ChangeNetClassify(nn.Module):
             self.dim_output = output_shape[0] // feature_strides[-1]
             self.dim_output1 = (output_shape[1] * num_input) // feature_strides[-1]
             self.fc_ip_dim = self.embed_dims[-1] * self.dim_output * self.dim_output1
-            if 'vit' in self.model_name:
+            if 'radio' in self.model_name:
+                self.fc_ip_dim = self.embed_dims[-1] * len(self.backbone.radio.radio.summary_idxs)
+            elif 'vit' in self.model_name:
                 self.fc_ip_dim = self.embed_dims[-1]
 
             self.embedding = embedding_vectors
@@ -406,7 +427,10 @@ def build_model(experiment_config,
                     "fan_large_16_p4_hybrid": [128, 256, 480, 480],
                     "fan_small_12_p4_hybrid": [128, 256, 384, 384],
                     "fan_base_16_p4_hybrid": [128, 256, 448, 448],
-                    "vit_large_nvdinov2": [1024, 1024, 1024, 1024]
+                    "vit_large_nvdinov2": [1024, 1024, 1024, 1024],
+                    "c_radio_p1_vit_huge_patch16_224_mlpnorm": [1280, 1280, 1280, 1280],
+                    "c_radio_p2_vit_huge_patch16_224_mlpnorm": [1280, 1280, 1280, 1280],
+                    "c_radio_p3_vit_huge_patch16_224_mlpnorm": [1280, 1280, 1280, 1280]
                     }
 
     if backbone in channels_map:
@@ -418,6 +442,7 @@ def build_model(experiment_config,
     embed_dim = model_config.decode_head.decoder_params['embed_dim']
     feature_strides = model_config.decode_head.feature_strides
     in_index = model_config.decode_head.in_index
+    use_summary_token = model_config.decode_head.use_summary_token
 
     num_classes = dataset_config.num_classes
     image_width = dataset_config.image_width
@@ -445,7 +470,8 @@ def build_model(experiment_config,
                               learnable_difference_modules=learnable_difference_modules,
                               difference_module=difference_module,
                               pretrained_backbone_path=pretrained_backbone_path,
-                              freeze_backbone=freeze_backbone)
+                              freeze_backbone=freeze_backbone,
+                              use_summary_token=use_summary_token)
 
     count_params(model)
 

@@ -22,7 +22,7 @@ class RADIOWrapper(nn.Module):
     """
 
     def __init__(self, model: nn.Module, resolution: tuple = None):
-        """RADIO modwl wrapper for C-RADIO and E-RADIO
+        """RADIO modwl wrapper for C-RADIO and E-RADIO.
 
         Args:
             model (nn.Module): RADIO model

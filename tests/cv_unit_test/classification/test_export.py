@@ -33,7 +33,6 @@ from nvidia_tao_pytorch.cv.classification.heads import *  # noqa pylint: disable
 from nvidia_tao_pytorch.cv.classification.models import *  # noqa pylint: disable=W0401, W0614
 from nvidia_tao_pytorch.cv.classification.tools.onnx_utils import pytorch_to_onnx
 
-
 tmp_top_dir = "tests/cv_unit_test/classification/tmp_test_data_dir/"
 tmp_results_dir = "tests/cv_unit_test/classification/tmp_results/"
 tmp_top_obj = tempfile.TemporaryDirectory()
@@ -247,8 +246,14 @@ def test_cls_trtexec(model_config, opset_version, batch_size):
     )
     print(call)
 
+    # Run the call and capture output
+    result = subprocess.run(call, shell=True, capture_output=True, text=True)
+
+    # Assert to check if the call was successful
+    assert result.returncode == 0, f"Subprocess failed with error: {result.stderr}"
+
     # Run the call as subprocess.
-    subprocess.check_call(call, shell=True, stdout=sys.stdout, stderr=sys.stdout)
+    #subprocess.check_call(call, shell=True, stdout=sys.stdout, stderr=sys.stdout)
 
 @pytest.mark.cv_unit
 def clean_tmp_dirs():

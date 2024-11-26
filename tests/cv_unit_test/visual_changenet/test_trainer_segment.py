@@ -39,7 +39,7 @@ tmp_top_obj = tempfile.TemporaryDirectory()
 tmp_top_dir = tmp_top_obj.name
 SAMPLES = 20
 BATCH_SIZE = 2
-OUTPUT_SHAPE = 64
+OUTPUT_SHAPE = 224
 LABEL_TRANSFORM = 'norm'
 DATASET = 'CNDataset'
 IMG_FOLDER_NAME = 'A'
@@ -120,7 +120,10 @@ def _train_spec():
                           ("fan_large_16_p4_hybrid"),
                           ("fan_small_12_p4_hybrid"),
                           ("fan_base_16_p4_hybrid"),
-                          ("vit_large_nvdinov2")])
+                          ("vit_large_nvdinov2"),
+                          ("c_radio_p1_vit_huge_patch16_224_mlpnorm"),
+                          ("c_radio_p2_vit_huge_patch16_224_mlpnorm"),
+                          ("c_radio_p3_vit_huge_patch16_224_mlpnorm")])
 @pytest.mark.parametrize("task", ['segment'])
 def test_trainer_fit(_test_dir, _train_spec, backbone, task):
 
@@ -154,7 +157,10 @@ def test_trainer_fit(_test_dir, _train_spec, backbone, task):
                           ("fan_large_16_p4_hybrid"),
                           ("fan_small_12_p4_hybrid"),
                           ("fan_base_16_p4_hybrid"),
-                          ("vit_large_nvdinov2")])
+                          ("vit_large_nvdinov2"),
+                          ("c_radio_p1_vit_huge_patch16_224_mlpnorm"),
+                          ("c_radio_p2_vit_huge_patch16_224_mlpnorm"),
+                          ("c_radio_p3_vit_huge_patch16_224_mlpnorm")])
 @pytest.mark.parametrize("task", ['segment'])
 def test_trainer_evaluate(_test_dir, _train_spec, backbone, task):
 
@@ -184,7 +190,10 @@ def test_trainer_evaluate(_test_dir, _train_spec, backbone, task):
                           ("fan_large_16_p4_hybrid"),
                           ("fan_small_12_p4_hybrid"),
                           ("fan_base_16_p4_hybrid"),
-                          ("vit_large_nvdinov2")])
+                          ("vit_large_nvdinov2"),
+                          ("c_radio_p1_vit_huge_patch16_224_mlpnorm"),
+                          ("c_radio_p2_vit_huge_patch16_224_mlpnorm"),
+                          ("c_radio_p3_vit_huge_patch16_224_mlpnorm")])
 @pytest.mark.parametrize("task", ['segment'])
 def test_trainer_infer(_test_dir, _train_spec, backbone, task):
 
