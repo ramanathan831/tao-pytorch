@@ -64,6 +64,17 @@ COPY docker/requirements-pip-odise.txt requirements-pip-odise.txt
 RUN pip install --ignore-installed --no-deps -r requirements-pip-odise.txt \
   && rm requirements-pip-odise.txt
 
+RUN mkdir xformers_src && \
+  cd xformers_src && \
+  git clone --recursive https://github.com/facebookresearch/xformers.git && \
+  cd xformers && \
+  git checkout v0.0.27 && \
+  git submodule update --init --recursive && \
+  echo '' > requirements.txt && \
+  MAX_JOBS=16 pip install . && \
+  cd ../../ && \
+  rm -rf xformers_src
+
 # Setup user account
 ARG uid=1000
 ARG gid=1000

@@ -84,6 +84,7 @@ setuptools.setup(
             'mask2former=nvidia_tao_pytorch.cv.mask2former.entrypoint.mask2former:main',
             # SDG entry point
             'stylegan_xl=nvidia_tao_pytorch.sdg.stylegan_xl.entrypoint.stylegan_xl:main',
+            'nvdinov2=nvidia_tao_pytorch.ssl.nvdinov2.entrypoint.nvdinov2:main'
         ]
     },
     cmdclass={'build_ext': BuildExtension},

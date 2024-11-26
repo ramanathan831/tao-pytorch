@@ -43,7 +43,8 @@ TEST_MODULES = [
     "nvidia_tao_pytorch/core",
     "nvidia_tao_pytorch/pointcloud",
     "nvidia_tao_pytorch/pruning",
-    "nvidia_tao_pytorch/sdg"
+    "nvidia_tao_pytorch/sdg",
+    "nvidia_tao_pytorch/ssl"
 ]
 
 
