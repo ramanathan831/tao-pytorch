@@ -17,14 +17,14 @@
 import os
 import tempfile
 import torch
-from nvidia_tao_pytorch.cv.metric_learning_recognition.dataloader.pl_ml_data_module import MLDataModule
+from nvidia_tao_pytorch.cv.ml_recog.dataloader.pl_ml_data_module import MLDataModule
 from onnxsim import simplify
 import onnx
 
 from nvidia_tao_core.config.ml_recog.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
-from nvidia_tao_pytorch.cv.metric_learning_recognition.model.pl_ml_recog_model import MLRecogModel
+from nvidia_tao_pytorch.cv.ml_recog.model.pl_ml_recog_model import MLRecogModel
 from nvidia_tao_pytorch.core.tlt_logging import obfuscate_logs
 import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
 
@@ -74,7 +74,7 @@ def run_export(args):
                                 dm,
                                 subtask="export")
         if experiment_config['export']['onnx_file'] is None:
-            output_file = os.path.join(results_dir, "metric_learning_recognition.onnx")
+            output_file = os.path.join(results_dir, "ml_recog.onnx")
         else:
             output_file = experiment_config['export']['onnx_file']
 

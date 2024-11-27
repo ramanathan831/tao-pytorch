@@ -16,9 +16,9 @@ import pytest
 from omegaconf import OmegaConf
 
 from nvidia_tao_core.config.ml_recog.default_config import ExperimentConfig
-from nvidia_tao_pytorch.cv.metric_learning_recognition.dataloader.build_data_loader import build_dataloader, build_inference_dataloader
-from nvidia_tao_pytorch.cv.metric_learning_recognition.dataloader.datasets.image_datasets import MetricLearnImageFolder
-from nvidia_tao_pytorch.cv.metric_learning_recognition.dataloader.transforms import build_transforms
+from nvidia_tao_pytorch.cv.ml_recog.dataloader.build_data_loader import build_dataloader, build_inference_dataloader
+from nvidia_tao_pytorch.cv.ml_recog.dataloader.datasets.image_datasets import MetricLearnImageFolder
+from nvidia_tao_pytorch.cv.ml_recog.dataloader.transforms import build_transforms
 
 TEST_DATA_DIR = "/home/scratch.metropolis2/tao_ci/tao_pytorch/data/metric_learning_recognition"
 

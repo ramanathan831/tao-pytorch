@@ -98,7 +98,7 @@ ROOT_DIR = os.path.dirname(
     )
 )
 CONFIG_ROOT = os.path.join(
-    ROOT_DIR, "nvidia_tao_pytorch/cv/metric_learning_recognition/experiment_specs"
+    ROOT_DIR, "nvidia_tao_pytorch/cv/ml_recog/experiment_specs"
 )
 train_config = os.path.join(CONFIG_ROOT, "train.yaml")
 with open(train_config, "r") as config_file:

@@ -15,7 +15,7 @@
 """The top model builder interface."""
 import os
 import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
-from nvidia_tao_pytorch.cv.metric_learning_recognition.model.backbone import RecognitionBase, Trunk, Embedder
+from nvidia_tao_pytorch.cv.ml_recog.model.backbone import RecognitionBase, Trunk, Embedder
 
 
 def check_and_load(model, checkpoint_path, config_name):

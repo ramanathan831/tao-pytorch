@@ -23,12 +23,12 @@ import torch
 import pytorch_lightning as pl
 from pytorch_lightning.utilities import rank_zero_only
 from nvidia_tao_pytorch.core.lightning.tao_lightning_module import TAOLightningModule
-from nvidia_tao_pytorch.cv.metric_learning_recognition.utils.match_finder import EmbeddingKNN
+from nvidia_tao_pytorch.cv.ml_recog.utils.match_finder import EmbeddingKNN
 from pytorch_metric_learning import losses, miners, testers
 from pytorch_metric_learning.utils.accuracy_calculator import AccuracyCalculator
 from pytorch_metric_learning.utils.inference import InferenceModel
 
-from nvidia_tao_pytorch.cv.metric_learning_recognition.model.build_nn_model import build_model
+from nvidia_tao_pytorch.cv.ml_recog.model.build_nn_model import build_model
 from nvidia_tao_pytorch.cv.re_identification.lr_schedulers.warmup_multi_step_lr import WarmupMultiStepLR
 import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
 

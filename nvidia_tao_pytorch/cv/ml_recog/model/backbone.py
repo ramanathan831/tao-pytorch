@@ -7,7 +7,7 @@ from torch import nn
 import torchvision.models as torch_model
 
 import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
-from nvidia_tao_pytorch.cv.metric_learning_recognition.model.dinov2_legacy import vit_large_patch14_dinov2_swiglu_legacy
+from nvidia_tao_pytorch.cv.ml_recog.model.dinov2_legacy import vit_large_patch14_dinov2_swiglu_legacy
 from nvidia_tao_pytorch.cv.classification.models.fan import (fan_base_16_p4_hybrid,
                                                              fan_large_16_p4_hybrid,
                                                              fan_small_12_p4_hybrid,
