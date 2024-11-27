@@ -14,13 +14,7 @@
 
 """ RT-DETR model. """
 
-import omegaconf
-from omegaconf import OmegaConf
-
 import torch.nn as nn
-import torch.nn.functional as F
-
-import random
 
 
 class RTDETR(nn.Module):
@@ -36,21 +30,11 @@ class RTDETR(nn.Module):
 
     def forward(self, x, targets=None):
         """Forward function."""
-        if self.multi_scale and self.training:
-            sz = random.choice(self.multi_scale)
-            # Convert omegaconf listconfig when reading lists from the experiment config.
-            if isinstance(sz, omegaconf.listconfig.ListConfig):
-                sz = OmegaConf.to_object(sz)
-            if isinstance(sz, int):
-                # square resize
-                x = F.interpolate(x, size=[sz, sz])
-            elif isinstance(sz, (list, tuple)):
-                x = F.interpolate(x, size=sz)
-            else:
-                raise TypeError(f"{sz} is {type(sz)}. Need to pass int / list / tuple for multi_scale")
-        x = self.backbone(x)
-        x = self.encoder(x)
+        feats = self.backbone(x)
+        x, proj_feats = self.encoder(feats)
         x = self.decoder(x, targets)
+        x['bb_feats'] = feats
+        x['srcs'] = proj_feats
 
         return x
 

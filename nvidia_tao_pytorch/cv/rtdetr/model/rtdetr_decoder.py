@@ -388,7 +388,8 @@ class RTDETRTransformer(nn.Module):
         enc_outputs_class = self.enc_score_head(output_memory)
         enc_outputs_coord_unact = self.enc_bbox_head(output_memory) + anchors
 
-        _, topk_ind = torch.topk(enc_outputs_class.max(-1).values, self.num_queries, dim=1)
+        scores_per_img, topk_ind = torch.topk(enc_outputs_class.max(-1).values, self.num_queries, dim=1)
+        # scores_per_img: bs, 300
 
         reference_points_unact = enc_outputs_coord_unact.gather(
             dim=1,
@@ -418,7 +419,7 @@ class RTDETRTransformer(nn.Module):
         if denoising_class is not None:
             target = torch.concat([denoising_class, target], 1)
 
-        return target, reference_points_unact.detach(), enc_topk_bboxes, enc_topk_logits
+        return target, reference_points_unact.detach(), enc_topk_bboxes, enc_topk_logits, scores_per_img
 
     def forward(self, feats, targets=None):
         """Forward function."""
@@ -440,7 +441,7 @@ class RTDETRTransformer(nn.Module):
         else:
             denoising_class, denoising_bbox_unact, attn_mask, dn_meta = None, None, None, None
 
-        target, init_ref_points_unact, enc_topk_bboxes, enc_topk_logits = \
+        target, init_ref_points_unact, enc_topk_bboxes, enc_topk_logits, scores_per_img = \
             self._get_decoder_input(memory, spatial_shapes, denoising_class, denoising_bbox_unact)
 
         if isinstance(spatial_shapes, list):
@@ -463,7 +464,7 @@ class RTDETRTransformer(nn.Module):
             dn_out_bboxes, out_bboxes = torch.split(out_bboxes, dn_meta['dn_num_split'], dim=2)
             dn_out_logits, out_logits = torch.split(out_logits, dn_meta['dn_num_split'], dim=2)
 
-        out = {'pred_logits': out_logits[-1], 'pred_boxes': out_bboxes[-1]}
+        out = {'pred_logits': out_logits[-1], 'pred_boxes': out_bboxes[-1], 'dsrcs': feats}
 
         if self.training and self.aux_loss:
             out['aux_outputs'] = self._set_aux_loss(out_logits[:-1], out_bboxes[:-1])
@@ -473,6 +474,9 @@ class RTDETRTransformer(nn.Module):
                 out['dn_aux_outputs'] = self._set_aux_loss(dn_out_logits, dn_out_bboxes)
                 out['dn_meta'] = dn_meta
 
+        out['obj_queries'] = target
+        out['scores_per_img'] = scores_per_img
+        out['enc_topk_bboxes'] = enc_topk_bboxes
         return out
 
     @torch.jit.unused

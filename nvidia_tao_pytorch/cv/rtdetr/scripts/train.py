@@ -29,7 +29,7 @@ from nvidia_tao_pytorch.cv.rtdetr.dataloader.pl_od_data_module import ODDataModu
 from nvidia_tao_pytorch.cv.rtdetr.model.pl_rtdetr_model import RTDETRPlModel
 
 
-def run_experiment(experiment_config):
+def run_experiment(experiment_config, lightning_module=RTDETRPlModel):
     """Start the training."""
     resume_ckpt, trainer_kwargs = initialize_train_experiment(experiment_config)
 
@@ -53,7 +53,7 @@ def run_experiment(experiment_config):
     if pretrained_path:
         # Ignore backbone weights if we get pretrained path for the entire detector
         experiment_config.model.pretrained_backbone_path = None
-        pt_model = RTDETRPlModel(experiment_config)
+        pt_model = lightning_module(experiment_config)
         current_model_dict = pt_model.model.state_dict()
         checkpoint = load_pretrained_weights(pretrained_path)
         new_checkpoint = {}
@@ -71,7 +71,7 @@ def run_experiment(experiment_config):
         # Load pretrained weights
         pt_model.model.load_state_dict(new_checkpoint, strict=False)
     else:
-        pt_model = RTDETRPlModel(experiment_config)
+        pt_model = lightning_module(experiment_config)
 
     num_nodes = experiment_config.train.num_nodes
     clip_grad_norm = experiment_config.train.clip_grad_norm
@@ -126,7 +126,8 @@ spec_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 @monitor_status(name="RT-DETR", mode="train")
 def main(cfg: ExperimentConfig) -> None:
     """Run the training process."""
-    run_experiment(experiment_config=cfg)
+    run_experiment(experiment_config=cfg,
+                   lightning_module=RTDETRPlModel)
 
 
 if __name__ == "__main__":
