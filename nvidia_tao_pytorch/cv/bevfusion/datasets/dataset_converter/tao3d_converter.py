@@ -283,7 +283,10 @@ def _create_reduced_point_cloud(data_path,
                 save_dir.mkdir(parents=True, exist_ok=True)
             save_filename = save_dir / v_path.name
         else:
-            save_filename = str(Path(save_path) / v_path.name)
+            save_dir = Path(save_path) / (v_path.parent.parent.stem + '_reduced')
+            if not save_dir.exists():
+                save_dir.mkdir(parents=True, exist_ok=True)
+            save_filename = str(save_dir / v_path.name)
 
         np.save(save_filename, points_v, allow_pickle=False)
 

@@ -548,7 +548,10 @@ def get_schema(neural_network_name, action_name):
     
     try:
         imported_module = dataclasses_utils.import_module_from_path(f"nvidia_tao_core.config.{neural_network_name}.default_config")
-        expConfig = imported_module.ExperimentConfig()
+        if neural_network_name == "bevfusion" and action_name == "dataset_convert":
+            expConfig = imported_module.BEVFusionDataConvertExpConfig()
+        else:
+            expConfig = imported_module.ExperimentConfig()
         json_with_meta_config = dataclasses_utils.dataclass_to_json(expConfig)
         json_schema = dataclasses_utils.create_json_schema(json_with_meta_config)
         print("json_schema :: ", json_schema)
@@ -624,13 +627,16 @@ def post_action(neural_network_name, action_name):
     try:
         # Fetching the JSON schema
         imported_module = dataclasses_utils.import_module_from_path(f"nvidia_tao_core.config.{neural_network_name}.default_config")
-        expConfig = imported_module.ExperimentConfig()
+        if neural_network_name == "bevfusion" and action_name == "dataset_convert":
+            expConfig = imported_module.BEVFusionDataConvertExpConfig()
+        else:
+            expConfig = imported_module.ExperimentConfig()
         json_with_meta_config = dataclasses_utils.dataclass_to_json(expConfig)
         json_schema = dataclasses_utils.create_json_schema(json_with_meta_config)
         
         validation_status = None
         print("json_schema :: ")
-        print(json.dumps(request_json_schema, indent=4))
+        print(json.dumps(json_schema, indent=4))
 
         print("Before validation :: ")
         # Validating the JSON schema
@@ -645,6 +651,8 @@ def post_action(neural_network_name, action_name):
             return make_response(jsonify(schema.dump(schema.load(metadata))), 400)
     except Exception as err:
         metadata = {"error": "Unexpected error encountered while processing the JSON schema", "error_code": 4}
+        import traceback
+        print(traceback.format_exc())
         schema = ErrorRspSchema()
         return make_response(jsonify(schema.dump(schema.load(metadata))), 400)
     

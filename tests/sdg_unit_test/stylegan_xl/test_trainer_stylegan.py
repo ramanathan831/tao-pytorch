@@ -118,7 +118,10 @@ def save_tmp_stem_checkpoint(model_save_path, model):
     stem_checkpoint = {'state_dict': model.state_dict()}
     torch.save(stem_checkpoint, model_save_path)
 
-
+@pytest.mark.skipif(
+    os.getenv("CI_PROJECT_DIR", None) is not None,
+    reason='Skipping running on CI.'
+)
 @pytest.mark.parametrize("superres", [False, True])
 @pytest.mark.sdg_unit
 @pytest.mark.train
@@ -162,7 +165,10 @@ def test_trainer_fit(_test_dir_obj, _test_exp_spec, superres):
 
     trainer.fit(model, dm, ckpt_path=None)
 
-
+@pytest.mark.skipif(
+    os.getenv("CI_PROJECT_DIR", None) is not None,
+    reason='Skipping running on CI.'
+)
 @pytest.mark.parametrize("superres", [False, True])
 @pytest.mark.sdg_unit
 @pytest.mark.evaluate
@@ -206,7 +212,10 @@ def test_trainer_evaluate(_test_dir_obj, _test_exp_spec, superres):
 
     trainer.test(model, dm, ckpt_path=None)
 
-
+@pytest.mark.skipif(
+    os.getenv("CI_PROJECT_DIR", None) is not None,
+    reason='Skipping running on CI.'
+)
 @pytest.mark.parametrize("superres", [False, True])
 @pytest.mark.sdg_unit
 @pytest.mark.inference

@@ -66,6 +66,11 @@ def _test_exp_spec(_test_dir_obj):
     experiment_config.train.max_steps = 50
     yield experiment_config
 
+@pytest.mark.skipif(
+    os.getenv("CI_PROJECT_DIR", None) is not None,
+    reason='Skipping running on CI.'
+)
+@pytest.mark.train
 @pytest.mark.ssl_unit
 def test_trainer_fit(_test_dir_obj, _test_exp_spec):
     acc_flag = 'auto'
