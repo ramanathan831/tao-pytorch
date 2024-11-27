@@ -289,7 +289,10 @@ def _create_reduced_point_cloud(data_path,
             if back:
                 save_filename += '_back'
         else:
-            save_filename = str(Path(save_path) / v_path.name)
+            save_dir = Path(save_path) / (v_path.parent.stem + '_reduced')
+            if not save_dir.exists():
+                save_dir.mkdir(parents=True, exist_ok=True)
+            save_filename = str(save_dir / v_path.name)
             if back:
                 save_filename += '_back'
         with open(save_filename, 'w') as f:
@@ -321,11 +324,11 @@ def create_reduced_point_cloud(data_path,
             Default: False.
     """
     if train_info_path is None:
-        train_info_path = Path(data_path) / f'{pkl_prefix}_infos_train.pkl'
+        train_info_path = Path(save_path) / f'{pkl_prefix}_infos_train.pkl'
     if val_info_path is None:
-        val_info_path = Path(data_path) / f'{pkl_prefix}_infos_val.pkl'
+        val_info_path = Path(save_path) / f'{pkl_prefix}_infos_val.pkl'
     if test_info_path is None:
-        test_info_path = Path(data_path) / f'{pkl_prefix}_infos_test.pkl'
+        test_info_path = Path(save_path) / f'{pkl_prefix}_infos_test.pkl'
 
     if mode == 'training':
         print('create reduced point cloud for training set')
