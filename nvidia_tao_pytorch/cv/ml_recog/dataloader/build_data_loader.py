@@ -18,9 +18,9 @@ import yaml
 from torch.utils.data import DataLoader
 from pytorch_metric_learning import samplers
 
-from nvidia_tao_pytorch.cv.metric_learning_recognition.dataloader.transforms import build_transforms
-from nvidia_tao_pytorch.cv.metric_learning_recognition.dataloader.datasets.inference_datasets import InferenceImageFolder, InferenceImageDataset
-from nvidia_tao_pytorch.cv.metric_learning_recognition.dataloader.datasets.image_datasets import MetricLearnImageFolder
+from nvidia_tao_pytorch.cv.ml_recog.dataloader.transforms import build_transforms
+from nvidia_tao_pytorch.cv.ml_recog.dataloader.datasets.inference_datasets import InferenceImageFolder, InferenceImageDataset
+from nvidia_tao_pytorch.cv.ml_recog.dataloader.datasets.image_datasets import MetricLearnImageFolder
 
 
 def build_dataloader(cfg, mode="train"):

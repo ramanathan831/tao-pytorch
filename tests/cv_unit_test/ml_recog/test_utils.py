@@ -16,10 +16,10 @@ import os
 import shutil
 import pytest
 
-from nvidia_tao_pytorch.cv.metric_learning_recognition.utils.common_utils import no_folders_in
+from nvidia_tao_pytorch.cv.ml_recog.utils.common_utils import no_folders_in
 
 TEST_DATA_DIR = "/home/scratch.metropolis2/tao_ci/tao_pytorch/data/metric_learning_recognition"
-TEST_OUTPUT_DIR = "tests/cv_unit_test/metric_learning_recognition/test_outputs"
+TEST_OUTPUT_DIR = "tests/cv_unit_test/ml_recog/test_outputs"
 
 
 @pytest.fixture

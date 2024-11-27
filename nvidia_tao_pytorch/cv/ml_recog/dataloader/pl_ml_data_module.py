@@ -17,7 +17,7 @@
 from typing import Optional
 import pytorch_lightning as pl
 
-from nvidia_tao_pytorch.cv.metric_learning_recognition.dataloader.build_data_loader import build_dataloader, build_inference_dataloader
+from nvidia_tao_pytorch.cv.ml_recog.dataloader.build_data_loader import build_dataloader, build_inference_dataloader
 
 
 class MLDataModule(pl.LightningDataModule):

@@ -138,12 +138,12 @@
             "scripts/train.py",
             "utils/__init__.py"
         ], 
-        "metric_learning_recognition":[
+        "ml_recog":[
             "__init__.py",
             "dataloader/__init__.py",
             "dataloader/datasets/__init__.py",
             "entrypoint/__init__.py",
-            "entrypoint/metric_learning_recognition.py",
+            "entrypoint/ml_recog.py",
             "model/__init__.py",
             "scripts/__init__.py",
             "scripts/evaluate.py",

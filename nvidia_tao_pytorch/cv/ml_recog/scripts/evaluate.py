@@ -12,9 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Train metric-learning recognition model."""
+"""Evaluate a trained Metric Learning Recognition model."""
 
-import math
 import os
 
 from pytorch_lightning import Trainer
@@ -22,45 +21,35 @@ from pytorch_lightning import Trainer
 from nvidia_tao_core.config.ml_recog.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
-from nvidia_tao_pytorch.core.initialize_experiments import initialize_train_experiment
+from nvidia_tao_pytorch.core.initialize_experiments import initialize_evaluation_experiment
+from nvidia_tao_pytorch.cv.ml_recog.dataloader.pl_ml_data_module import MLDataModule
+from nvidia_tao_pytorch.cv.ml_recog.model.pl_ml_recog_model import MLRecogModel
 from nvidia_tao_pytorch.core.tlt_logging import obfuscate_logs
-from nvidia_tao_pytorch.cv.metric_learning_recognition.dataloader.pl_ml_data_module import MLDataModule
-from nvidia_tao_pytorch.cv.metric_learning_recognition.model.pl_ml_recog_model import MLRecogModel
 
 
 def run_experiment(experiment_config):
-    """Starts the training.
+    """Starts the evaluate.
 
     Args:
         experiment_config (DictConfig): Configuration dictionary
 
     """
-    resume_ckpt, trainer_kwargs = initialize_train_experiment(experiment_config)
-
-    # update experiment_config in Trainer
-    experiment_config['train']['resume_training_checkpoint_path'] = resume_ckpt
+    model_path, trainer_kwargs = initialize_evaluation_experiment(experiment_config)
 
     dm = MLDataModule(experiment_config)
-    dm.setup('fit')
+    # Trigger setup() here so that get_query_accuracy() below will have access to necessary variables
+    dm.setup(stage='test')
 
-    metric_learning_recognition = MLRecogModel(
-        experiment_config,
-        dm,
-        subtask="train")
+    ml_recog = MLRecogModel.load_from_checkpoint(
+        model_path,
+        map_location="cpu",
+        experiment_spec=experiment_config,
+        dm=dm,
+        subtask="evaluate")
 
-    clip_grad = experiment_config['train']['clip_grad_norm']
+    trainer = Trainer(**trainer_kwargs)
 
-    # See REID for why we do this
-    num_batches = len(dm.train_dataloader())
-    val_check_interval = math.floor(((num_batches - 1) / num_batches) * 100) / 100
-
-    trainer = Trainer(**trainer_kwargs,
-                      val_check_interval=val_check_interval,
-                      num_sanity_val_steps=0,
-                      strategy='auto',
-                      gradient_clip_val=clip_grad)
-
-    trainer.fit(metric_learning_recognition, dm, ckpt_path=resume_ckpt)
+    trainer.test(ml_recog, datamodule=dm)
 
 
 spec_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -69,17 +58,17 @@ spec_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Load experiment specification, additially using schema for validation/retrieving the default values.
 # --config_path and --config_name will be provided by the entrypoint script.
 @hydra_runner(
-    config_path=os.path.join(spec_root, "experiment_specs"), config_name="train", schema=ExperimentConfig
+    config_path=os.path.join(spec_root, "experiment_specs"), config_name="evaluate", schema=ExperimentConfig
 )
-@monitor_status(name="Metric Learning Recognition", mode="train")
+@monitor_status(name="Metric Learning Recognition", mode="evaluate")
 def main(cfg: ExperimentConfig) -> None:
     """Run the training process.
 
     Args:
         cfg (DictConfig): Hydra config object.
+
     """
     obfuscate_logs(cfg)
-
     run_experiment(experiment_config=cfg)
 
 

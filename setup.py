@@ -72,7 +72,7 @@ setuptools.setup(
             'pose_classification=nvidia_tao_pytorch.cv.pose_classification.entrypoint.pose_classification:main',
             're_identification=nvidia_tao_pytorch.cv.re_identification.entrypoint.re_identification:main',
             'mal=nvidia_tao_pytorch.cv.mal.entrypoint.mal:main',
-            'ml_recog=nvidia_tao_pytorch.cv.metric_learning_recognition.entrypoint.metric_learning_recognition:main',
+            'ml_recog=nvidia_tao_pytorch.cv.ml_recog.entrypoint.ml_recog:main',
             'ocrnet=nvidia_tao_pytorch.cv.ocrnet.entrypoint.ocrnet:main',
             'ocdnet=nvidia_tao_pytorch.cv.ocdnet.entrypoint.ocdnet:main',
             'bevfusion=nvidia_tao_pytorch.cv.bevfusion.entrypoint.bevfusion:main',

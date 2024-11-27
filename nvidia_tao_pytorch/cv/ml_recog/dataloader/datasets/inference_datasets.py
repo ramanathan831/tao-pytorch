@@ -19,7 +19,7 @@ import os
 import torch
 from torchvision import transforms
 
-from nvidia_tao_pytorch.cv.metric_learning_recognition.dataloader.datasets.image_datasets import MetricLearnImageFolder
+from nvidia_tao_pytorch.cv.ml_recog.dataloader.datasets.image_datasets import MetricLearnImageFolder
 from nvidia_tao_pytorch.cv.re_identification.utils.common_utils import read_image
 
 VALID_IMAGE_EXT = ['.jpg', '.jpeg', '.png']

@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Define entrypoint to run tasks for metric_learning_recognition."""
+"""Define entrypoint to run tasks for ml_recog."""
 
 import argparse
-from nvidia_tao_pytorch.cv.metric_learning_recognition import scripts
+from nvidia_tao_pytorch.cv.ml_recog import scripts
 from nvidia_tao_pytorch.core.entrypoint import get_subtasks, launch, command_line_parser
 
 
@@ -28,9 +28,9 @@ def main():
     """Main entrypoint wrapper."""
     # Create parser for a given task.
     parser = argparse.ArgumentParser(
-        "metric_learning_recognition",
+        "ml_recog",
         add_help=True,
-        description="Train Adapt Optimize entrypoint for metric_learning_recognition",
+        description="Train Adapt Optimize entrypoint for ml_recog",
     )
 
     # Obtain the list of substasks
@@ -40,7 +40,7 @@ def main():
     args, unknown_args = command_line_parser(parser, subtasks)
 
     # Launch the subtask.
-    launch(vars(args), unknown_args, subtasks, network="metric_learning_recognition")
+    launch(vars(args), unknown_args, subtasks, network="ml_recog")
 
 
 if __name__ == "__main__":
