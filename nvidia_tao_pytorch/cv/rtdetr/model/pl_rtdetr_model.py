@@ -16,8 +16,12 @@
 
 import re
 from typing import Sequence
+import omegaconf
+from omegaconf import OmegaConf
+import random
 
 import torch
+import torch.nn.functional as F
 from torch.optim.lr_scheduler import MultiStepLR, StepLR
 from fairscale.optim import OSS
 import pytorch_lightning as pl
@@ -138,9 +142,9 @@ class RTDETRPlModel(TAOLightningModule):
 
     def _build_criterion(self):
         """Internal function to build the loss function."""
-        self.matcher = HungarianMatcher(cost_class=self.model_config["vfl_loss_coef"],
-                                        cost_bbox=self.model_config["bbox_loss_coef"],
-                                        cost_giou=self.model_config["giou_loss_coef"])
+        self.matcher = HungarianMatcher(cost_class=self.model_config["class_cost"],
+                                        cost_bbox=self.model_config["bbox_cost"],
+                                        cost_giou=self.model_config["giou_cost"])
 
         self.weight_dict = {'loss_vfl': self.model_config["vfl_loss_coef"],
                             'loss_bbox': self.model_config["bbox_loss_coef"],
@@ -228,6 +232,19 @@ class RTDETRPlModel(TAOLightningModule):
         """Training step."""
         data, targets, _ = batch
         batch_size = data.shape[0]
+
+        if self.experiment_spec.dataset.augmentation.multi_scales:
+            sz = random.choice(self.experiment_spec.dataset.augmentation.multi_scales)
+            # Convert omegaconf listconfig when reading lists from the experiment config.
+            if isinstance(sz, omegaconf.listconfig.ListConfig):
+                sz = OmegaConf.to_object(sz)
+            if isinstance(sz, int):
+                # square resize
+                data = F.interpolate(data, size=[sz, sz])
+            elif isinstance(sz, (list, tuple)):
+                data = F.interpolate(data, size=sz)
+            else:
+                raise TypeError(f"{sz} is {type(sz)}. Need to pass int / list / tuple for multi_scale")
 
         outputs = self.model(data, targets)
         # loss

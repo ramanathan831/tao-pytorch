@@ -65,7 +65,6 @@ class TAOStatusLogger(Callback):
 
     # Arguments
         results_dir (str): The directory where the logs will be saved.
-        num_epochs (int): Number of epochs to run the training
         verbosity (status_logger.verbosity.Verbosity()): Verbosity level.
         append: True: append if file exists (useful for continuing
             training). False: overwrite existing file,
