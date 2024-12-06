@@ -31,7 +31,8 @@ import os
 
 def run_experiment(experiment_config):
     """Start evaluation."""
-    results_dir, model_path, _ = initialize_evaluation_experiment(experiment_config)
+    model_path, trainer_kwargs = initialize_evaluation_experiment(experiment_config)
+    results_dir = trainer_kwargs["default_root_dir"]
     status_logger = status_logging.get_status_logger()
     mmpretrain_config = MMPretrainConfig(experiment_config, phase="evaluate")
     eval_cfg = mmpretrain_config.updated_config
