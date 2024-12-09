@@ -173,8 +173,9 @@ def test_cls_onnx_export(_test_exp_spec, _test_dir, model_config, opset_version)
         torch.save(checkpoint, os.path.join(onnx_out_dir, "model_lrHead_0.pth"))
         mmpretrain_config = MMPretrainConfig(_test_exp_spec, phase="evaluate")
         export_cfg = mmpretrain_config.updated_config
+
         model = load_model(os.path.join(onnx_out_dir, "model_lrHead_0.pth"), export_cfg)
-        onnx_path = os.path.join(onnx_out_dir, f"{backbone}_lrhead_opset{opset_version}.onnx")
+        onnx_path = os.path.join(onnx_out_dir, f"{backbone}_res{input_resolution}_lrhead_opset{opset_version}.onnx")
         os.remove(os.path.join(onnx_out_dir, "model_lrHead_0.pth"))
 
     input_shape = [1, 3, input_resolution, input_resolution]
@@ -232,10 +233,10 @@ def test_cls_trtexec(model_config, opset_version, batch_size):
     model_name = bb_custom_args.get("model_name", "") if bb_custom_args else ""
     onnx_root_dir = os.path.join(tmp_results_dir,
                                  f"{backbone}_{head}_{model_name}_{input_resolution}_{opset_version}")
-    onnx_path = os.path.join(onnx_root_dir, f"{backbone}_opset{opset_version}.onnx")
 
+    onnx_path = os.path.join(onnx_root_dir, f"{backbone}_res{input_resolution}_opset{opset_version}.onnx")
     if head == "LogisticRegressionHead":
-        onnx_path = os.path.join(onnx_root_dir, f"{backbone}_lrhead_opset{opset_version}.onnx")
+        onnx_path = os.path.join(onnx_root_dir, f"{backbone}_res{input_resolution}_lrhead_opset{opset_version}.onnx")
 
     # Test TensorRT engine generation for dynamic batch size ONNX
     call = (

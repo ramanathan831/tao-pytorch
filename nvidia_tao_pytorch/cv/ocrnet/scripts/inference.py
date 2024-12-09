@@ -26,6 +26,7 @@ from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_core.config.ocrnet.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.ocrnet.dataloader.pl_ocr_data_module import OCRDataModule
 from nvidia_tao_pytorch.cv.ocrnet.model.pl_ocrnet import OCRNetModel
+from nvidia_tao_pytorch.cv.ocrnet.model.model import Model
 from nvidia_tao_pytorch.cv.ocrnet.utils.utils import load_checkpoint
 
 
@@ -49,12 +50,26 @@ def run_experiment(experiment_spec, key):
     # If pruned, will load the pruned model graph during construction
     model = OCRNetModel(experiment_spec, dm)
     # load model
-    print('loading pretrained model from %s' % model_path)
     ckpt = load_checkpoint(model_path,
                            key=key,
                            to_cpu=True)
 
-    model.model.load_state_dict(ckpt.state_dict(), strict=True)
+    if not isinstance(ckpt, Model):
+        if "modelopt_state" in ckpt.keys():
+            # Evaluate the quantized model
+            logging.log(f"loading pretrained quantized model from {model_path}")
+            import modelopt.torch.opt as mto
+            from modelopt.torch.quantization import QuantModuleRegistry
+            import torch.nn as nn
+            QuantModuleRegistry.unregister(nn.LSTM)
+            qat_model = mto.restore(model.model, model_path)
+            model.model = qat_model
+        else:
+            # For loading public pretrained weights
+            model.model.load_state_dict(ckpt.state_dict(), strict=True)
+    else:
+        logging.log('loading pretrained model from %s' % model_path)
+        model.model.load_state_dict(ckpt.state_dict(), strict=True)
 
     trainer = Trainer(**trainer_kwargs)
 

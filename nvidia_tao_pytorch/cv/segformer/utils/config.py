@@ -56,7 +56,10 @@ class MMSegmentationConfig(object):
     def update_env(self):
         """Function to update env variables"""
         exp_config = self.config[self.phase]["exp_config"]
-        self.updated_config["env_cfg"] = exp_config["env_cfg"]
+        self.updated_config["env_cfg"] = {}
+        # The env_cfg has params for the distributed environment
+        if 'CUDA_VISIBLE_DEVICES' in os.environ.keys() and len(os.environ['CUDA_VISIBLE_DEVICES'].split(',')) > 1:
+            self.updated_config["env_cfg"] = exp_config["env_cfg"]
         self.updated_config["randomness"] = {"seed": exp_config["manual_seed"], "deterministic": exp_config["deterministic"]}
         self.updated_config["default_scope"] = exp_config["default_scope"]
         self.updated_config["log_level"] = exp_config["log_level"]

@@ -1,4 +1,4 @@
-ARG PYTORCH_BASE_IMAGE=nvcr.io/nvidia/pytorch:24.04-py3
+ARG PYTORCH_BASE_IMAGE=nvcr.io/nvidia/pytorch:24.07-py3
 FROM ${PYTORCH_BASE_IMAGE}
 
 # Ensure apt-get won't prompt for selecting options
@@ -15,9 +15,8 @@ RUN pip uninstall -y sacrebleu torchtext
 WORKDIR /opt
 
 # Clone and checkout TensorRT OSS
-# Moving TensorRT to 8.6 branch.
-ENV TRT_TAG "release/8.6"
-ENV TRT_INCLUDE_DIR="/usr/include/x86_64-linux-gnu"
+# Moving TensorRT to 10.2 branch.
+ENV TRT_TAG="release/10.2"
 # Install TRT OSS
 RUN mkdir trt_oss_src && \
   cd trt_oss_src && \
@@ -28,24 +27,23 @@ RUN mkdir trt_oss_src && \
   mkdir -p build && cd build  && \
   cmake .. \
     -DGPU_ARCHS="53;60;61;70;75;80;86;90" \
-    -DCMAKE_CUDA_ARCHITECTURES="53;60;61;70;75;80;86;90" \
     -DTRT_LIB_DIR=/usr/lib/x86_64-linux-gnu \
-    -DTRT_BIN_DIR=`pwd`/out \
-    -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.4/bin/nvcc \
-    -DCUDNN_VERSION=9.1.0.70 && \
+    -DTRT_OUT_DIR=`pwd`/out \
+    -DCUDA_VERSION=12.5.1 \
+    -DCUDNN_VERSION=9.2.1.18 && \
   make -j16 nvinfer_plugin nvinfer_plugin_static && \
-  cp libnvinfer_plugin.so.8.6.1 /usr/lib/x86_64-linux-gnu/libnvinfer_plugin.so.8.6.1 && \
-  cp libnvinfer_plugin_static.a /usr/lib/x86_64-linux-gnu/libnvinfer_plugin_static.a && \
+  cp out/libnvinfer_plugin.so.10.2.0 /usr/lib/x86_64-linux-gnu/libnvinfer_plugin.so.10.2.0 && \
+  cp out/libnvinfer_plugin_static.a /usr/lib/x86_64-linux-gnu/libnvinfer_plugin_static.a && \
   cd ../../../ && \
   rm -rf trt_oss_src
 
 COPY docker/requirements-pip.txt requirements-pip.txt
-RUN pip uninstall -y jupyterlab \
-  && pip install --upgrade pip \
+RUN  pip install --upgrade pip \
   && pip install -r requirements-pip.txt \
-  && rm requirements-pip.txt \
-  && mim install "mmengine==0.10.4" "mmpretrain>=1.0.0rc8"
+  && rm requirements-pip.txt
 
+# Necessary to resolve this issue https://github.com/open-mmlab/mmdetection/issues/6765
+# mmcv<2.2.0 compatible with mmpretrain 1.2.0
 ENV FORCE_CUDA="1"
 RUN mkdir mmcv_src && \
   cd mmcv_src && \
@@ -54,8 +52,10 @@ RUN mkdir mmcv_src && \
   cd mmcv && \
   MMCV_WITH_OPS=1 pip install -v -e . 
 
-RUN pip install "mmsegmentation==1.2.2" "mmdeploy==1.3.1" "mmdet==3.3.0" "mmdet3d==1.4.0" \
-  && pip uninstall -y opencv-python && pip install opencv-python==4.8.0.74
+COPY docker/requirements-mim.txt requirements-mim.txt
+RUN mim install -r requirements-mim.txt \
+  && rm requirements-mim.txt
+
 COPY docker/requirements-pip-pytorch.txt requirements-pip-pytorch.txt
 RUN pip install --ignore-installed --no-deps -r requirements-pip-pytorch.txt \
   && rm requirements-pip-pytorch.txt
