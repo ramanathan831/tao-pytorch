@@ -30,7 +30,7 @@ from nvidia_tao_pytorch.sdg.stylegan_xl.model.bg_pl_model import BigdatasetganPl
 
 def run_experiment(experiment_config, key):
     """Start the evaluation."""
-    results_dir, model_path, gpus = initialize_evaluation_experiment(experiment_config, key)
+    model_path, trainer_kwargs = initialize_evaluation_experiment(experiment_config)
     num_nodes = experiment_config.train.num_nodes
 
     # StyleGAN-XL only supports 'stylegan' and 'bigdatasetgan' tasks
@@ -57,11 +57,8 @@ def run_experiment(experiment_config, key):
     else:
         raise NotImplementedError("Task {} is not implemented".format(experiment_config.task))
 
-    trainer = Trainer(devices=gpus,
+    trainer = Trainer(**trainer_kwargs,
                       num_nodes=num_nodes,
-                      default_root_dir=results_dir,
-                      accelerator='gpu',
-                      strategy='auto',
                       # use_distributed_sampler=False,
                       )
 

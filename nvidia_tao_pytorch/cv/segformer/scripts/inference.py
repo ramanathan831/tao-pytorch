@@ -38,7 +38,8 @@ def run_experiment(experiment_config):
         results_dir (str): Results dir to save the inference images
 
     """
-    results_dir, model_path, _ = initialize_inference_experiment(experiment_config)
+    model_path, trainer_kwargs = initialize_inference_experiment(experiment_config)
+    results_dir = trainer_kwargs["default_root_dir"]
 
     mmseg_config = MMSegmentationConfig(experiment_config, phase="inference")
     eval_cfg = mmseg_config.updated_config
