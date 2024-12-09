@@ -34,7 +34,8 @@ VALID_IMAGE_EXT = [".jpg", ".png", ".jpeg"]
 
 def run_experiment(experiment_config):
     """Start Inference."""
-    results_dir, model_path, _ = initialize_inference_experiment(experiment_config)
+    model_path, trainer_kwargs = initialize_inference_experiment(experiment_config)
+    results_dir = trainer_kwargs["default_root_dir"]
     mmpretrain_config = MMPretrainConfig(experiment_config, phase="inference")
     eval_cfg = mmpretrain_config.updated_config
     mmpretrain_model_config = Config(eval_cfg)

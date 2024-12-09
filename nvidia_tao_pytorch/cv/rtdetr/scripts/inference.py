@@ -27,7 +27,7 @@ from nvidia_tao_pytorch.cv.rtdetr.model.pl_rtdetr_model import RTDETRPlModel
 
 def run_experiment(experiment_config):
     """Start the inference."""
-    results_dir, model_path, gpus = initialize_inference_experiment(experiment_config)
+    model_path, trainer_kwargs = initialize_inference_experiment(experiment_config)
 
     if model_path.endswith('.pth'):
 
@@ -40,10 +40,7 @@ def run_experiment(experiment_config):
                                                    map_location="cpu",
                                                    experiment_spec=experiment_config)
 
-        trainer = Trainer(devices=gpus,
-                          default_root_dir=results_dir,
-                          accelerator='gpu',
-                          strategy='auto')
+        trainer = Trainer(**trainer_kwargs)
 
         trainer.predict(model, datamodule=dm)
 
