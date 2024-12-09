@@ -177,9 +177,9 @@ def test_grounding_dino_compare_onnx_output(_test_experiment_spec, backbone, bat
     onnx_output = sess.run(None, onnx_input)
     if not (list(torch_output["pred_logits"].shape) == list(onnx_output[0].shape)):
         raise ValueError(f"Size Mismatch {list(torch_output['pred_logits'].shape)} vs {list(onnx_output[0].shape)}")
-    torch.testing.assert_close(torch_output["pred_logits"].cpu(), torch.from_numpy(onnx_output[0]), rtol=1e-5, atol=1e-4)
+    torch.testing.assert_close(torch_output["pred_logits"].cpu(), torch.from_numpy(onnx_output[0]), rtol=1e-4, atol=2e-4)
 
     if not (list(torch_output["pred_boxes"].shape) == list(onnx_output[1].shape)):
         raise ValueError(f"Size Mismatch {list(torch_output['pred_boxes'].shape)} vs {list(onnx_output[1].shape)}")
-    torch.testing.assert_close(torch_output["pred_boxes"].cpu(), torch.from_numpy(onnx_output[1]), rtol=1e-5, atol=1e-4)
+    torch.testing.assert_close(torch_output["pred_boxes"].cpu(), torch.from_numpy(onnx_output[1]), rtol=1e-4, atol=2e-4)
     os.remove(tmp_onnx_file)

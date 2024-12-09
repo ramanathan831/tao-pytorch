@@ -5,7 +5,7 @@ cd "$( dirname "${BASH_SOURCE[0]}" )"
 
 registry="nvcr.io"
 repository="nvstaging/tao/tao_pytorch_base_image"
-base_image="nvcr.io/nvidia/pytorch:24.04-py3"
+base_image="nvcr.io/nvidia/pytorch:24.07-py3"
 
 tag="$USER-$(date +%Y%m%d%H%M)"
 local_tag="$USER"

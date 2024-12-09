@@ -135,7 +135,7 @@ class BigdatasetganPlModel(TAOLightningModule):
         self._build_criterion()
 
         # Init metrics for logging
-        self.iou_metric = torchmetrics.JaccardIndex(num_classes=self.n_class)
+        self.iou_metric = torchmetrics.JaccardIndex(task='multiclass', num_classes=self.n_class)
         self.loss_metric = torchmetrics.MeanMetric()
 
     def configure_callbacks(self):

@@ -10,7 +10,7 @@ import torch
 from torch import nn
 from functools import partial
 
-from timm.models.layers import DropPath, to_2tuple, trunc_normal_
+from timm.layers import DropPath, to_2tuple, trunc_normal_
 from mmseg.registry import MODELS
 import math
 

@@ -1,4 +1,4 @@
-FROM nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:4d05ae6e6a47ddf0fd081a4e1424268e7cd42d7c3bcdebda9c1413a7c7f82e5b
+FROM nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:6c85bf576405663e987840dffcc44eefd937f7d6172eea709ed251f4bdf9d325
 
 # Installing the TLT packages.
 WORKDIR /opt/nvidia
@@ -18,10 +18,8 @@ RUN apt-get update && \
     apt --only-upgrade install libc-dev-bin -y && \
     apt --only-upgrade install libcurl3-gnutls -y && \
     apt --only-upgrade install libcurl4 -y && \
-    apt --only-upgrade install libcurl4-openssl-dev -y
-
-RUN pip install --upgrade pip && \
-    python -m pip install --upgrade Werkzeug==3.0.1
+    apt --only-upgrade install libcurl4-openssl-dev -y && \
+    apt --only-upgrade install openssh-client -y
 
 RUN rm -rf /opt/nvidia/entrypoint.d/*.txt
 COPY release/docker/entrypoint.d/* /opt/nvidia/entrypoint.d/
@@ -32,26 +30,18 @@ RUN cd tao-core && bash release/python/build_wheel.sh && \
     rm -rf *
 
 # Copying tlt-converter and building it in the docker.
-ENV TRT_LIB_PATH="/usr/lib/x86_64-linux-gnu"
-ENV TRT_INCLUDE_PATH="/usr/include/x86_64-linux-gnu"
-COPY tao-converter /opt/nvidia/tools
-WORKDIR /opt/nvidia/tools
-RUN make \
-    && rm -rf Makefile *.cc *.h *.o
-RUN ln -s tao-converter converter
+# ENV TRT_LIB_PATH="/usr/lib/x86_64-linux-gnu"
+# ENV TRT_INCLUDE_PATH="/usr/include/x86_64-linux-gnu"
+# COPY tao-converter /opt/nvidia/tools
+# WORKDIR /opt/nvidia/tools
+# RUN make \
+#     && rm -rf Makefile *.cc *.h *.o
+# RUN ln -s tao-converter converter
 
 ENV NVIDIA_PRODUCT_NAME "TAO Toolkit"
 ENV TAO_TOOLKIT_VERSION="5.2.0"
 ENV NVIDIA_TAO_TOOLKIT_VERSION="${TAO_TOOLKIT_VERSION}-PyTorch"
 ENV CUBLAS_WORKSPACE_CONFIG=":4096:8"
-
-# nvm version has to be >20.8.0 to avoid security vulnerabilities
-ENV NVM_DIR=/usr/local/nvm
-RUN source "$NVM_DIR/nvm.sh" \
-    && nvm install 20.15.0 --reinstall-packages-from=16.20.2 node \
-    && nvm uninstall 16.20.2
-
-RUN rm -rf /usr/local/nvm/versions/node/v20.9.0/lib/node_modules/npm/node_modules/ip
 
 # Defining the telemetry URL.
 ENV TAO_TELEMETRY_SERVER="https://api.tao.ngc.nvidia.com"
