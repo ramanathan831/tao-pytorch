@@ -52,7 +52,6 @@ class TAO3DSyntheticDataset(Det3DDataset):
         """
         Initialize TAO3DSynthetic Dataset
         Args:
-            data_root (str): Path of dataset root.
             ann_file (str): Path of annotation file.
             pipeline (list[dict]): Pipeline used for data processing.
                 Defaults to [].

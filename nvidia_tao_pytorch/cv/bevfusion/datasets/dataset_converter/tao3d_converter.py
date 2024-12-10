@@ -20,6 +20,7 @@ from pathlib import Path
 import numpy as np
 import math
 from skimage import io
+
 import mmengine
 
 import nvidia_tao_pytorch.cv.bevfusion.structures as tao_structures
@@ -311,7 +312,13 @@ def create_reduced_point_cloud_tao3d(data_path,
     if info_path is None:
         info_path = os.path.join(data_path, f'{pkl_prefix}_{mode}.pkl')
     print('create reduced point cloud')
-    _create_reduced_point_cloud(data_path, info_path, save_path)
+    if mode == 'validation':
+        reduced_output_dir = Path(os.path.join(save_path, 'training'))
+    else:
+        reduced_output_dir = Path(os.path.join(save_path, mode))
+    if not reduced_output_dir.exists():
+        reduced_output_dir.mkdir()
+    _create_reduced_point_cloud(data_path, info_path, reduced_output_dir)
 
 
 def merge_pkls(seq_list, prefix, pkl_root, output_pkl):
