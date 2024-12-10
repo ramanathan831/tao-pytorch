@@ -7,21 +7,21 @@ dataset:
     repeat_time: 2
     ann_file: /results/kitti_person_infos_val.pkl
     data_prefix: 
-      pts: /data/training/velodyne_reduced
+      pts: /results/training/velodyne_reduced
       img: /data/training/image_2
     batch_size: 4
     num_workers: 8
   val_dataset:
     ann_file: /results/kitti_person_infos_val.pkl
     data_prefix: 
-      pts: /data/training/velodyne_reduced
+      pts: /results/training/velodyne_reduced
       img: /data/training/image_2
     batch_size: 2
     num_workers: 4
   test_dataset:
     ann_file: /results/kitti_person_infos_val.pkl
     data_prefix: 
-      pts: /data/training/velodyne_reduced
+      pts: /results/training/velodyne_reduced
       img: /data/training/image_2
     batch_size: 4
     num_workers: 4
