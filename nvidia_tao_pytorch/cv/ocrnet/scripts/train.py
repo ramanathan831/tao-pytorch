@@ -24,6 +24,7 @@ from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_core.config.ocrnet.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.ocrnet.dataloader.pl_ocr_data_module import OCRDataModule
 from nvidia_tao_pytorch.cv.ocrnet.model.pl_ocrnet import OCRNetModel
+from nvidia_tao_pytorch.cv.ocrnet.utils.utils import quantize_model
 
 
 def run_experiment(experiment_spec: ExperimentConfig):
@@ -39,6 +40,9 @@ def run_experiment(experiment_spec: ExperimentConfig):
     dm = OCRDataModule(experiment_spec)
     dm.setup(stage='fit')
     ocrnet_model = OCRNetModel(experiment_spec, dm)
+    if experiment_spec.model.quantize:
+        quantize_model(ocrnet_model, dm)
+    print(ocrnet_model.model)
     clip_grad = experiment_spec.train.clip_grad_norm
     distributed_strategy = 'auto'
 

@@ -73,7 +73,9 @@ class BEVFusionConfig(object):
         self.updated_config['visualizer'] = {'type': 'TAO3DLocalVisualizer',
                                              'vis_backends': {'type': 'LocalVisBackend'}, 'name': 'visualizer'}
         self.updated_config['work_dir'] = self.config['results_dir']
-        if self.config['train']['num_gpus'] > 1:
+        self.updated_config['env_cfg'] = {}
+        # The env_cfg has params for the distributed environment
+        if 'CUDA_VISIBLE_DEVICES' in os.environ.keys() and len(os.environ['CUDA_VISIBLE_DEVICES'].split(',')) > 1:
             self.updated_config['env_cfg'] = {'cudnn_benchmark': True,
                                               'mp_cfg': {'mp_start_method': 'fork', 'opencv_num_threads': 0},
                                               'dist_cfg': {'backend': 'nccl'}}

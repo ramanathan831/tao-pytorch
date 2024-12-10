@@ -43,8 +43,10 @@ class ActionRecognitionModel(TAOLightningModule):
         self._build_model(export)
         self.dm = dm
 
-        self.train_accuracy = torchmetrics.Accuracy()
-        self.val_accuracy = torchmetrics.Accuracy()
+        self.label_map = self.dataset_config["label_map"]
+        self.num_classes = len(self.label_map.keys())
+        self.train_accuracy = torchmetrics.Accuracy(task="multiclass", num_classes=self.num_classes)
+        self.val_accuracy = torchmetrics.Accuracy(task="multiclass", num_classes=self.num_classes)
 
         self.status_logging_dict = {}
 
@@ -153,9 +155,7 @@ class ActionRecognitionModel(TAOLightningModule):
 
     def on_test_epoch_start(self) -> None:
         """ Test epoch start."""
-        self.label_map = self.dataset_config["label_map"]
-        num_classes = len(self.label_map.keys())
-        self.confusion_matrix = torch.zeros((num_classes, num_classes), dtype=torch.int32)
+        self.confusion_matrix = torch.zeros((self.num_classes, self.num_classes), dtype=torch.int32)
         self.eval_mode_flag = self.experiment_spec["evaluate"]["video_eval_mode"] == "conv"
 
     def test_step(self, batch, batch_idx):

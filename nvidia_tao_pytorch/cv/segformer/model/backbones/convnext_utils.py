@@ -44,8 +44,8 @@ from functools import partial
 import torch
 import torch.nn as nn
 from timm.data import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
-from timm.models.helpers import named_apply, build_model_with_cfg
-from timm.models.layers import ClassifierHead, SelectAdaptivePool2d, DropPath
+from timm.models import named_apply, build_model_with_cfg
+from timm.layers import ClassifierHead, SelectAdaptivePool2d, DropPath
 from nvidia_tao_pytorch.cv.backbone.convnext_utils import checkpoint_filter_fn, _init_weights, LayerNorm2d, ConvMlp
 
 

@@ -19,11 +19,12 @@
 """ONNX related tools."""
 # flake8: noqa: I1101
 
+from beartype import beartype
 import onnx
 from typing import Optional
 import torch
 from torch.onnx import _constants, _type_utils, symbolic_helper
-from torch.onnx._internal import _beartype, jit_utils
+from torch.onnx._internal import jit_utils
 from torch.onnx.symbolic_opset12 import _onnx_symbolic
 
 import numpy as np
@@ -34,7 +35,7 @@ from nvidia_tao_pytorch.cv.classification.models.dinov2_vit import DinoV2ViT, in
 
 
 @_onnx_symbolic("aten::triu")
-@_beartype.beartype
+@beartype
 def triu(g: jit_utils.GraphContext, self, diagonal, out=None):
     """
     Triu operator.
@@ -47,7 +48,7 @@ def triu(g: jit_utils.GraphContext, self, diagonal, out=None):
 # NOTE: Need op.Trilu
 @_onnx_symbolic("aten::_scaled_dot_product_attention")
 @symbolic_helper.parse_args("v", "v", "v", "v", "f", "b", "v")
-@_beartype.beartype
+@beartype
 def scaled_dot_product_attention(
     g: jit_utils.GraphContext,
     query: torch._C.Value, # noqa pylint: disable=I1101
@@ -122,7 +123,7 @@ def scaled_dot_product_attention(
     return g.op("MatMul", attn_weight, value), attn_weight
 
 
-@_beartype.beartype
+@beartype
 def _attention_scale(
     g: jit_utils.GraphContext, query: torch._C.Value # noqa pylint: disable=I1101
 ) -> torch._C.Value: # noqa pylint: disable=I1101
@@ -153,7 +154,7 @@ def _attention_scale(
     return scale
 
 
-@_beartype.beartype
+@beartype
 def _causal_attention_mask(
     g: jit_utils.GraphContext, query: torch._C.Value, key: torch._C.Value # noqa pylint: disable=I1101
 ) -> torch._C.Value: # noqa pylint: disable=I1101

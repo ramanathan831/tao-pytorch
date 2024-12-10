@@ -336,7 +336,7 @@ class MALStudentNetwork(pl.LightningModule):
                     c = seg_feat.shape[1]
                     masked_roi_feat = roi_feat[masking]
                     seg = (masked_roi_feat[:, None, :] @ seg_feat.reshape(mn, c, mh * mw * 4)).reshape(mn, 1, mh * 2, mw * 2)
-                    seg = F.interpolate(seg, size=(maxh, maxw), mode='bilinear', align_corners=False)
+                    seg = F.interpolate(seg, size=(maxh, maxw), mode='bilinear', align_corners=False).to(seg.dtype)
                     seg_all[masking] = seg
             ret_vals = {'feat': feat, 'seg': seg_all, 'spatial_feat': spatial_feat_ori, 'masking_list': masking_list}
         else:

@@ -17,7 +17,7 @@ import torch.utils.checkpoint as checkpoint
 from mmseg.registry import MODELS
 from mmengine.model import BaseModule
 from timm.data import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
-from timm.models.layers import DropPath, trunc_normal_, to_2tuple
+from timm.layers import DropPath, trunc_normal_, to_2tuple
 
 from nvidia_tao_pytorch.cv.segformer.model.backbones.convnext_utils import _create_hybrid_backbone
 from nvidia_tao_pytorch.cv.backbone.fan import (PositionalEncodingFourier, Mlp, ConvPatchEmbed,

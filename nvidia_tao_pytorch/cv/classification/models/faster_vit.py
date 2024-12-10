@@ -16,7 +16,7 @@
 
 import torch
 import torch.nn as nn
-from timm.models.layers import trunc_normal_, LayerNorm2d
+from timm.layers import trunc_normal_, LayerNorm2d
 from mmpretrain.registry import MODELS
 from mmpretrain.models.backbones.base_backbone import BaseBackbone
 
