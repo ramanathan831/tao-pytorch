@@ -45,24 +45,18 @@ def get_latest_tlt_model(results_dir):
 
 def run_experiment(experiment_config, key):
     """Start the training."""
-    results_dir, resume_ckpt, gpus, ptl_loggers = initialize_train_experiment(experiment_config, key)
+    resume_ckpt, trainer_kwargs = initialize_train_experiment(experiment_config, key)
 
     num_nodes = experiment_config.train.num_nodes
-    total_epochs = experiment_config.train.num_epochs
-    validation_interval = experiment_config.train.validation_interval
+    strategy = 'auto'
 
     # Load pretrained model as starting point if pretrained path is provided
     pretrained_path = experiment_config.train.pretrained_model_path
 
     # StyleGAN-XL only supports 'stylegan' and 'bigdatasetgan' tasks
     if experiment_config.task == 'stylegan':
-        precision = '32-true'
-        sync_batchnorm = False
-        trainer_kwargs = {}
         # Default to 1 GPU if none provided
-        if len(gpus) == 0:
-            strategy = 'auto'
-        else:
+        if len(trainer_kwargs['devices']) > 1:
             # This is necessary or else Lightning will raise an error since not all params are used in training_step
             strategy = 'ddp_find_unused_parameters_true'
 
@@ -79,10 +73,6 @@ def run_experiment(experiment_config, key):
             model = StyleganPlModel(experiment_config, dm)
 
     elif experiment_config.task == 'bigdatasetgan':
-        precision = '32-true'
-        sync_batchnorm = False
-        trainer_kwargs = {}
-        strategy = 'auto'
 
         # build dataloader
         dm = BGDataModule(experiment_config.dataset)
@@ -99,20 +89,13 @@ def run_experiment(experiment_config, key):
     else:
         raise NotImplementedError("Task {} is not implemented".format(experiment_config.task))
 
-    trainer = Trainer(logger=ptl_loggers,
-                      devices=gpus,
+    trainer = Trainer(**trainer_kwargs,
                       num_nodes=num_nodes,
-                      max_epochs=total_epochs,
-                      check_val_every_n_epoch=validation_interval,
-                      default_root_dir=results_dir,
-                      accelerator='gpu',
                       strategy=strategy,
-                      precision=precision,
+                      precision='32-true',
                       # use_distributed_sampler=False,
-                      sync_batchnorm=sync_batchnorm,
-                      enable_checkpointing=False,
+                      sync_batchnorm=False,
                       num_sanity_val_steps=0,
-                      **trainer_kwargs
                       )
 
     trainer.fit(model, dm, ckpt_path=resume_ckpt)
