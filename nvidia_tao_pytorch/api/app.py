@@ -368,6 +368,7 @@ class NVCFReqSchema(Schema):
 
     telemetry_opt_out = fields.Str(format="regex", regex=r'.*', validate=fields.validate.Length(max=1000), allow_none=True)
     use_ngc_staging = fields.Str(format="regex", regex=r'.*', validate=fields.validate.Length(max=1000), allow_none=True)
+    nvcf_helm = fields.Str(format="regex", regex=r'.*', validate=fields.validate.Length(max=1000), allow_none=True)
     tao_api_ui_cookie = fields.Str(format="regex", regex=r'.*', validate=fields.validate.Length(max=1000), allow_none=True)
     tao_api_admin_key = fields.Str(format="regex", regex=r'.*', validate=fields.validate.Length(max=1000), allow_none=True)
     tao_api_base_url = fields.URL(validate=fields.validate.Length(max=2048))
