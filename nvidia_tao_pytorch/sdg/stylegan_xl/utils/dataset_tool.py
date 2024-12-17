@@ -27,7 +27,6 @@ from pathlib import Path
 from typing import Callable, Optional, Tuple, Union
 import imageio
 
-import click
 import numpy as np
 import PIL.Image
 from tqdm import tqdm
@@ -41,7 +40,7 @@ def error(msg):
     Args:
         msg (str): The error message to display.
     """
-    logging.error('Error: ' + msg)
+    logging.error(msg)
     sys.exit(1)
 
 
@@ -272,15 +271,7 @@ def open_dest(dest: str) -> Tuple[str, Callable[[str, Union[bytes, str]], None],
         return dest, folder_write_bytes, lambda: None
 
 
-@click.command()
-@click.pass_context
-@click.option('--source', help='Directory of input dataset', required=True, metavar='PATH')
-@click.option('--dest', help='Output directory or archive name for output dataset', required=True, metavar='PATH')
-@click.option('--max-images', help='Output only up to `max-images` images', type=int, default=None)
-@click.option('--transform', help='Apply center-crop before resizing to a specific resolution to avoid image distortion, but this may result in losing information from the longer side.', type=click.Choice(['center-crop']))
-@click.option('--resolution', help='Output resolution (e.g., \'512x512\')', metavar='WxH', type=parse_tuple)
 def convert_dataset(
-    ctx: click.Context,
     source: str,
     dest: str,
     max_images: Optional[int],
@@ -355,7 +346,7 @@ def convert_dataset(
     PIL.Image.init()  # type: ignore
 
     if dest == '':
-        ctx.fail('--dest output filename or directory must not be an empty string')
+        error('--dest output filename or directory must not be an empty string')
 
     num_files, input_iter = open_dataset(source, max_images=max_images)
     archive_root_dir, save_bytes, close_dest = open_dest(dest)
