@@ -25,13 +25,15 @@ from nvidia_tao_core.config.optical_inspection.default_config import ExperimentC
 from nvidia_tao_pytorch.cv.optical_inspection.dataloader.pl_oi_data_module import OIDataModule
 from nvidia_tao_pytorch.cv.optical_inspection.model.pl_oi_model import OpticalInspectionModel
 
+logger = logging.getLogger(__name__)
+
 
 def run_experiment(experiment_config, key):
     """Run experiment."""
     model_path, trainer_kwargs = initialize_evaluation_experiment(experiment_config, key)
     if len(trainer_kwargs['devices']) > 1:
         trainer_kwargs['devices'] = [trainer_kwargs['devices'][0]]
-        logging.log(f"Optical Inspection does not support multi-GPU evaluation at this time. Using only GPU {trainer_kwargs['devices']}")
+        logger.info(f"Optical Inspection does not support multi-GPU evaluation at this time. Using only GPU {trainer_kwargs['devices']}")
 
     dm = OIDataModule(experiment_config)
 

@@ -26,13 +26,15 @@ from nvidia_tao_pytorch.core.initialize_experiments import initialize_inference_
 from nvidia_tao_pytorch.cv.action_recognition.dataloader.pl_ar_data_module import ARDataModule
 from nvidia_tao_pytorch.cv.action_recognition.model.pl_ar_model import ActionRecognitionModel
 
+logger = logging.getLogger(__name__)
+
 
 def run_experiment(experiment_config, key):
     """Start the inference."""
     model_path, trainer_kwargs = initialize_inference_experiment(experiment_config, key)
     if len(trainer_kwargs['devices']) > 1:
         trainer_kwargs['devices'] = [trainer_kwargs['devices'][0]]
-        logging.log(f"Action Recognition does not support multi-GPU inference at this time. Using only GPU {trainer_kwargs['devices']}")
+        logger.info(f"Action Recognition does not support multi-GPU inference at this time. Using only GPU {trainer_kwargs['devices']}")
 
     dm = ARDataModule(experiment_config)
     model = ActionRecognitionModel.load_from_checkpoint(model_path,
