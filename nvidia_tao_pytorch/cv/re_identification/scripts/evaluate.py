@@ -24,6 +24,8 @@ from nvidia_tao_core.config.re_identification.default_config import ExperimentCo
 from nvidia_tao_pytorch.cv.re_identification.dataloader.pl_reid_data_module import REIDDataModule
 from nvidia_tao_pytorch.cv.re_identification.model.pl_reid_model import ReIdentificationModel
 
+logger = logging.getLogger(__name__)
+
 
 def run_experiment(experiment_config, key):
     """
@@ -42,7 +44,7 @@ def run_experiment(experiment_config, key):
     model_path, trainer_kwargs = initialize_evaluation_experiment(experiment_config, key)
     if len(trainer_kwargs['devices']) > 1:
         trainer_kwargs['devices'] = [trainer_kwargs['devices'][0]]
-        logging.log(f"Re-Identification does not support multi-GPU evaluation at this time. Using only GPU {trainer_kwargs['devices']}")
+        logger.info(f"Re-Identification does not support multi-GPU evaluation at this time. Using only GPU {trainer_kwargs['devices']}")
 
     dm = REIDDataModule(experiment_config)
     model = ReIdentificationModel.load_from_checkpoint(model_path,

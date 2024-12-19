@@ -25,6 +25,8 @@ from nvidia_tao_core.config.pose_classification.default_config import Experiment
 from nvidia_tao_pytorch.cv.pose_classification.dataloader.pl_pc_data_module import PCDataModule
 from nvidia_tao_pytorch.cv.pose_classification.model.pl_pc_model import PoseClassificationModel
 
+logger = logging.getLogger(__name__)
+
 
 # TODO @seanf: cc says this isn't used
 def dump_cm(csv_path, cm, id2name):
@@ -70,7 +72,7 @@ def run_experiment(experiment_config, key):
     model_path, trainer_kwargs = initialize_evaluation_experiment(experiment_config, key)
     if len(trainer_kwargs['devices']) > 1:
         trainer_kwargs['devices'] = [trainer_kwargs['devices'][0]]
-        logging.log(f"Pose Classification does not support multi-GPU evaluation at this time. Using only GPU {trainer_kwargs['devices']}")
+        logger.info(f"Pose Classification does not support multi-GPU evaluation at this time. Using only GPU {trainer_kwargs['devices']}")
 
     dm = PCDataModule(experiment_config)
     model = PoseClassificationModel.load_from_checkpoint(model_path,

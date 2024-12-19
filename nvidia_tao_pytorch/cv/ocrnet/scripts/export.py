@@ -27,6 +27,8 @@ from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_core.config.ocrnet.default_config import ExperimentConfig
 
+logger = logging.getLogger(__name__)
+
 
 @gs.Graph.register()
 def replace_with_avgpool2d(self, inputs, outputs, kernel_shape,
@@ -78,19 +80,19 @@ def export(opt):
     if not isinstance(ckpt, Model):
         model = Model(opt)
         if "modelopt_state" in ckpt.keys():
-            logging.log('loading pretrained quantized model from %s' % opt.saved_model)
+            logger.info('loading pretrained quantized model from %s' % opt.saved_model)
             import modelopt.torch.opt as mto
             from modelopt.torch.quantization import QuantModuleRegistry
             import torch.nn as nn
             QuantModuleRegistry.unregister(nn.LSTM)
             model = mto.restore(model, opt.saved_model)
         else:
-            logging.log('loading pretrained model from %s' % opt.saved_model)
+            logger.info('loading pretrained model from %s' % opt.saved_model)
             state_dict = ckpt
             model.load_state_dict(state_dict)
         model = ExportModel(ocr_model=model, prediction_type=opt.Prediction)
     else:
-        logging.log('loading pretrained model from %s' % opt.saved_model)
+        logger.info('loading pretrained model from %s' % opt.saved_model)
         model = ExportModel(ocr_model=ckpt, prediction_type=opt.Prediction)
 
     model = model.to(device)

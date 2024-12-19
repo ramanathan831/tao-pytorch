@@ -28,6 +28,8 @@ from nvidia_tao_pytorch.cv.ocrnet.model.pl_ocrnet import OCRNetModel
 from nvidia_tao_pytorch.cv.ocrnet.model.model import Model
 from nvidia_tao_pytorch.cv.ocrnet.utils.utils import load_checkpoint
 
+logger = logging.getLogger(__name__)
+
 
 def run_experiment(experiment_spec: ExperimentConfig, key):
     """run experiment."""
@@ -53,7 +55,7 @@ def run_experiment(experiment_spec: ExperimentConfig, key):
     if not isinstance(ckpt, Model):
         if "modelopt_state" in ckpt.keys():
             # Evaluate the quantized model
-            logging.log(f"loading pretrained quantized model from {model_path}")
+            logger.info(f"loading pretrained quantized model from {model_path}")
             import modelopt.torch.opt as mto
             from modelopt.torch.quantization import QuantModuleRegistry
             import torch.nn as nn
@@ -65,7 +67,7 @@ def run_experiment(experiment_spec: ExperimentConfig, key):
             # For loading public pretrained weights
             model.model.load_state_dict(ckpt.state_dict(), strict=True)
     else:
-        logging.log('loading pretrained model from %s' % model_path)
+        logger.info('loading pretrained model from %s' % model_path)
         model.model.load_state_dict(ckpt.state_dict(), strict=True)
 
     trainer = Trainer(**trainer_kwargs)

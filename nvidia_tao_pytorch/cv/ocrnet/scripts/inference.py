@@ -29,6 +29,8 @@ from nvidia_tao_pytorch.cv.ocrnet.model.pl_ocrnet import OCRNetModel
 from nvidia_tao_pytorch.cv.ocrnet.model.model import Model
 from nvidia_tao_pytorch.cv.ocrnet.utils.utils import load_checkpoint
 
+logger = logging.getLogger(__name__)
+
 
 def run_experiment(experiment_spec, key):
     """run experiment."""
@@ -42,7 +44,7 @@ def run_experiment(experiment_spec, key):
     model_path, trainer_kwargs = initialize_inference_experiment(experiment_spec, key)
     if len(trainer_kwargs['devices']) > 1:
         trainer_kwargs['devices'] = [trainer_kwargs['devices'][0]]
-        logging.log(f"OCRNet does not support multi-GPU inference at this time. Using only GPU {trainer_kwargs['devices']}")
+        logger.info(f"OCRNet does not support multi-GPU inference at this time. Using only GPU {trainer_kwargs['devices']}")
 
     dm = OCRDataModule(experiment_spec)
     dm.setup(stage='predict')
@@ -57,7 +59,7 @@ def run_experiment(experiment_spec, key):
     if not isinstance(ckpt, Model):
         if "modelopt_state" in ckpt.keys():
             # Evaluate the quantized model
-            logging.log(f"loading pretrained quantized model from {model_path}")
+            logger.info(f"loading pretrained quantized model from {model_path}")
             import modelopt.torch.opt as mto
             from modelopt.torch.quantization import QuantModuleRegistry
             import torch.nn as nn
@@ -68,7 +70,7 @@ def run_experiment(experiment_spec, key):
             # For loading public pretrained weights
             model.model.load_state_dict(ckpt.state_dict(), strict=True)
     else:
-        logging.log('loading pretrained model from %s' % model_path)
+        logger.info('loading pretrained model from %s' % model_path)
         model.model.load_state_dict(ckpt.state_dict(), strict=True)
 
     trainer = Trainer(**trainer_kwargs)

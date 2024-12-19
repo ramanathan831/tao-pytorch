@@ -29,13 +29,15 @@ from nvidia_tao_pytorch.cv.visual_changenet.segmentation.dataloader.pl_changenet
 from nvidia_tao_pytorch.cv.visual_changenet.segmentation.models.cn_pl_model import ChangeNetPlModel as ChangeNetPlSegment
 from nvidia_tao_pytorch.cv.visual_changenet.classification.models.cn_pl_model import ChangeNetPlModel as ChangeNetPlClassifier
 
+logger = logging.getLogger(__name__)
+
 
 def run_experiment(experiment_config, key):
     """Run experiment."""
     model_path, trainer_kwargs = initialize_evaluation_experiment(experiment_config, key)
     if len(trainer_kwargs['devices']) > 1:
         trainer_kwargs['devices'] = [trainer_kwargs['devices'][0]]
-        logging.log(f"Visual ChangeNet Classification does not support multi-GPU evaluation at this time. Using only GPU {trainer_kwargs['devices']}")
+        logger.info(f"Visual ChangeNet Classification does not support multi-GPU evaluation at this time. Using only GPU {trainer_kwargs['devices']}")
 
     task = experiment_config.task
 
