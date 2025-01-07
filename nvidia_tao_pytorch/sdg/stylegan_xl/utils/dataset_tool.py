@@ -399,7 +399,7 @@ def convert_dataset(
         labels.append([archive_fname, image['label']] if image['label'] is not None else None)
 
     # Step 1: Create a mapping of unique string labels to integers
-    label_map = {label: idx for idx, label in enumerate({label for _, label in labels})}
+    label_map = {label: idx for idx, label in enumerate(sorted({label for _, label in labels}))}
     # Step 2: Convert the original labels to integer labels using the label_map
     int_labels = [[filename, label_map[label]] for filename, label in labels]
 
