@@ -19,7 +19,7 @@ import pytest
 from omegaconf import OmegaConf
 import torch
 
-from nvidia_tao_pytorch.ssl.nvdinov2.config.default_config import ExperimentConfig
+from nvidia_tao_core.config.nvdinov2.default_config import ExperimentConfig
 from nvidia_tao_pytorch.ssl.nvdinov2.model.pl_model import DinoV2PlModel
 
 BATCH_SIZE = 2

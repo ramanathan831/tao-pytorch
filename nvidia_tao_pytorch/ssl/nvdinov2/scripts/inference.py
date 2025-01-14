@@ -12,30 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""NVDINOv2 Train Script"""
-
+"""
+Inference of NVDINOv2 SSL.
+"""
 import os
 
 from pytorch_lightning import Trainer
 
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
-from nvidia_tao_pytorch.core.initialize_experiments import initialize_train_experiment
-from nvidia_tao_pytorch.core.tlt_logging import obfuscate_logs
+from nvidia_tao_pytorch.core.initialize_experiments import initialize_inference_experiment
+from nvidia_tao_pytorch.core.tlt_logging import logging, obfuscate_logs
 from nvidia_tao_core.config.nvdinov2.default_config import ExperimentConfig
 from nvidia_tao_pytorch.ssl.nvdinov2.dataloader.pl_dinov2_data_module import DinoV2DataModule
 from nvidia_tao_pytorch.ssl.nvdinov2.model.pl_model import DinoV2PlModel
 
 
 def run_experiment(experiment_config, key):
-    """Start the training."""
-    resume_ckpt, trainer_kwargs = initialize_train_experiment(experiment_config, key)
-
-    num_nodes = experiment_config.train.num_nodes
-    max_steps = experiment_config.train.max_steps
-
-    # Load pretrained model as starting point if pretrained path is provided
-    pretrained_path = experiment_config.train.pretrained_model_path
+    """Start the inference."""
+    model_path, trainer_kwargs = initialize_inference_experiment(experiment_config, key)
 
     precision = experiment_config.train.precision
 
@@ -43,20 +38,18 @@ def run_experiment(experiment_config, key):
 
     model = DinoV2PlModel(experiment_config)
 
-    if pretrained_path is not None:
-        model.pretrained_weights = pretrained_path
+    if model_path is not None and (model_path.endswith('.tlt') or model_path.endswith('.pth')):
+        model.pretrained_weights = model_path
         model.restore_pretrained_weights()
+        logging.info("loading model from {model_path}".format(model_path=model_path))
+    else:
+        raise NotImplementedError("Model path format is only supported for .tlt or .pth")
 
     trainer = Trainer(**trainer_kwargs,
-                      num_nodes=num_nodes,
-                      max_steps=max_steps,
-                      strategy='auto',
-                      precision=precision,
-                      use_distributed_sampler=True,
-                      sync_batchnorm=True,
+                      precision=precision
                       )
 
-    trainer.fit(model, dm, ckpt_path=resume_ckpt)
+    trainer.predict(model, dm)
 
 
 spec_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -67,7 +60,7 @@ spec_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 @hydra_runner(
     config_path=os.path.join(spec_root, "experiment_specs"), config_name="experiment_spec", schema=ExperimentConfig
 )
-@monitor_status(name="NVDINOv2", mode="train")
+@monitor_status(name="NVDINOv2", mode="inference")
 def main(cfg: ExperimentConfig) -> None:
     """Run the training process."""
     # Obfuscate logs.

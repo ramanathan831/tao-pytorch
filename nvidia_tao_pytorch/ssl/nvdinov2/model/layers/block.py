@@ -298,17 +298,19 @@ class NestedTensorBlock(Block):
         self,
         *args,
         attn_class=MemoryEfficientAttention,
+        use_custom_attention=True,
         **kwargs,
     ):
         """Initializes the NestedTensorBlock.
 
         Args:
             attn_class (Callable, optional): The class to use for attention operations. Defaults to MemoryEfficientAttention.
+            use_custom_attention (bool): Whether to use memory_efficient_attention.
         """
         if attn_class != MemoryEfficientAttention:
             raise NotImplementedError("Only MemoryEfficentAttention is supported today.")
-
         super().__init__(*args, attn_class=attn_class, **kwargs)
+        self.use_custom_attention = use_custom_attention
 
     def forward(
         self, x_or_x_list: Union[Tensor, List[Tensor]]
@@ -344,7 +346,7 @@ class NestedTensorBlock(Block):
                 Returns:
                     Tensor: The computed attention residual.
                 """
-                return self.attn(self.norm1(x), attn_bias=attn_bias)
+                return self.attn(self.norm1(x), attn_bias=attn_bias, use_custom_attention=self.use_custom_attention)
 
             def ffn_residual_func(x: Tensor, attn_bias=None) -> Tensor:
                 """Calculates the feedforward residual.
@@ -387,7 +389,7 @@ class NestedTensorBlock(Block):
             Returns:
                 Tensor: The computed layer-scaled attention residual.
             """
-            return self.ls1(self.attn(self.norm1(x), attn_bias=attn_bias))
+            return self.ls1(self.attn(self.norm1(x), attn_bias=attn_bias, use_custom_attention=self.use_custom_attention))
 
         def ffn_residual_func_ls(x: Tensor, attn_bias=None) -> Tensor:
             """Computes the layer-scaled feedforward residual.

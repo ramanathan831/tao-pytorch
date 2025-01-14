@@ -31,6 +31,7 @@ class DinoV2Dataset(Dataset):
         *,
         root: Union[str, Path],
         transform: Optional[callable] = None,
+        train: bool = True,
         extensions: Iterable[str] = (
             ".jpg",
             ".jpeg",
@@ -53,6 +54,7 @@ class DinoV2Dataset(Dataset):
         self.root = Path(root)
         self.extensions = extensions
         self.transform = transform
+        self.train = train
 
         assert self.transform is not None, "Transform must be specified."
 
@@ -93,10 +95,14 @@ class DinoV2Dataset(Dataset):
 
         image = Image.open(img_path, mode="r").convert("RGB")
         images = self.transform(image)
-
+        if self.train:
+            return {
+                "global_crops": images["global_crops"],
+                "local_crops": images["local_crops"],
+            }
         return {
-            "global_crops": images["global_crops"],
-            "local_crops": images["local_crops"],
+            "images": images,
+            "input_path": self.all_images[idx]
         }
 
     def __getitem__(self, idx):

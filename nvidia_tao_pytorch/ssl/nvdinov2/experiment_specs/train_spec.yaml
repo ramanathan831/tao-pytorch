@@ -29,8 +29,8 @@ train:
   resume_training_checkpoint_path: null
   pretrained_model_path: /tao-pt/tao-experiments/pretrained_models/nv_dinov2_classification_model.ckpt
   num_nodes: 1
-  num_gpus: 2
-  checkpoint_step_interval: 12500
+  num_gpus: 1
+  checkpoint_step_interval: 10
   num_epochs: 100
   max_steps: 2500000
   layerwise_decay: 1.0
