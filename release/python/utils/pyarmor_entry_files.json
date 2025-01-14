@@ -406,5 +406,22 @@
             "utils/dnnlib/__init__.py",
             "utils/ops/__init__.py"
         ]
+    },
+    "ssl":{
+        ".": [
+            "__init__.py"
+        ],
+        "nvdinov2":[
+            "__init__.py",
+            "dataloader/__init__.py",
+            "entrypoint/__init__.py",
+            "entrypoint/nvdinov2.py",
+            "model/__init__.py",
+            "model/layers/__init__.py",
+            "scripts/inference.py",
+            "scripts/train.py",
+            "scripts/export.py",
+            "scripts/__init__.py"
+        ]
     }
 }

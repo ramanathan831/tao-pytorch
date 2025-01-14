@@ -30,6 +30,7 @@ from pytorch_lightning.strategies.single_device import SingleDeviceStrategy
 from pytorch_lightning.callbacks import Callback, ModelCheckpoint
 from xformers.ops.fmha import BlockDiagonalMask
 import re
+import pandas as pd
 
 from nvidia_tao_pytorch.ssl.nvdinov2.model.loss import DinoV2Loss, KoLeoLoss
 from nvidia_tao_pytorch.core.callbacks.loggers import TAOStatusLogger
@@ -38,7 +39,7 @@ import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
 from nvidia_tao_pytorch.ssl.nvdinov2.model.vit import DinoV2VisionTransformer, SwiGLUFused
 from nvidia_tao_pytorch.ssl.nvdinov2.model.head import DinoHead
 from nvidia_tao_pytorch.ssl.nvdinov2.model.warmup_cosine import LambdaWarmUpCosineScheduler
-import nvidia_tao_pytorch.ssl.nvdinov2.config.model_params_mapping as model_params
+import nvidia_tao_core.config.nvdinov2.default_config as model_params
 
 torch._dynamo.config.suppress_errors = True
 
@@ -118,7 +119,7 @@ class DinoV2PlModel(TAOLightningModule):
         self.clip_grad_norm = self.train_config["clip_grad_norm"]
         self.num_prototypes = self.train_config["num_prototypes"]
         self.num_gpus = max(self.train_config["num_gpus"], len(self.train_config["gpu_ids"]))
-
+        self.use_custom_attention = self.train_config["use_custom_attention"]
         # Backbone
         self.backbone_type = self.model_config.backbone['type']
         self.embed_dim = model_params.map_params['embed_dim'][self.backbone_type]
@@ -214,6 +215,7 @@ class DinoV2PlModel(TAOLightningModule):
             param.requires_grad = False
 
         self.checkpoint_filename = 'nvdinov2_model'
+        self.dm = []
 
     def _build_model(self):
         """Build Teacher and Student"""
@@ -232,7 +234,8 @@ class DinoV2PlModel(TAOLightningModule):
                     mlp_layer=SwiGLUFused,
                     norm_layer=nn.LayerNorm,
                     act_layer=nn.SiLU,
-                    register_tokens=self.register_tokens
+                    register_tokens=self.register_tokens,
+                    use_custom_attention=self.use_custom_attention
                 ),
                 'dino_head': DinoHead(
                     in_dim=self.embed_dim,
@@ -264,7 +267,8 @@ class DinoV2PlModel(TAOLightningModule):
                     mlp_layer=SwiGLUFused,
                     norm_layer=nn.LayerNorm,
                     act_layer=nn.SiLU,
-                    register_tokens=self.register_tokens
+                    register_tokens=self.register_tokens,
+                    use_custom_attention=self.use_custom_attention
                 ),
                 'dino_head': DinoHead(
                     in_dim=self.embed_dim,
@@ -654,6 +658,52 @@ class DinoV2PlModel(TAOLightningModule):
         )
 
         self.training_step_outputs.clear()
+
+    def on_predict_epoch_start(self):
+        """Predict epoch start"""
+        self.feat = []
+        self.input_path = []
+
+    def predict_step(self, batch, batch_idx):
+        """Predict step. Inference """
+        images = batch["images"]
+        input_path = batch["input_path"]
+        teacher_backbone_global_output = self.teacher.backbone(images)
+        teacher_global_cls_token = teacher_backbone_global_output["x_norm_clstoken"]
+        if batch_idx == 0:
+            self.feat = teacher_global_cls_token
+        else:
+            self.feat = torch.cat((self.feat, teacher_global_cls_token), 0)
+        self.input_path.extend(input_path)
+
+    def on_predict_epoch_end(self):
+        """Predict epoch end"""
+        # Gather results from all GPUs
+        gathered_results = self.all_gather(self.feat)
+        gathered_paths = self.all_gather(self.input_path)
+
+        # Single GPU case
+        if len(gathered_results.shape) == 1:
+            gathered_results = gathered_results.unsqueeze(dim=0)
+
+        if self.trainer.is_global_zero:
+            # Combine input paths and features into a DataFrame
+            gathered_results = [str(tensor.cpu().numpy().tolist()) for tensor in gathered_results]
+
+            data = {
+                "input_path": gathered_paths,
+                "features": gathered_results
+            }
+            df = pd.DataFrame(data)
+            df.to_csv(
+                os.path.join(self.experiment_spec.results_dir, "inference.csv"),
+                header=True,
+                index=False
+            )
+            status_logging.get_status_logger().write(
+                message="Inference completed.",
+                status_level=status_logging.Status.RUNNING
+            )
 
     @torch.no_grad()
     def update_teacher(self, momentum: float):

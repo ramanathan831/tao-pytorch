@@ -18,6 +18,7 @@ from typing import Optional
 
 from torch.utils.data import DataLoader, distributed, RandomSampler, BatchSampler
 import pytorch_lightning as pl
+from torchvision import transforms as T
 
 from nvidia_tao_pytorch.ssl.nvdinov2.dataloader.transform import DinoV2Transform
 from nvidia_tao_pytorch.ssl.nvdinov2.dataloader.dataset import DinoV2Dataset
@@ -74,13 +75,27 @@ class DinoV2DataModule(pl.LightningDataModule):
 
             self.train_dataset = DinoV2Dataset(
                 root=self.root_dir,
-                transform=transform
+                transform=transform,
+                train=True
             )
 
             if is_distributed:
                 self.train_sampler = distributed.DistributedSampler(self.train_dataset, shuffle=True)
             else:
                 self.train_sampler = RandomSampler(self.train_dataset)
+
+        if stage in ('predict', None):
+
+            transform = T.Compose([
+                T.ToTensor(),
+                T.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+            ])
+
+            self.predict_dataset = DinoV2Dataset(
+                root=self.root_dir,
+                transform=transform,
+                train=False
+            )
 
     def train_dataloader(self):
         """Build the dataloader for training.
@@ -99,3 +114,17 @@ class DinoV2DataModule(pl.LightningDataModule):
             persistent_workers=True
         )
         return train_loader
+
+    def predict_dataloader(self):
+        """Build the dataloader for inference.
+
+        Returns:
+            torch.utils.data.DataLoader: PyTorch DataLoader used for inference.
+        """
+        predict_loader = DataLoader(
+            self.predict_dataset,
+            num_workers=self.num_workers,
+            pin_memory=True,
+            persistent_workers=True
+        )
+        return predict_loader

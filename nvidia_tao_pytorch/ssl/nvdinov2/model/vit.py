@@ -90,6 +90,7 @@ class DinoV2VisionTransformer(VisionTransformer):
         norm_layer: Type[nn.Module] = nn.LayerNorm,
         act_layer: Type[nn.Module] = nn.SiLU,
         mlp_layer: Type[nn.Module] = Mlp,
+        use_custom_attention: bool = True,
         **kwargs,
     ):
         """
@@ -113,6 +114,7 @@ class DinoV2VisionTransformer(VisionTransformer):
             norm_layer (Type[nn.Module]): Normalization layer to use. Default is nn.LayerNorm.
             act_layer (Type[nn.Module]): Activation layer to use. Default is nn.SiLU.
             mlp_layer (Type[nn.Module]): MLP layer to use. Default is Mlp.
+            use_custom_attention (bool): Whether to use memory_efficient_attention.
             **kwargs: Additional keyword arguments for the parent class.
         """
         assert block_fn in [NestedTensorBlock, DropPathBlock], f"Invalid block_fn: {block_fn}. Must be one of [NestedTensorBlock, DropPathBlock]."
@@ -164,6 +166,7 @@ class DinoV2VisionTransformer(VisionTransformer):
                 norm_layer=norm_layer,
                 act_layer=act_layer,
                 mlp_layer=mlp_layer,
+                use_custom_attention=use_custom_attention
             )
             for i in range(depth)])
 
