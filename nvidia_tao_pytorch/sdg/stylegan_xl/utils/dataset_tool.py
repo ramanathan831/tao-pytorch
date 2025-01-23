@@ -21,7 +21,6 @@ import io
 import json
 import os
 import re
-import sys
 import zipfile
 from pathlib import Path
 from typing import Callable, Optional, Tuple, Union
@@ -32,6 +31,7 @@ import PIL.Image
 from tqdm import tqdm
 
 from nvidia_tao_pytorch.core.tlt_logging import logging
+import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
 
 
 def error(msg):
@@ -41,7 +41,11 @@ def error(msg):
         msg (str): The error message to display.
     """
     logging.error(msg)
-    sys.exit(1)
+    status_logging.get_status_logger().write(
+        message=msg,
+        status_level=status_logging.Status.FAILURE
+    )
+    raise Exception(msg)
 
 
 def parse_tuple(s: str) -> Tuple[int, int]:
