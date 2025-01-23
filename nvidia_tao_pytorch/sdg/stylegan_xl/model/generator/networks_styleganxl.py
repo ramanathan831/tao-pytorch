@@ -894,6 +894,25 @@ class Generator(torch.nn.Module):
         img = self.synthesis(ws, update_emas=update_emas, **synthesis_kwargs)
         return img
 
+    def onnx_forward(self, z, labels):
+        """Get the dlatent from a list of random seeds, using the truncation trick (this could be optional)."""
+        truncation_psi = 1.0  # fixed truncation_psi TODO parameterize?
+        if self.c_dim != 0:
+            # sample random labels if no class idx is given
+            class_indices = torch.argmax(labels, dim=-1)
+            w_avg = self.mapping.w_avg.index_select(0, class_indices)
+        else:
+            w_avg = self.mapping.w_avg.unsqueeze(0)
+
+        w = self.mapping(z, labels)
+
+        w_avg = w_avg.unsqueeze(1).repeat(1, self.mapping.num_ws, 1)
+        w = w_avg + (w - w_avg) * truncation_psi
+
+        images = self.synthesis(w)
+
+        return images
+
 
 class SuperresGenerator(torch.nn.Module):
     """Super-resolution Generator Network."""
