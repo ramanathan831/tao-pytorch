@@ -14,10 +14,10 @@ model:
 
 dataset:
   train_dataset:
-    images_dir: /tao-pt/tao-experiments/data/COCO2017/train2017
+    images_dir: /tao-pt/tao-experiments/data/cats_dogs_dataset/training_set/training_set/cats
   batch_size: 16
   workers: 10
 
 inference:
-  checkpoint: /tao-pt/tao-experiments/result/nvdinov2/train/teacher_step_000000010.pth
+  checkpoint: /tao-pt/tao-experiments/result/nvdinov2/train/teacher_epoch_002_step_00600.pth
   results_dir: ${results_dir}/inference
