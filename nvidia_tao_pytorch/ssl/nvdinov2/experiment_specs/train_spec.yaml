@@ -14,7 +14,7 @@ model:
 
 dataset:
   train_dataset:
-    images_dir: /tao-pt/tao-experiments/data/COCO2017/train2017
+    images_dir: /tao-pt/tao-experiments/data/cats_dogs_dataset/training_set/training_set/cats
   batch_size: 16
   workers: 10
   transform:
@@ -30,9 +30,8 @@ train:
   pretrained_model_path: /tao-pt/tao-experiments/pretrained_models/nv_dinov2_classification_model.ckpt
   num_nodes: 1
   num_gpus: 1
-  checkpoint_step_interval: 10
-  num_epochs: 100
-  max_steps: 2500000
+  num_epochs: 10
+  checkpoint_interval: 1
   layerwise_decay: 1.0
   clip_grad_norm: 3.0
   optim:

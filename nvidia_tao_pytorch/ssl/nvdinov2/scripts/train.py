@@ -32,7 +32,6 @@ def run_experiment(experiment_config, key):
     resume_ckpt, trainer_kwargs = initialize_train_experiment(experiment_config, key)
 
     num_nodes = experiment_config.train.num_nodes
-    max_steps = experiment_config.train.max_steps
 
     # Load pretrained model as starting point if pretrained path is provided
     pretrained_path = experiment_config.train.pretrained_model_path
@@ -49,7 +48,6 @@ def run_experiment(experiment_config, key):
 
     trainer = Trainer(**trainer_kwargs,
                       num_nodes=num_nodes,
-                      max_steps=max_steps,
                       strategy='auto',
                       precision=precision,
                       use_distributed_sampler=True,

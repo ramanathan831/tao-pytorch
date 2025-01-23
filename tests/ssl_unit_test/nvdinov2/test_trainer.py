@@ -30,12 +30,6 @@ from nvidia_tao_core.config.nvdinov2.default_config import ExperimentConfig
 from nvidia_tao_pytorch.ssl.nvdinov2.model.pl_model import DinoV2PlModel
 from nvidia_tao_pytorch.ssl.nvdinov2.dataloader.pl_dinov2_data_module import DinoV2DataModule
 
-
-SAMPLES = 10
-BATCH_SIZE = 2
-IMAGE_WIDTH = 112
-IMAGE_HEIGHT = 112
-
 BATCH_SIZE = 2
 IMAGE_WIDTH = 128
 IMAGE_HEIGHT = 128
@@ -62,8 +56,7 @@ def _test_exp_spec(_test_dir_obj):
     experiment_config.results_dir = _test_dir_obj.name
     experiment_config.train.num_gpus = 1
     experiment_config.train.num_nodes = 1
-    experiment_config.train.num_epochs = 1
-    experiment_config.train.max_steps = 50
+    experiment_config.train.num_epochs = 3
     yield experiment_config
 
 @pytest.mark.skipif(
@@ -82,7 +75,6 @@ def test_trainer_fit(_test_dir_obj, _test_exp_spec):
     trainer = Trainer(devices=_test_exp_spec.train.num_gpus,
                       num_nodes=_test_exp_spec.train.num_nodes,
                       max_epochs=_test_exp_spec.train.num_epochs,
-                      max_steps=_test_exp_spec.train.max_steps,
                       check_val_every_n_epoch=_test_exp_spec.train.validation_interval,
                       default_root_dir=_test_exp_spec.results_dir,
                       accelerator='gpu',

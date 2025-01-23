@@ -34,6 +34,7 @@ import pandas as pd
 
 from nvidia_tao_pytorch.ssl.nvdinov2.model.loss import DinoV2Loss, KoLeoLoss
 from nvidia_tao_pytorch.core.callbacks.loggers import TAOStatusLogger
+from nvidia_tao_pytorch.core.callbacks.model_checkpoint import TAOExceptionCheckpoint
 from nvidia_tao_pytorch.core.lightning.tao_lightning_module import TAOLightningModule
 import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
 from nvidia_tao_pytorch.ssl.nvdinov2.model.vit import DinoV2VisionTransformer, SwiGLUFused
@@ -80,8 +81,8 @@ class CustomModelCheckpoint(ModelCheckpoint):
             elif "teacher.backbone." in k:
                 teacher_state_dict[k_save] = v
 
-        torch.save(student_state_dict, os.path.join(trainer.default_root_dir, f'student_step_{trainer.global_step:09d}' + self.FILE_EXTENSION))
-        torch.save(teacher_state_dict, os.path.join(trainer.default_root_dir, f'teacher_step_{trainer.global_step:09d}' + self.FILE_EXTENSION))
+        torch.save(student_state_dict, os.path.join(trainer.default_root_dir, f'student_epoch_{trainer.current_epoch:03d}_step_{trainer.global_step:05d}' + self.FILE_EXTENSION))
+        torch.save(teacher_state_dict, os.path.join(trainer.default_root_dir, f'teacher_epoch_{trainer.current_epoch:03d}_step_{trainer.global_step:05d}' + self.FILE_EXTENSION))
 
         self._last_global_step_saved = trainer.global_step
         self._last_checkpoint_saved = filepath
@@ -847,21 +848,12 @@ class DinoV2PlModel(TAOLightningModule):
             Sequence[Callback] | pl.Callback: List of configured callbacks.
         """
         results_dir = self.experiment_spec["results_dir"]
-        checkpoint_step_interval = self.experiment_spec["train"]["checkpoint_step_interval"]
+        checkpoint_interval = self.experiment_spec["train"]["checkpoint_interval"]
 
         status_logger_callback = TAOStatusLogger(
             results_dir,
             append=True,
         )
-
-        resume_ckpt = self.experiment_spec["train"]["resume_training_checkpoint_path"]
-        if resume_ckpt:
-            resumed_step = re.search('step_(\\d+)', resume_ckpt)
-            if resumed_step:
-                resumed_step = int(resumed_step.group(1))
-        else:
-            resumed_step = 0
-        status_logger_callback.step_counter = resumed_step + 1
 
         CustomModelCheckpoint.FILE_EXTENSION = ".pth"
         CustomModelCheckpoint.CHECKPOINT_EQUALS_CHAR = "_"
@@ -870,14 +862,19 @@ class DinoV2PlModel(TAOLightningModule):
             raise NotImplementedError("checkpoint_filename not set in __init__() of model")
         CustomModelCheckpoint.CHECKPOINT_NAME_LAST = f"{self.checkpoint_filename}_latest"
 
-        checkpoint_callback = CustomModelCheckpoint(
-            every_n_train_steps=checkpoint_step_interval,
-            dirpath=results_dir,
-            save_on_train_epoch_end=True,
-            monitor=None,
-            save_top_k=-1,
-            save_last='link',
-            filename='model_{step:09d}'
-        )
+        checkpoint_callback = CustomModelCheckpoint(every_n_epochs=checkpoint_interval,
+                                                    dirpath=results_dir,
+                                                    save_on_train_epoch_end=True,
+                                                    monitor=None,
+                                                    save_top_k=-1,
+                                                    save_last='link',
+                                                    filename='model_{epoch:03d}_{step:05d}',
+                                                    enable_version_counter=False
+                                                    )
 
-        return [status_logger_callback, checkpoint_callback]
+        # For now, we use our custom one since Lightning's callback for this is minimal
+        TAOExceptionCheckpoint.FILE_EXTENSION = ModelCheckpoint.FILE_EXTENSION
+        TAOExceptionCheckpoint.CHECKPOINT_NAME_LAST = ModelCheckpoint.CHECKPOINT_NAME_LAST
+        exception_checkpoint_callback = TAOExceptionCheckpoint(dirpath=results_dir)
+
+        return [status_logger_callback, checkpoint_callback, exception_checkpoint_callback]
