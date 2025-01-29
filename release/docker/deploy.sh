@@ -10,14 +10,18 @@ repository="nvstaging/tao/tao-toolkit-pyt"
 build_id="01"
 tag="v${tao_version}-pyt${pytorch_version}-py3-${build_id}"
 
-# Required for tao-core and tao-converter since they are submodules.
-git submodule update --init --recursive
-
 # Build parameters.
+SKIP_SUBMODULE_INIT="1"
 BUILD_DOCKER="0"
 BUILD_WHEEL="0"
 PUSH_DOCKER="0"
 FORCE="0"
+
+# Required for tao-core and tao-converter since they are submodules.
+if [ $SKIP_SUBMODULE_INIT = "0" ]; then
+    echo "Updating submodules ..."
+    git submodule update --init --recursive
+fi
 
 wheel_dir=${NV_TAO_PYTORCH_TOP}/dist
 

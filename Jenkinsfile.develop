@@ -38,7 +38,7 @@ spec:
       - name: DOCKER_TLS_CERTDIR
         value: ""
   - name: base-image
-    image: nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:6c85bf576405663e987840dffcc44eefd937f7d6172eea709ed251f4bdf9d325
+    image: nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:e951218337848bb79868c9afdda1c1796109c5e56019e96a76ec301ebf8f48fa
     securityContext:
       privileged: true
     command:
@@ -158,6 +158,12 @@ spec:
       }
 
       stage ("functional_tests") {
+        withCredentials([string(credentialsId: 'NGC_CLI_API_KEY_SVC_TLT_CI', variable: 'NGC_CLI_API_KEY')]) {
+          script{
+            env.NGC_KEY=NGC_CLI_API_KEY
+            env.NGC_PATH='ea-tlt/tao_ea/pretrained_dino_imagenet:fan_hybrid_tiny'
+          }
+        }
         gitlabCommitStatus(name: "functional_tests", connection: gitLabConnection('git-lab-master')) {
           sh "python3 setup.py develop"
           sh "${command_env} cd tao-core && python setup.py develop && cd .."
