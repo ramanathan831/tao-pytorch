@@ -28,7 +28,7 @@ from nvidia_tao_pytorch.sdg.stylegan_xl.model.sx_pl_model import StyleganPlModel
 BATCH_SIZE = 2
 UP_FACTOR_LIST = [2, 4]
 HEAD_LAYERS_LIST = [3, 7]
-STEM_RESOLUTION = 16
+STEM_RESOLUTION = 128
 
 
 @pytest.fixture
