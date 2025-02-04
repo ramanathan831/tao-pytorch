@@ -12,12 +12,6 @@ model:
     hidden_dim: 2048
     bottleneck_dim: 384
 
-dataset:
-  train_dataset:
-    images_dir: /tao-pt/tao-experiments/data/cats_dogs_dataset/training_set/training_set/cats
-  batch_size: 16
-  workers: 10
-
 export:
   results_dir: "${results_dir}/export"
   gpu_id: 0
