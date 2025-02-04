@@ -13,7 +13,7 @@ model:
     bottleneck_dim: 384
 
 dataset:
-  train_dataset:
+  test_dataset:
     images_dir: /tao-pt/tao-experiments/data/cats_dogs_dataset/training_set/training_set/cats
   batch_size: 16
   workers: 10

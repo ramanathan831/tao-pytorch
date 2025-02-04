@@ -41,7 +41,8 @@ class DinoV2DataModule(pl.LightningDataModule):
         self.dataset_config = self.experiment_config.dataset
         self.batch_size = self.dataset_config["batch_size"]
         self.num_workers = self.dataset_config["workers"]
-        self.root_dir = self.dataset_config.train_dataset["images_dir"]
+        self.train_image_dir = self.dataset_config.train_dataset["images_dir"]
+        self.test_image_dir = self.dataset_config.test_dataset["images_dir"]
         self.patch_size = self.experiment_config.model.backbone["patch_size"]
 
     def setup(self, stage: Optional[str] = None):
@@ -74,7 +75,7 @@ class DinoV2DataModule(pl.LightningDataModule):
             )
 
             self.train_dataset = DinoV2Dataset(
-                root=self.root_dir,
+                root=self.train_image_dir,
                 transform=transform,
                 train=True
             )
@@ -92,7 +93,7 @@ class DinoV2DataModule(pl.LightningDataModule):
             ])
 
             self.predict_dataset = DinoV2Dataset(
-                root=self.root_dir,
+                root=self.test_image_dir,
                 transform=transform,
                 train=False
             )

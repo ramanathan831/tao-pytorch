@@ -111,6 +111,8 @@ def _test_exp_spec(_test_dir_obj):
     experiment_config.dataset.common.num_classes = SAMPLES
     experiment_config.dataset.common.img_channels = IMAGE_CHANNEL
     experiment_config.model.stylegan.metrics.num_fake_imgs = SAMPLES
+    experiment_config.dataset.common.img_resolution = STEM_RESOLUTION
+    experiment_config.model.generator.stem.resolution = STEM_RESOLUTION
     yield experiment_config
 
 

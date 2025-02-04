@@ -36,6 +36,7 @@ def _test_exp_spec():
     experiment_config = OmegaConf.structured(ExperimentConfig())
     experiment_config.model.generator.superres=False
     experiment_config.dataset.common.img_resolution=STEM_RESOLUTION
+    experiment_config.model.generator.stem.resolution=STEM_RESOLUTION
     yield experiment_config
 
 
