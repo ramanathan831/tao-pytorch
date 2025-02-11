@@ -217,6 +217,7 @@ spec_root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 )
 def main(cfg: ExperimentConfig) -> None:
     """Main function."""
+    torch.multiprocessing.set_start_method('spawn')
     logger = common_utils.create_logger()
     logger.info('Exporting the model...')
     gpu_id = cfg.export.gpu_id or 0

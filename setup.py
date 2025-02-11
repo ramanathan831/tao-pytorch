@@ -90,6 +90,14 @@ setuptools.setup(
     cmdclass={'build_ext': BuildExtension},
     ext_modules=[
         utils.make_cuda_ext(
+            name='voxel_generator_cuda',
+            module='nvidia_tao_pytorch.pointcloud.pointpillars.pcdet.ops.voxel_generator',
+            sources=[
+                'src/voxel_generator.cpp',
+                'src/voxel_generator_kernel.cu',
+            ]
+        ),
+        utils.make_cuda_ext(
             name='iou3d_nms_cuda',
             module='nvidia_tao_pytorch.pointcloud.pointpillars.pcdet.ops.iou3d_nms',
             sources=[
