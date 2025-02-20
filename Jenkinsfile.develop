@@ -166,7 +166,7 @@ spec:
         }
         gitlabCommitStatus(name: "functional_tests", connection: gitLabConnection('git-lab-master')) {
           sh "python3 setup.py develop"
-          sh "${command_env} cd tao-core && python setup.py develop && cd .."
+          sh "${command_env} cd tao-core && pip install -e . && cd .."
           sh "${command_env} python3 ci/run_functional_tests.py"
         }
       }
@@ -193,7 +193,7 @@ spec:
       }
 
     }
-    
+
     container("docker"){
       // stage ('wheeltamer_tests') {
       //   gitlabCommitStatus(name: "wheeltamer_tests", connection: gitLabConnection('git-lab-master')) {
@@ -258,7 +258,7 @@ spec:
       //     }
       //   }
       // }
-      
+
     }
   }
 }
