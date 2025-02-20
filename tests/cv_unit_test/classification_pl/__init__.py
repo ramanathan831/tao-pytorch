@@ -12,13 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-""" RADIO ViT Model Module """
-
-from nvidia_tao_pytorch.cv.classification_pl.model.backbones.radio import CRadioP1VitHugePatch16Mlpnorm, CRadioP2VitHugePatch16Mlpnorm, CRadioP3VitHugePatch16Mlpnorm
-
-
-radio_model_dict = {
-    'c_radio_p1_vit_huge_patch16_224_mlpnorm': CRadioP1VitHugePatch16Mlpnorm,
-    'c_radio_p2_vit_huge_patch16_224_mlpnorm': CRadioP2VitHugePatch16Mlpnorm,
-    'c_radio_p3_vit_huge_patch16_224_mlpnorm': CRadioP3VitHugePatch16Mlpnorm
-}
+"""classification_pl Unit Tests"""

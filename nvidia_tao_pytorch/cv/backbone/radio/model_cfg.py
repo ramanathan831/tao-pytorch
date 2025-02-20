@@ -35,5 +35,26 @@ radio_model_cfg = {
         "num_teacher": 4,
         "cpe_max_size": 2048,
         "register_multiple": 16
+    },
+    "c_radio_v2_vit_base_patch16_224": {
+        "summary_idxs": [0, 1, 2],
+        "window_size": None,
+        "num_teacher": 4,
+        "cpe_max_size": 2048,
+        "register_multiple": 8
+    },
+    "c_radio_v2_vit_large_patch16_224": {
+        "summary_idxs": [0, 1, 2],
+        "window_size": None,
+        "num_teacher": 4,
+        "cpe_max_size": 2048,
+        "register_multiple": 8
+    },
+    "c_radio_v2_vit_huge_patch16_224": {
+        "summary_idxs": [0, 1, 2],
+        "window_size": None,
+        "num_teacher": 4,
+        "cpe_max_size": 2048,
+        "register_multiple": 8
     }
 }

@@ -8,18 +8,15 @@ import torchvision.models as torch_model
 
 import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
 from nvidia_tao_pytorch.cv.ml_recog.model.dinov2_legacy import vit_large_patch14_dinov2_swiglu_legacy
-from nvidia_tao_pytorch.cv.classification.models.fan import (fan_base_16_p4_hybrid,
-                                                             fan_large_16_p4_hybrid,
-                                                             fan_small_12_p4_hybrid,
-                                                             fan_tiny_8_p4_hybrid)
+from nvidia_tao_pytorch.cv.classification_pl.model.backbones.fan import FanBase16P4Hybrid, FanLarge16P4Hybrid, FanSmall12P4Hybrid, FanTiny8P4Hybrid
 
 
 mlrecog_backbone_dict = {
     "nvdinov2_vit_large_legacy": vit_large_patch14_dinov2_swiglu_legacy,
-    "fan_tiny": fan_tiny_8_p4_hybrid,
-    "fan_small": fan_small_12_p4_hybrid,
-    "fan_base": fan_base_16_p4_hybrid,  # input size does not matter
-    "fan_large": fan_large_16_p4_hybrid,
+    "fan_tiny": FanTiny8P4Hybrid,
+    "fan_small": FanSmall12P4Hybrid,
+    "fan_base": FanBase16P4Hybrid,  # input size does not matter
+    "fan_large": FanLarge16P4Hybrid,
     "resnet_50": torch_model.resnet50,
     "resnet_101": torch_model.resnet101,
 }

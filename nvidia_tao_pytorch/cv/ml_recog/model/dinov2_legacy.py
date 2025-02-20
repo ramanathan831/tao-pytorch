@@ -8,7 +8,7 @@ from timm.models.vision_transformer import (
     checkpoint_filter_fn,
 )
 from timm.layers import (PatchEmbed, SwiGLUPacked)
-from nvidia_tao_pytorch.cv.classification.models.dinov2_vit import DinoV2ViT
+from nvidia_tao_pytorch.cv.classification_pl.model.backbones.dinov2_vit import DinoV2ViT
 
 
 def vit_large_patch14_dinov2_swiglu_legacy(**kwargs) -> VisionTransformer:

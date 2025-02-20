@@ -1,0 +1,248 @@
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""
+SegFormer_PL Trainer Unit Tests
+"""
+import os
+import torch
+import pytest
+import tempfile
+import numpy as np
+import pandas as pd
+from PIL import Image
+
+from omegaconf import OmegaConf
+from pytorch_lightning import Trainer
+
+from nvidia_tao_pytorch.core.utilities import check_and_create
+from nvidia_tao_core.config.classification_pl.default_config import ExperimentConfig
+from nvidia_tao_pytorch.cv.classification_pl.dataloader.pl_classification_data_module import CLDataModule
+from nvidia_tao_pytorch.cv.classification_pl.model.classifier_pl_model import ClassifierPlModel
+
+FAST_DEV_RUN = 2
+tmp_top_obj = tempfile.TemporaryDirectory()
+tmp_top_dir = tmp_top_obj.name
+SAMPLES = 10
+BATCH_SIZE = 2
+NUM_CLASSES = 10
+INPUT_SHAPE = 512
+OUTPUT_SHAPE = 224
+DATASET = 'CLDataset'
+
+@pytest.fixture
+def _test_dir():
+    # set this in data_prefix
+    splits = ['train', 'val', 'test']
+    img_paths = []
+
+    if not os.path.exists(tmp_top_dir):
+        os.makedirs(tmp_top_dir)
+    tmp_img_dir = os.path.join(tmp_top_dir)
+    check_and_create(tmp_img_dir)
+
+    # write the class.txt to tmp_img_dir, which consists of class names
+    class_file = os.path.join(tmp_img_dir, 'classes.txt')
+    with open(class_file, 'w') as f:
+        for i in range(NUM_CLASSES):
+            f.write(str(i) + '\n')
+
+    for split in splits:
+        tmp_split_img_dir = os.path.join(tmp_img_dir, split)
+        check_and_create(tmp_split_img_dir)
+        img_paths.append(tmp_split_img_dir)
+
+    #Input images
+    test_data = np.random.rand(INPUT_SHAPE, INPUT_SHAPE, 3) * 255
+    test_data = test_data.astype(np.uint8)
+    im = Image.fromarray(test_data)
+
+    total_samples = SAMPLES
+    for sample in range(total_samples):
+        for img_path in img_paths:
+            if 'test' in img_path:
+                im.save(os.path.join(img_path, str(sample)+'.png'))
+            else:
+                for class_id in range(NUM_CLASSES):
+                    class_dir = os.path.join(img_path, str(class_id))
+                    check_and_create(class_dir)
+                    # randomly scale the images
+                    scale1 = np.random.uniform(0.5, 1.5)
+                    scale2 = np.random.uniform(0.5, 1.5)
+                    im_resized = im.resize((int(INPUT_SHAPE*scale1), int(INPUT_SHAPE*scale2)))
+                    im_resized.save(os.path.join(class_dir, str(sample)+'.png'))
+
+# @pytest.fixture
+# def _train_spec():
+#     experiment_config = OmegaConf.structured(ExperimentConfig())
+#     experiment_config.dataset.segment.root_dir = tmp_top_dir
+#     experiment_config.dataset.segment.img_size = OUTPUT_SHAPE
+#     experiment_config.dataset.segment.dataset = DATASET
+#     experiment_config.dataset.segment.batch_size = BATCH_SIZE
+#     experiment_config.dataset.segment.num_classes = NUM_CLASSES
+#     experiment_config.results_dir = tmp_top_dir
+
+#     experiment_config.train.num_epochs = 1
+#     experiment_config.train.num_gpus = 1
+#     experiment_config.train.num_nodes = 1
+
+#     yield experiment_config
+
+@pytest.fixture
+def _train_spec():
+    experiment_config = OmegaConf.structured(ExperimentConfig())
+    experiment_config["dataset"]["root_dir"] = tmp_top_dir
+    experiment_config["dataset"]["train"]["data_prefix"] = "train"
+    experiment_config["dataset"]["val"]["data_prefix"] = "val"
+    experiment_config["dataset"]["test"]["data_prefix"] = "test"
+    experiment_config["dataset"]["dataset"] = DATASET
+    experiment_config["dataset"]["img_size"] = OUTPUT_SHAPE
+    experiment_config["dataset"]["batch_size"] = BATCH_SIZE
+    experiment_config["dataset"]["num_classes"] = NUM_CLASSES
+
+    experiment_config["results_dir"] = tmp_top_dir
+
+    experiment_config.train.num_epochs = 1
+    experiment_config.train.num_gpus = 1
+    experiment_config.train.num_nodes = 1
+
+    yield experiment_config
+
+@pytest.mark.cv_unit
+@pytest.mark.classification_pl
+@pytest.mark.train
+@pytest.mark.parametrize("backbone",
+                         [("fan_tiny_8_p4_hybrid"),
+                          ("fan_small_12_p4_hybrid"),
+                          ("fan_base_16_p4_hybrid"),
+                          ("fan_large_16_p4_hybrid"),
+                          ("fan_Xlarge_16_p4_hybrid"),
+                          ("fan_base_18_p16_224"),
+                          ("fan_tiny_12_p16_224"),
+                          ("fan_small_12_p16_224_se_attn"),
+                          ("fan_small_12_p16_224"),
+                          ("fan_large_24_p16_224"),
+                          ("vit_large_patch14_dinov2_swiglu"),
+                          ("vit_giant_patch14_reg4_dinov2_swiglu"),
+                          ("ViT-H-14-SigLIP-CLIPA-224"),
+                          ("ViT-L-14-SigLIP-CLIPA-336"),
+                          ("ViT-L-14-SigLIP-CLIPA-224"),
+                          ("c_radio_p1_vit_huge_patch16_mlpnorm"),
+                          ("c_radio_p2_vit_huge_patch16_mlpnorm"),
+                          ("c_radio_p3_vit_huge_patch16_mlpnorm"),
+                          ("c_radio_v2_vit_base_patch16"),
+                          ("c_radio_v2_vit_large_patch16"),
+                          ("c_radio_v2_vit_huge_patch16")])
+def test_trainer_fit(_test_dir, _train_spec, backbone):
+
+    _train_spec.model.backbone.type = backbone
+
+    dm = CLDataModule(_train_spec.dataset)
+    dm.setup(stage="fit")
+    model = ClassifierPlModel(_train_spec)
+
+    trainer = Trainer(devices=_train_spec.train.num_gpus,
+                    num_nodes=_train_spec.train.num_nodes,
+                    default_root_dir=_train_spec.results_dir,
+                    accelerator='gpu',
+                    strategy='auto',
+                    precision='32-true',
+                    fast_dev_run=FAST_DEV_RUN)
+
+    # Test train
+    trainer.fit(model, dm)
+
+
+@pytest.mark.cv_unit
+@pytest.mark.segformer_pl
+@pytest.mark.evaluate
+@pytest.mark.parametrize("backbone",
+                         [("fan_tiny_8_p4_hybrid"),
+                          ("fan_small_12_p4_hybrid"),
+                          ("fan_base_16_p4_hybrid"),
+                          ("fan_large_16_p4_hybrid"),
+                          ("fan_Xlarge_16_p4_hybrid"),
+                          ("fan_base_18_p16_224"),
+                          ("fan_tiny_12_p16_224"),
+                          ("fan_small_12_p16_224_se_attn"),
+                          ("fan_small_12_p16_224"),
+                          ("fan_large_24_p16_224"),
+                          ("vit_large_patch14_dinov2_swiglu"),
+                          ("vit_giant_patch14_reg4_dinov2_swiglu"),
+                          ("ViT-H-14-SigLIP-CLIPA-224"),
+                          ("ViT-L-14-SigLIP-CLIPA-336"),
+                          ("ViT-L-14-SigLIP-CLIPA-224"),
+                          ("c_radio_p1_vit_huge_patch16_mlpnorm"),
+                          ("c_radio_p2_vit_huge_patch16_mlpnorm"),
+                          ("c_radio_p3_vit_huge_patch16_mlpnorm"),
+                          ("c_radio_v2_vit_base_patch16"),
+                          ("c_radio_v2_vit_large_patch16"),
+                          ("c_radio_v2_vit_huge_patch16")])
+def test_trainer_evaluate(_test_dir, _train_spec, backbone):
+
+    _train_spec.model.backbone.type = backbone
+
+    dm = CLDataModule(_train_spec.dataset)
+    dm.setup(stage="test")
+    model = ClassifierPlModel(_train_spec)
+
+    trainer = Trainer(devices=_train_spec.train.num_gpus,
+                      default_root_dir=_train_spec.results_dir,
+                      accelerator='auto',
+                      fast_dev_run=FAST_DEV_RUN)
+
+    trainer.test(model, datamodule=dm)
+
+
+@pytest.mark.cv_unit
+@pytest.mark.segformer_pl
+@pytest.mark.inference
+@pytest.mark.parametrize("backbone",
+                         [("fan_tiny_8_p4_hybrid"),
+                          ("fan_small_12_p4_hybrid"),
+                          ("fan_base_16_p4_hybrid"),
+                          ("fan_large_16_p4_hybrid"),
+                          ("fan_Xlarge_16_p4_hybrid"),
+                          ("fan_base_18_p16_224"),
+                          ("fan_tiny_12_p16_224"),
+                          ("fan_small_12_p16_224_se_attn"),
+                          ("fan_small_12_p16_224"),
+                          ("fan_large_24_p16_224"),
+                          ("vit_large_patch14_dinov2_swiglu"),
+                          ("vit_giant_patch14_reg4_dinov2_swiglu"),
+                          ("ViT-H-14-SigLIP-CLIPA-224"),
+                          ("ViT-L-14-SigLIP-CLIPA-336"),
+                          ("ViT-L-14-SigLIP-CLIPA-224"),
+                          ("c_radio_p1_vit_huge_patch16_mlpnorm"),
+                          ("c_radio_p2_vit_huge_patch16_mlpnorm"),
+                          ("c_radio_p3_vit_huge_patch16_mlpnorm"),
+                          ("c_radio_v2_vit_base_patch16"),
+                          ("c_radio_v2_vit_large_patch16"),
+                          ("c_radio_v2_vit_huge_patch16")])
+def test_trainer_infer(_test_dir, _train_spec, backbone):
+
+    _train_spec.model.backbone.type = backbone
+
+    dm = CLDataModule(_train_spec.dataset)
+    dm.setup(stage="predict")
+    model = ClassifierPlModel(_train_spec)
+
+    trainer = Trainer(devices=_train_spec.train.num_gpus,
+                      default_root_dir=_train_spec.results_dir,
+                      accelerator='auto',
+                      fast_dev_run=FAST_DEV_RUN)
+
+    trainer.predict(model, datamodule=dm)
+
+    tmp_top_obj.cleanup()
