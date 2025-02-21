@@ -13,13 +13,14 @@
 # limitations under the License.
 
 """ RT-DETR Hybrid Encoder. """
-
+import os
 import copy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from nvidia_tao_pytorch.cv.dino.model.model_utils import _get_activation_fn
+from nvidia_tao_pytorch.cv.rtdetr.utils.misc import radio_model_dict
 
 
 class ConvNormLayer(nn.Module):
@@ -225,9 +226,17 @@ class HybridEncoder(nn.Module):
                  expansion=1.0,
                  depth_mult=1.0,
                  act='silu',
-                 eval_spatial_size=None):
+                 eval_spatial_size=None,
+                 frozen_fm_cfg=None):
         """Init function."""
         super().__init__()
+        if frozen_fm_cfg and frozen_fm_cfg.enabled:
+            if "radio" in frozen_fm_cfg.backbone:
+                encoder_ch = radio_model_dict[os.path.basename(frozen_fm_cfg.checkpoint)][0]
+                in_channels = in_channels + [encoder_ch]
+                feat_strides = feat_strides + [64]
+            else:
+                raise NotImplementedError("The backbone of the frozen FM must be `radio` for now.")
         self.in_channels = in_channels
         self.feat_strides = feat_strides
         self.hidden_dim = hidden_dim
@@ -241,7 +250,7 @@ class HybridEncoder(nn.Module):
 
         # channel projection
         self.input_proj = nn.ModuleList()
-        for in_channel in in_channels:
+        for in_channel in self.in_channels:
             self.input_proj.append(
                 nn.Sequential(
                     nn.Conv2d(in_channel, hidden_dim, kernel_size=1, bias=False),
@@ -264,7 +273,7 @@ class HybridEncoder(nn.Module):
         # top-down fpn
         self.lateral_convs = nn.ModuleList()
         self.fpn_blocks = nn.ModuleList()
-        for _ in range(len(in_channels) - 1, 0, -1):
+        for _ in range(len(self.in_channels) - 1, 0, -1):
             self.lateral_convs.append(ConvNormLayer(hidden_dim, hidden_dim, 1, 1, act=act))
             self.fpn_blocks.append(
                 CSPRepLayer(hidden_dim * 2, hidden_dim, round(3 * depth_mult), act=act, expansion=expansion)
@@ -273,7 +282,7 @@ class HybridEncoder(nn.Module):
         # bottom-up pan
         self.downsample_convs = nn.ModuleList()
         self.pan_blocks = nn.ModuleList()
-        for _ in range(len(in_channels) - 1):
+        for _ in range(len(self.in_channels) - 1):
             self.downsample_convs.append(
                 ConvNormLayer(hidden_dim, hidden_dim, 3, 2, act=act)
             )

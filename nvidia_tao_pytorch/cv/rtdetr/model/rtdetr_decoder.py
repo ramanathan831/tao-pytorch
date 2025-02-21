@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """RT-DETR Decoder."""
-
+import os
 import copy
 from collections import OrderedDict
 import math
@@ -28,6 +28,7 @@ from nvidia_tao_pytorch.cv.deformable_detr.utils.misc import inverse_sigmoid
 from nvidia_tao_pytorch.cv.dino.model.model_utils import MLP
 
 from nvidia_tao_pytorch.cv.rtdetr.model.denoising import get_contrastive_denoising_training_group
+from nvidia_tao_pytorch.cv.rtdetr.utils.misc import radio_model_dict
 
 
 def bias_init_with_prob(prior_prob=0.01):
@@ -116,13 +117,25 @@ class TransformerDecoderLayer(nn.Module):
 class TransformerDecoder(nn.Module):
     """Transfromer Decoder module."""
 
-    def __init__(self, hidden_dim, decoder_layer, num_layers, eval_idx=-1):
+    def __init__(self, hidden_dim, decoder_layer, num_layers, eval_idx=-1, frozen_fm_cfg=None):
         """ Initializes the Transformer Decoder Module """
         super(TransformerDecoder, self).__init__()
         self.layers = nn.ModuleList([copy.deepcopy(decoder_layer) for _ in range(num_layers)])
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
         self.eval_idx = eval_idx if eval_idx >= 0 else num_layers + eval_idx
+
+        self.frozen_fm_cfg = frozen_fm_cfg
+        if frozen_fm_cfg and frozen_fm_cfg.enabled:
+            if "radio" in frozen_fm_cfg.backbone:
+                self.radio_dim = radio_model_dict[os.path.basename(frozen_fm_cfg.checkpoint)][1]
+                self.image_query_proj = nn.ModuleList()
+                self.image_query_norm = nn.ModuleList()
+                for _ in range(num_layers):
+                    self.image_query_proj.append(nn.Linear(self.radio_dim, hidden_dim))
+                    self.image_query_norm.append(nn.LayerNorm(hidden_dim))
+            else:
+                raise NotImplementedError("The backbone of the frozen FM must be `radio` for now.")
 
     def forward(self,
                 tgt,
@@ -134,20 +147,46 @@ class TransformerDecoder(nn.Module):
                 score_head,
                 query_pos_head,
                 attn_mask=None,
-                memory_mask=None):
+                memory_mask=None,
+                image_query=None):
         """ Transformer Decoder forward function."""
         output = tgt
         dec_out_bboxes = []
         dec_out_logits = []
         ref_points_detach = F.sigmoid(ref_points_unact)
+        b, nq, _ = ref_points_detach.shape  # 1, 300, 4
+
         ref_points = None
         for i, layer in enumerate(self.layers):
+            ###################################################################
+            # begin global query
+            ###################################################################
+            if self.frozen_fm_cfg and self.frozen_fm_cfg.enabled:
+                assert image_query is not None, "Image query is not defined."
+                image_query_per_layer = self.image_query_norm[i](self.image_query_proj[i](image_query))
+                image_query_ref = torch.tile(torch.Tensor([0.5, 0.5, 1.0, 1.0]), [b, 1, 1]).to(output.device)  # TODO(@yuw): (b, 1, 1) --> (1, 1, 1) for export
+                output = torch.cat([output, image_query_per_layer], dim=1)
+                ref_points_detach = torch.cat([ref_points_detach, image_query_ref], dim=1)
+            ###################################################################
+            # end global query
+            ###################################################################
+
             ref_points_input = ref_points_detach.unsqueeze(2)
             query_pos_embed = query_pos_head(ref_points_detach)
 
             output = layer(output, ref_points_input, memory,
                            memory_spatial_shapes, memory_level_start_index,
                            attn_mask, memory_mask, query_pos_embed)
+
+            ###################################################################
+            # begin global query
+            ###################################################################
+            if self.frozen_fm_cfg and self.frozen_fm_cfg.enabled:
+                output = output[:, :nq, :]
+                ref_points_detach = ref_points_detach[:, :nq, :]
+            ###################################################################
+            # end global query
+            ###################################################################
 
             inter_ref_bbox = F.sigmoid(bbox_head[i](output) + inverse_sigmoid(ref_points_detach))
 
@@ -194,12 +233,13 @@ class RTDETRTransformer(nn.Module):
                  eval_spatial_size=None,
                  eval_idx=-1,
                  eps=1e-2,
-                 aux_loss=True):
+                 aux_loss=True,
+                 frozen_fm_cfg=None):
         """Initialize Encoder-Decoder Class for RT-DETR."""
         super(RTDETRTransformer, self).__init__()
         assert position_embed_type in ['sine', 'learned'], \
             f'ValueError: position_embed_type not supported {position_embed_type}!'
-        assert len(feat_channels) <= num_levels
+        assert len(feat_channels) <= num_levels, f"length of {feat_channels} should be no greater than {num_levels}"
         assert len(feat_strides) == len(feat_channels), f"{feat_strides} {feat_channels}"
         for _ in range(num_levels - len(feat_strides)):
             feat_strides.append(feat_strides[-1] * 2)
@@ -214,13 +254,13 @@ class RTDETRTransformer(nn.Module):
         self.num_decoder_layers = num_decoder_layers
         self.eval_spatial_size = eval_spatial_size
         self.aux_loss = aux_loss
-
+        self.frozen_fm_cfg = frozen_fm_cfg
         # backbone feature projection
         self._build_input_proj_layer(feat_channels)
 
         # Transformer module
         decoder_layer = TransformerDecoderLayer(hidden_dim, nhead, dim_feedforward, dropout, activation, num_levels, num_decoder_points)
-        self.decoder = TransformerDecoder(hidden_dim, decoder_layer, num_decoder_layers, eval_idx)
+        self.decoder = TransformerDecoder(hidden_dim, decoder_layer, num_decoder_layers, eval_idx, frozen_fm_cfg)
 
         self.num_denoising = num_denoising
         self.label_noise_ratio = label_noise_ratio
@@ -421,7 +461,7 @@ class RTDETRTransformer(nn.Module):
 
         return target, reference_points_unact.detach(), enc_topk_bboxes, enc_topk_logits, scores_per_img
 
-    def forward(self, feats, targets=None):
+    def forward(self, feats, targets=None, image_query=None):
         """Forward function."""
         # input projection and embedding
         (memory, spatial_shapes, level_start_index) = self._get_encoder_input(feats)
@@ -436,7 +476,8 @@ class RTDETRTransformer(nn.Module):
                     self.denoising_class_embed,
                     num_denoising=self.num_denoising,
                     label_noise_ratio=self.label_noise_ratio,
-                    box_noise_scale=self.box_noise_scale
+                    box_noise_scale=self.box_noise_scale,
+                    frozen_fm_cfg=self.frozen_fm_cfg
                 )
         else:
             denoising_class, denoising_bbox_unact, attn_mask, dn_meta = None, None, None, None
@@ -458,7 +499,8 @@ class RTDETRTransformer(nn.Module):
             self.dec_bbox_head,
             self.dec_score_head,
             self.query_pos_head,
-            attn_mask=attn_mask)
+            attn_mask=attn_mask,
+            image_query=image_query)
 
         if self.training and dn_meta is not None:
             dn_out_bboxes, out_bboxes = torch.split(out_bboxes, dn_meta['dn_num_split'], dim=2)
