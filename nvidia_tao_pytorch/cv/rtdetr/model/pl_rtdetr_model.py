@@ -232,9 +232,9 @@ class RTDETRPlModel(TAOLightningModule):
         """Training step."""
         data, targets, _ = batch
         batch_size = data.shape[0]
-
-        if self.experiment_spec.dataset.augmentation.multi_scales:
-            sz = random.choice(self.experiment_spec.dataset.augmentation.multi_scales)
+        multi_scales = self.experiment_spec.dataset.augmentation.multi_scales
+        if not self.experiment_spec.model.frozen_fm.enabled and multi_scales:
+            sz = random.choice(multi_scales)
             # Convert omegaconf listconfig when reading lists from the experiment config.
             if isinstance(sz, omegaconf.listconfig.ListConfig):
                 sz = OmegaConf.to_object(sz)

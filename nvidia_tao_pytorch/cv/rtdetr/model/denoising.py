@@ -26,7 +26,8 @@ def get_contrastive_denoising_training_group(targets,
                                              class_embed,
                                              num_denoising=100,
                                              label_noise_ratio=0.5,
-                                             box_noise_scale=1.0,):
+                                             box_noise_scale=1.0,
+                                             frozen_fm_cfg=None):
     """Get Contrastive denoising training group based on the targets."""
     if num_denoising <= 0:
         return None, None, None, None
@@ -90,6 +91,8 @@ def get_contrastive_denoising_training_group(targets,
     input_query_class = class_embed(input_query_class)
 
     tgt_size = num_denoising + num_queries
+    if frozen_fm_cfg and frozen_fm_cfg.enabled:
+        tgt_size += 1
     attn_mask = torch.full([tgt_size, tgt_size], False, dtype=torch.bool, device=device)
 
     # match query cannot see the reconstruction

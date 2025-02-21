@@ -62,6 +62,7 @@ class RTDETRModel(nn.Module):
                  eval_idx=-1,
                  multi_scale=[480, 512, 544, 576, 608, 640, 640, 640, 672, 704, 736, 768, 800],
                  activation_checkpoint=False,
+                 frozen_fm_cfg=None,
                  ):
         """Initialize RT-DETR Model."""
         super().__init__()
@@ -130,6 +131,7 @@ class RTDETRModel(nn.Module):
             depth_mult=depth_mult,
             act=act,
             eval_spatial_size=eval_spatial_size,
+            frozen_fm_cfg=frozen_fm_cfg,
         )
 
         decoder = RTDETRTransformer(
@@ -143,6 +145,7 @@ class RTDETRModel(nn.Module):
             eval_idx=eval_idx,
             eval_spatial_size=eval_spatial_size,
             num_classes=num_classes,
+            frozen_fm_cfg=frozen_fm_cfg,
         )
 
         self.model = RTDETR(
@@ -150,6 +153,7 @@ class RTDETRModel(nn.Module):
             encoder=encoder,
             decoder=decoder,
             multi_scale=multi_scale,
+            frozen_fm_cfg=frozen_fm_cfg,
         )
 
     def forward(self, x, targets=None):
@@ -199,6 +203,7 @@ def build_model(experiment_config,
     feat_channels = model_config.feat_channels
     feat_strides = model_config.feat_strides
     eval_idx = model_config.eval_idx
+    frozen_fm_cfg = model_config.frozen_fm
 
     activation_checkpoint = experiment_config.train.activation_checkpoint
 
@@ -232,5 +237,7 @@ def build_model(experiment_config,
         num_denoising=num_denoising,
         eval_idx=eval_idx,
         activation_checkpoint=activation_checkpoint,
+        # frozen FM
+        frozen_fm_cfg=frozen_fm_cfg
     )
     return model

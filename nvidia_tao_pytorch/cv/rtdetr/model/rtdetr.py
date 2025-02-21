@@ -13,26 +13,53 @@
 # limitations under the License.
 
 """ RT-DETR model. """
-
+import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class RTDETR(nn.Module):
     """RT-DETR Module."""
 
-    def __init__(self, backbone: nn.Module, encoder, decoder, multi_scale=None):
+    def __init__(self, backbone: nn.Module, encoder, decoder, multi_scale=None, frozen_fm_cfg=None):
         """Init function."""
         super().__init__()
         self.backbone = backbone
         self.decoder = decoder
         self.encoder = encoder
         self.multi_scale = multi_scale
+        self.frozen_fm_cfg = frozen_fm_cfg
+        if frozen_fm_cfg and frozen_fm_cfg.enabled:
+            if "radio" in frozen_fm_cfg.backbone:
+                model_version = frozen_fm_cfg.checkpoint
+                self.frozen_radio = torch.hub.load('NVlabs/RADIO', 'radio_model', version=model_version, progress=True, skip_validation=True)
+                self.frozen_radio.float()
+                self.frozen_radio.eval().cuda()
+                self.maxpool = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
+                for _, param in self.frozen_radio.named_parameters():
+                    param.requires_grad = False
+            else:
+                raise NotImplementedError("The backbone of the frozen FM must be `radio` for now.")
 
     def forward(self, x, targets=None):
         """Forward function."""
+        if self.frozen_fm_cfg and self.frozen_fm_cfg.enabled:
+            b, _, h, w = x.shape
+            x_down = F.interpolate(x, size=[h // 2, w // 2])
+            with torch.no_grad():
+                summary, spatial_features = self.frozen_radio(x_down)
+            spatial_features = spatial_features.view(b, 20, 20, -1).permute(0, 3, 1, 2)
+            spatial_features = self.maxpool(spatial_features)
+
         feats = self.backbone(x)
-        x, proj_feats = self.encoder(feats)
-        x = self.decoder(x, targets)
+        if self.frozen_fm_cfg and self.frozen_fm_cfg.enabled:
+            feats.append(spatial_features)
+            x, proj_feats = self.encoder(feats)
+            x = x[:-1]
+            x = self.decoder(x, targets, summary.view(b, 1, -1))
+        else:
+            x, proj_feats = self.encoder(feats)
+            x = self.decoder(x, targets)
         x['bb_feats'] = feats
         x['srcs'] = proj_feats
 
