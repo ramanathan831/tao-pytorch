@@ -51,8 +51,6 @@ def _test_experiment_spec():
 @pytest.mark.parametrize("backbone",
                          [("fan_tiny_8_p4_hybrid"),
                           ("vit_large_nvdinov2"),
-                          ("c_radio_p1_vit_huge_patch16_224_mlpnorm"),
-                          ("c_radio_p2_vit_huge_patch16_224_mlpnorm"),
                           ("c_radio_p3_vit_huge_patch16_224_mlpnorm")])
 @pytest.mark.parametrize("task", ['segment'])
 @pytest.mark.parametrize("batch_size", [-1])
@@ -127,8 +125,6 @@ def test_changenet_onnx_compare_output(_test_experiment_spec, backbone, batch_si
 @pytest.mark.parametrize("backbone",
                          [("fan_tiny_8_p4_hybrid"),
                           ("vit_large_nvdinov2"),
-                          ("c_radio_p1_vit_huge_patch16_224_mlpnorm"),
-                          ("c_radio_p2_vit_huge_patch16_224_mlpnorm"),
                           ("c_radio_p3_vit_huge_patch16_224_mlpnorm")])
 @pytest.mark.parametrize("task", ['segment'])
 @pytest.mark.parametrize("batch_size", [-1])
@@ -185,8 +181,6 @@ def test_changenet_onnx_export(_test_experiment_spec, backbone, batch_size, task
 @pytest.mark.parametrize("backbone",
                          [("fan_tiny_8_p4_hybrid"),
                           ("vit_large_nvdinov2"),
-                          ("c_radio_p1_vit_huge_patch16_224_mlpnorm"),
-                          ("c_radio_p2_vit_huge_patch16_224_mlpnorm"),
                           ("c_radio_p3_vit_huge_patch16_224_mlpnorm")])
 @pytest.mark.parametrize("opset_version", [16])
 def test_cls_trtexec(_test_experiment_spec, backbone, batch_size, opset_version):

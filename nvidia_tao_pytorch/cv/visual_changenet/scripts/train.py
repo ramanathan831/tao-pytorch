@@ -39,9 +39,9 @@ def run_experiment(experiment_config, key):
 
     # Load pretrained model as starting point if pretrained path is provided
     pretrained_path = experiment_config.train.pretrained_model_path
-
-    precision = '32-true'
-    sync_batchnorm = False
+    use_distributed_sampler = experiment_config.train.use_distributed_sampler
+    sync_batchnorm = experiment_config.train.sync_batchnorm
+    precision = experiment_config.train.precision
 
     assert task in ['segment', 'classify'], "Visual ChangeNet only supports 'segment' and 'classify' tasks."
     if task == 'classify':
@@ -91,8 +91,8 @@ def run_experiment(experiment_config, key):
                       num_nodes=num_nodes,
                       strategy=strategy,
                       precision=precision,
-                      use_distributed_sampler=False,
-                      sync_batchnorm=sync_batchnorm,
+                      use_distributed_sampler=use_distributed_sampler,
+                      sync_batchnorm=sync_batchnorm
                       )
 
     trainer.fit(model, dm, ckpt_path=resume_ckpt)
