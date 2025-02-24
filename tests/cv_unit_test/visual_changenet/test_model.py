@@ -23,9 +23,9 @@ from nvidia_tao_pytorch.cv.visual_changenet.classification.models.changenet impo
 from nvidia_tao_pytorch.cv.visual_changenet.segmentation.models.changenet import build_model as build_model_segment
 from nvidia_tao_pytorch.cv.visual_changenet.segmentation.models.changenet import ChangeNetSegment
 
-IMAGE_WIDTH = 128
-IMAGE_HEIGHT = 128
-OUTPUT_SHAPE = 128
+IMAGE_WIDTH = 224
+IMAGE_HEIGHT = 224
+OUTPUT_SHAPE = 224
 
 @pytest.fixture
 def _test_experiment_spec():
@@ -48,13 +48,20 @@ def _test_experiment_spec():
                           ("c_radio_p2_vit_huge_patch16_224_mlpnorm"),
                           ("c_radio_p3_vit_huge_patch16_224_mlpnorm")])
 @pytest.mark.parametrize("export", [False, True])
-@pytest.mark.parametrize("difference_module", ['learnable', 'euclidean'])
+@pytest.mark.parametrize("difference_module, num_golden",
+                         [('learnable', 1),
+                          ('learnable', 4),
+                          ('euclidean', 1)])
 @pytest.mark.parametrize("task", ['classify'])
-def test_changenet_model(_test_experiment_spec, backbone, export, task, difference_module):
+def test_changenet_model(_test_experiment_spec, backbone, export, task, difference_module, num_golden):
+    if "fan" in backbone and num_golden != 1:
+        pytest.skip(f"Invalid combination: {backbone} and num_golden={num_golden}")
+
     _test_experiment_spec["model"].backbone['type'] = backbone
     _test_experiment_spec.task = task
     _test_experiment_spec["dataset"]['classify']["image_width"] = IMAGE_WIDTH
     _test_experiment_spec["dataset"]['classify']["image_height"] = IMAGE_HEIGHT
+    _test_experiment_spec["dataset"]['classify'].num_golden = num_golden
     _test_experiment_spec["model"]['classify'].difference_module = difference_module
 
     model = build_model(_test_experiment_spec, export)

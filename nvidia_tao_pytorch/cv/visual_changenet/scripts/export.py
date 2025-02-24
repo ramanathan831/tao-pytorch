@@ -80,6 +80,9 @@ def run_export(experiment_config):
     opset_version = experiment_config.export.opset_version
     batch_size = experiment_config.export.batch_size
     on_cpu = experiment_config.export.on_cpu
+    num_golden = experiment_config.dataset.classify.num_golden
+    assert num_golden >= 1, "Number of golden samples must be greater than or equal to 1"
+
     if batch_size is None or batch_size == -1:
         input_batch_size = 1
     else:
@@ -131,13 +134,14 @@ def run_export(experiment_config):
         model.cuda()
 
     # create dummy input
-    if on_cpu:
-        dummy_input0 = torch.ones(input_batch_size, input_channel, input_height, input_width, device='cpu')
-        dummy_input1 = torch.ones(input_batch_size, input_channel, input_height, input_width, device='cpu')
+    device = 'cpu' if on_cpu else 'cuda'
+    dummy_input0 = torch.ones(input_batch_size, input_channel, input_height, input_width, device=device)
+
+    if num_golden == 1 or task == 'segment':
+        dummy_input1 = torch.ones(input_batch_size, input_channel, input_height, input_width, device=device)
     else:
-        dummy_input0 = torch.ones(input_batch_size, input_channel, input_height, input_width, device='cuda')
-        dummy_input1 = torch.ones(input_batch_size, input_channel, input_height, input_width, device='cuda')
-    dummy_input = (dummy_input0, dummy_input1)
+        dummy_input1 = torch.ones(input_batch_size, num_golden, input_channel, input_height, input_width, device=device)
+        dummy_input = (dummy_input0, dummy_input1)
 
     if output_file.endswith('.etlt'):
         tmp_onnx_file = output_file.replace('.etlt', '.onnx')

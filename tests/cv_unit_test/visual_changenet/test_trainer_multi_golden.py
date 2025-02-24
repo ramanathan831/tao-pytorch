@@ -40,6 +40,7 @@ BATCH_SIZE = 2
 IMAGE_WIDTH = 112
 IMAGE_HEIGHT = 112
 NUM_INPUT = 4
+NUM_GOLDEN = 4
 # FAST_DEV_RUN won't work for inference since it needs a full epoch to be run
 FAST_DEV_RUN = 2
 
@@ -49,7 +50,7 @@ def _test_dir():
     if not os.path.exists(tmp_top_dir):
         os.makedirs(tmp_top_dir)
     tmp_test_dir = os.path.join(tmp_top_dir, "test")
-    tmp_golden_dir = os.path.join(tmp_top_dir, "golden")
+    tmp_golden_dir = os.path.join(tmp_top_dir, "multi_golden")
 
     check_and_create(tmp_test_dir)
     check_and_create(tmp_golden_dir)
@@ -64,12 +65,14 @@ def _test_dir():
     for sample in range(total_samples):
         for label in labels:
             for light in lighting:
-                save_light = comp_name + '_' + light + '.jpg'
+                save_light = f"{comp_name}_{light}.jpg"
                 im.save(os.path.join(tmp_test_dir, save_light))
-                im.save(os.path.join(tmp_golden_dir, save_light))
+                for golden_index in range(NUM_GOLDEN):
+                    save_golden = f"{comp_name}_{golden_index}_{light}.jpg"
+                    im.save(os.path.join(tmp_golden_dir, save_golden))
                 csv_data.append({
                     'input_path': 'test',
-                    'golden_path': 'golden',
+                    'golden_path': 'multi_golden',
                     'label': label,
                     'object_name': comp_name
                 })
@@ -87,6 +90,7 @@ def _train_spec():
     experiment_config.dataset.classify.train_dataset.images_dir = tmp_top_dir
     experiment_config.dataset.classify.validation_dataset.images_dir = tmp_top_dir
     experiment_config.dataset.classify.num_input = NUM_INPUT
+    experiment_config.dataset.classify.num_golden = NUM_GOLDEN
     experiment_config.dataset.classify.image_width = IMAGE_WIDTH
     experiment_config.dataset.classify.image_height = IMAGE_HEIGHT
     experiment_config.dataset.classify.input_map = {'LowAngleLight': 0,
@@ -113,6 +117,7 @@ def _eval_spec():
     experiment_config.dataset.classify.test_dataset.csv_path = csv_file
     experiment_config.dataset.classify.test_dataset.images_dir = tmp_top_dir
     experiment_config.dataset.classify.num_input = NUM_INPUT
+    experiment_config.dataset.classify.num_golden = NUM_GOLDEN
     experiment_config.dataset.classify.image_width = IMAGE_WIDTH
     experiment_config.dataset.classify.image_height = IMAGE_HEIGHT
     experiment_config.dataset.classify.input_map = {'LowAngleLight': 0,
@@ -139,6 +144,7 @@ def _infer_spec():
     experiment_config.dataset.classify.infer_dataset.csv_path = csv_file
     experiment_config.dataset.classify.infer_dataset.images_dir = tmp_top_dir
     experiment_config.dataset.classify.num_input = NUM_INPUT
+    experiment_config.dataset.classify.num_golden = NUM_GOLDEN
     experiment_config.dataset.classify.image_width = IMAGE_WIDTH
     experiment_config.dataset.classify.image_height = IMAGE_HEIGHT
     experiment_config.dataset.classify.input_map = {'LowAngleLight': 0,
@@ -162,18 +168,13 @@ def _infer_spec():
 @pytest.mark.cv_unit
 @pytest.mark.visual_changenet_classify
 @pytest.mark.train
-@pytest.mark.parametrize("loss, difference_module",
-                         [("ce", "learnable"),
-                          ("contrastive", "euclidean")])
+@pytest.mark.parametrize("loss, difference_module, num_golden",
+                         [("ce", "learnable", 4)])
 @pytest.mark.parametrize("backbone",
-                         [("fan_tiny_8_p4_hybrid"),
-                          ("fan_large_16_p4_hybrid"),
-                          ("fan_small_12_p4_hybrid"),
-                          ("fan_base_16_p4_hybrid"),
-                          ("vit_large_nvdinov2"),
+                         [("vit_large_nvdinov2"),
                           ("c_radio_p3_vit_huge_patch16_224_mlpnorm")])
 @pytest.mark.parametrize("task", ['classify'])
-def test_trainer_fit(_test_dir, _train_spec, loss, difference_module, backbone, task):
+def test_trainer_fit(_test_dir, _train_spec, loss, difference_module, num_golden, backbone, task):
 
     _train_spec.train.classify.loss = loss
     _train_spec.model.classify.difference_module = difference_module
@@ -193,7 +194,6 @@ def test_trainer_fit(_test_dir, _train_spec, loss, difference_module, backbone, 
                       strategy='auto',
                       precision='32-true',
                       fast_dev_run=FAST_DEV_RUN
-                      # **trainer_kwargs
                       )
     # Test train
     trainer.fit(model, dm)
@@ -202,18 +202,13 @@ def test_trainer_fit(_test_dir, _train_spec, loss, difference_module, backbone, 
 @pytest.mark.cv_unit
 @pytest.mark.visual_changenet_classify
 @pytest.mark.evaluate
-@pytest.mark.parametrize("loss, difference_module",
-                         [("ce", "learnable"),
-                          ("contrastive", "euclidean")])
+@pytest.mark.parametrize("loss, difference_module, num_golden",
+                         [("ce", "learnable", 4)])
 @pytest.mark.parametrize("backbone",
-                         [("fan_tiny_8_p4_hybrid"),
-                          ("fan_large_16_p4_hybrid"),
-                          ("fan_small_12_p4_hybrid"),
-                          ("fan_base_16_p4_hybrid"),
-                          ("vit_large_nvdinov2"),
+                         [("vit_large_nvdinov2"),
                           ("c_radio_p3_vit_huge_patch16_224_mlpnorm")])
 @pytest.mark.parametrize("task", ['classify'])
-def test_trainer_evaluate(_test_dir, _eval_spec, loss, difference_module, backbone, task):
+def test_trainer_evaluate(_test_dir, _eval_spec, loss, difference_module, num_golden, backbone, task):
 
     _eval_spec.train.classify.loss = loss
     _eval_spec.model.classify.difference_module = difference_module
@@ -238,18 +233,13 @@ def test_trainer_evaluate(_test_dir, _eval_spec, loss, difference_module, backbo
 @pytest.mark.cv_unit
 @pytest.mark.visual_changenet_classify
 @pytest.mark.inference
-@pytest.mark.parametrize("loss, difference_module",
-                         [("ce", "learnable"),
-                          ("contrastive", "euclidean")])
+@pytest.mark.parametrize("loss, difference_module, num_golden",
+                         [("ce", "learnable", 4)])
 @pytest.mark.parametrize("backbone",
-                         [("fan_tiny_8_p4_hybrid"),
-                          ("fan_large_16_p4_hybrid"),
-                          ("fan_small_12_p4_hybrid"),
-                          ("fan_base_16_p4_hybrid"),
-                          ("vit_large_nvdinov2"),
+                         [("vit_large_nvdinov2"),
                           ("c_radio_p3_vit_huge_patch16_224_mlpnorm")])
 @pytest.mark.parametrize("task", ['classify'])
-def test_trainer_infer(_test_dir, _infer_spec, loss, difference_module, backbone, task):
+def test_trainer_infer(_test_dir, _infer_spec, loss, difference_module, num_golden, backbone, task):
 
     _infer_spec.train.classify.loss = loss
     _infer_spec.model.classify.difference_module = difference_module

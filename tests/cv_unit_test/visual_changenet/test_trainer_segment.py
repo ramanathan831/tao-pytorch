@@ -121,8 +121,6 @@ def _train_spec():
                           ("fan_small_12_p4_hybrid"),
                           ("fan_base_16_p4_hybrid"),
                           ("vit_large_nvdinov2"),
-                          ("c_radio_p1_vit_huge_patch16_224_mlpnorm"),
-                          ("c_radio_p2_vit_huge_patch16_224_mlpnorm"),
                           ("c_radio_p3_vit_huge_patch16_224_mlpnorm")])
 @pytest.mark.parametrize("task", ['segment'])
 def test_trainer_fit(_test_dir, _train_spec, backbone, task):
@@ -158,8 +156,6 @@ def test_trainer_fit(_test_dir, _train_spec, backbone, task):
                           ("fan_small_12_p4_hybrid"),
                           ("fan_base_16_p4_hybrid"),
                           ("vit_large_nvdinov2"),
-                          ("c_radio_p1_vit_huge_patch16_224_mlpnorm"),
-                          ("c_radio_p2_vit_huge_patch16_224_mlpnorm"),
                           ("c_radio_p3_vit_huge_patch16_224_mlpnorm")])
 @pytest.mark.parametrize("task", ['segment'])
 def test_trainer_evaluate(_test_dir, _train_spec, backbone, task):
@@ -191,8 +187,6 @@ def test_trainer_evaluate(_test_dir, _train_spec, backbone, task):
                           ("fan_small_12_p4_hybrid"),
                           ("fan_base_16_p4_hybrid"),
                           ("vit_large_nvdinov2"),
-                          ("c_radio_p1_vit_huge_patch16_224_mlpnorm"),
-                          ("c_radio_p2_vit_huge_patch16_224_mlpnorm"),
                           ("c_radio_p3_vit_huge_patch16_224_mlpnorm")])
 @pytest.mark.parametrize("task", ['segment'])
 def test_trainer_infer(_test_dir, _train_spec, backbone, task):

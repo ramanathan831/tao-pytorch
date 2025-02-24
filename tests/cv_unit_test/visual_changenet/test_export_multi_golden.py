@@ -38,7 +38,7 @@ BATCH_SIZE = 2
 IMAGE_WIDTH = 112
 IMAGE_HEIGHT = 112
 NUM_INPUT = 4
-
+NUM_GOLDEN = 4
 
 @pytest.fixture
 def _test_experiment_spec():
@@ -48,6 +48,7 @@ def _test_experiment_spec():
     experiment_config.dataset = dataset
     experiment_config.model = model
     experiment_config["dataset"]['classify']["num_input"] = NUM_INPUT
+    experiment_config["dataset"]['classify']["num_golden"] = NUM_GOLDEN
     experiment_config["dataset"]['classify']["image_width"] = IMAGE_WIDTH
     experiment_config["dataset"]['classify']["image_height"] = IMAGE_HEIGHT
     experiment_config["dataset"]['classify']["input_map"] = {'LowAngleLight': 0,
@@ -65,11 +66,9 @@ def _test_experiment_spec():
 @pytest.mark.cv_unit
 @pytest.mark.parametrize("loss, difference_module",
                          [("ce", "learnable"),
-                        #   ("contrastive", "euclidean")  # TODO: @zbhat debug for onnxruntime
                           ])
 @pytest.mark.parametrize("backbone",
-                         [("fan_tiny_8_p4_hybrid"),
-                          ("vit_large_nvdinov2"),
+                          [("vit_large_nvdinov2"),
                           ("c_radio_p3_vit_huge_patch16_224_mlpnorm")
                           ])
 @pytest.mark.parametrize("task", ['classify'])
@@ -106,7 +105,7 @@ def test_changenet_compare_onnx_output(_test_experiment_spec, backbone, batch_si
     # use custom TRT Plugin
 
     dummy_input0 = torch.ones(input_batch_size, input_channel, input_height, input_width, device='cpu')
-    dummy_input1 = torch.ones(input_batch_size, input_channel, input_height, input_width, device='cpu')
+    dummy_input1 = torch.ones(input_batch_size, NUM_GOLDEN, input_channel, input_height, input_width, device='cpu')
     dummy_input = (dummy_input0, dummy_input1)
 
     check_and_create(os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}_diffModule{difference_module}_compare"))
@@ -150,11 +149,9 @@ def test_changenet_compare_onnx_output(_test_experiment_spec, backbone, batch_si
 @pytest.mark.cv_unit
 @pytest.mark.parametrize("loss, difference_module",
                          [("ce", "learnable"),
-                          ("contrastive", "euclidean")
                           ])
 @pytest.mark.parametrize("backbone",
-                         [("fan_tiny_8_p4_hybrid"),
-                          ("vit_large_nvdinov2"),
+                         [("vit_large_nvdinov2"),
                           ("c_radio_p3_vit_huge_patch16_224_mlpnorm")
                           ])
 @pytest.mark.parametrize("task", ['classify'])
@@ -190,7 +187,7 @@ def test_changenet_onnx_export(_test_experiment_spec, backbone, batch_size, diff
     model.cuda()
 
     dummy_input0 = torch.ones(input_batch_size, input_channel, input_height, input_width, device='cuda')
-    dummy_input1 = torch.ones(input_batch_size, input_channel, input_height, input_width, device='cuda')
+    dummy_input1 = torch.ones(input_batch_size, NUM_GOLDEN, input_channel, input_height, input_width, device='cuda')
     dummy_input = (dummy_input0, dummy_input1)
     
     check_and_create(os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}_diffModule{difference_module}"))
@@ -215,13 +212,11 @@ def test_changenet_onnx_export(_test_experiment_spec, backbone, batch_size, diff
 @pytest.mark.cv_unit
 @pytest.mark.parametrize("batch_size", [1])
 @pytest.mark.parametrize("backbone",
-                         [("fan_tiny_8_p4_hybrid"),
-                          ("vit_large_nvdinov2"),
+                         [("vit_large_nvdinov2"),
                           ("c_radio_p3_vit_huge_patch16_224_mlpnorm")
                           ])
 @pytest.mark.parametrize("loss, difference_module",
                          [("ce", "learnable"),
-                          ("contrastive", "euclidean")
                           ])
 @pytest.mark.parametrize("opset_version", [16])
 def test_cls_trtexec(_test_experiment_spec, backbone, batch_size, difference_module, opset_version, loss):
@@ -233,9 +228,9 @@ def test_cls_trtexec(_test_experiment_spec, backbone, batch_size, difference_mod
     # Test TensorRT engine generation for dynamic batch size ONNX
     call = (
         f"trtexec --onnx={onnx_path} "
-        f"--minShapes=input_1:{batch_size}x3x{input_height}x{input_width},input_2:{batch_size}x3x{input_height}x{input_width} "
-        f"--optShapes=input_1:{batch_size}x3x{input_height}x{input_width},input_2:{batch_size}x3x{input_height}x{input_width} "
-        f"--maxShapes=input_1:{batch_size}x3x{input_height}x{input_width},input_2:{batch_size}x3x{input_height}x{input_width} "
+        f"--minShapes=input_1:{batch_size}x3x{input_height}x{input_width},input_2:{batch_size}x{NUM_GOLDEN}x3x{input_height}x{input_width} "
+        f"--optShapes=input_1:{batch_size}x3x{input_height}x{input_width},input_2:{batch_size}x{NUM_GOLDEN}x3x{input_height}x{input_width} "
+        f"--maxShapes=input_1:{batch_size}x3x{input_height}x{input_width},input_2:{batch_size}x{NUM_GOLDEN}x3x{input_height}x{input_width} "
     )
     print(call)
 
