@@ -38,7 +38,7 @@ spec:
       - name: DOCKER_TLS_CERTDIR
         value: ""
   - name: base-image
-    image: nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:e951218337848bb79868c9afdda1c1796109c5e56019e96a76ec301ebf8f48fa
+    image: nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:00170d195bbd07a51a0d002180bc7eb5af911d6736bff3090a43968ba2b8357d
     securityContext:
       privileged: true
     command:
@@ -181,8 +181,8 @@ spec:
         gitlabCommitStatus(name: "functional_tests", connection: gitLabConnection('git-lab-master')) {
           echo "starting functional test . . ."
           sh "pip install pytest-cov"
-          sh "${command_env} python setup.py develop"
-          sh "${command_env} cd tao-core && python setup.py develop && cd .."
+          sh "python setup.py develop"
+          sh "pip install tao-core/"
           sh "${command_env} python ci/run_functional_tests.py --cov=nvidia_tao_pytorch --cov-report="
           sh "cp .coverage /home/scratch.metropolis2/users/release_pipeline_files/coverage_reports/functional_test/.coverage.fn_pyt"
         }
@@ -195,12 +195,10 @@ spec:
           def TAO_WHEEL_VERSION="5.2.0"
           def BUILD_TYPE="dev"
           def VER="${TAO_WHEEL_VERSION}.${BUILD_NUMBER}.${BUILD_TYPE}0"
-          def PYTHON_VER="cp310-cp310"
-          def ARCH="linux_x86_64"
           sh "echo '${BUILD_NUMBER}-${BUILD_TYPE}' > build.info"
           build_env = command_env + pytorch_cuda
           sh "${build_env} bash ${WORKSPACE}/release/docker/build_wheel.sh"
-          sh "pip install dist/nvidia_tao_pytorch-${VER}-${PYTHON_VER}-${ARCH}.whl"
+          sh "pip install dist/nvidia_tao_pytorch-*.whl"
           // sh "action_recognition --help"
         }
       }

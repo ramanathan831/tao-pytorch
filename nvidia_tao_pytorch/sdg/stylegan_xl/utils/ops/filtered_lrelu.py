@@ -18,6 +18,7 @@
 
 import os
 import numpy as np
+import sys
 import torch
 import warnings
 
@@ -47,7 +48,7 @@ def _init():
 
         # # Method 2: Prebuilt .so with 'torch.ops.load_library', This method should use torch::RegisterOperators in C++, and call the plugin in python like: _plugin.filtered_lrelu(input_tensor)
         ops_dir = os.path.dirname(os.path.abspath(__file__))
-        lib_name = "filtered_lrelu_plugin.cpython-310-x86_64-linux-gnu.so"
+        lib_name = f"filtered_lrelu_plugin.cpython-{sys.version_info.major}{sys.version_info.minor}-x86_64-linux-gnu.so"
         torch.ops.load_library(os.path.join(ops_dir, lib_name))
         _plugin = torch.ops.nvidia
 

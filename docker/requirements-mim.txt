@@ -1,6 +1,0 @@
-mmengine==0.8.4 # Using this version as there's a conflict with Pytorch 2.5 with the Adafactor optimizer.
-mmpretrain==1.2.0
-mmsegmentation==1.2.2
-mmdeploy==1.3.1
-mmdet==3.2.0 # Using this version to satisfy mmdet3d dependency
-mmdet3d==1.4.0

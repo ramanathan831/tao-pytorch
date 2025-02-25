@@ -1,4 +1,4 @@
-FROM nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:e951218337848bb79868c9afdda1c1796109c5e56019e96a76ec301ebf8f48fa
+FROM nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:00170d195bbd07a51a0d002180bc7eb5af911d6736bff3090a43968ba2b8357d
 
 # Installing the TLT packages.
 WORKDIR /opt/nvidia
@@ -47,7 +47,7 @@ ENV CUBLAS_WORKSPACE_CONFIG=":4096:8"
 ENV TAO_TELEMETRY_SERVER="https://api.tao.ngc.nvidia.com"
 
 # Microservices entrypoint
-ENV FLASK_APP=/usr/local/lib/python3.10/dist-packages/nvidia_tao_pytorch/api/app.py 
+ENV FLASK_APP=/usr/local/lib/python3.12/dist-packages/nvidia_tao_pytorch/api/app.py 
 
 # Include NGC CLI as an entrypoint.
 CMD [ "/bin/bash" ]

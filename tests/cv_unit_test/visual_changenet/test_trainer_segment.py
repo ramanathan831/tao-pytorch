@@ -112,16 +112,22 @@ def _train_spec():
     yield experiment_config
 
 
+TEST_TOPOLOGIES = [("fan_tiny_8_p4_hybrid"),
+                   ("fan_large_16_p4_hybrid"),
+                   ("fan_small_12_p4_hybrid"),
+                   ("fan_base_16_p4_hybrid"),
+                   ("vit_large_nvdinov2")]
+
+if not os.getenv("CI_PROJECT_DIR", None):
+    TEST_TOPOLOGIES.extend([
+        ("c_radio_p3_vit_huge_patch16_224_mlpnorm")
+    ])
+
+
 @pytest.mark.cv_unit
 @pytest.mark.visual_changenet_segment
 @pytest.mark.train
-@pytest.mark.parametrize("backbone",
-                         [("fan_tiny_8_p4_hybrid"),
-                          ("fan_large_16_p4_hybrid"),
-                          ("fan_small_12_p4_hybrid"),
-                          ("fan_base_16_p4_hybrid"),
-                          ("vit_large_nvdinov2"),
-                          ("c_radio_p3_vit_huge_patch16_224_mlpnorm")])
+@pytest.mark.parametrize("backbone", TEST_TOPOLOGIES)
 @pytest.mark.parametrize("task", ['segment'])
 def test_trainer_fit(_test_dir, _train_spec, backbone, task):
 
@@ -150,13 +156,7 @@ def test_trainer_fit(_test_dir, _train_spec, backbone, task):
 @pytest.mark.cv_unit
 @pytest.mark.visual_changenet_segment
 @pytest.mark.evaluate
-@pytest.mark.parametrize("backbone",
-                         [("fan_tiny_8_p4_hybrid"),
-                          ("fan_large_16_p4_hybrid"),
-                          ("fan_small_12_p4_hybrid"),
-                          ("fan_base_16_p4_hybrid"),
-                          ("vit_large_nvdinov2"),
-                          ("c_radio_p3_vit_huge_patch16_224_mlpnorm")])
+@pytest.mark.parametrize("backbone", TEST_TOPOLOGIES)
 @pytest.mark.parametrize("task", ['segment'])
 def test_trainer_evaluate(_test_dir, _train_spec, backbone, task):
 
@@ -181,13 +181,7 @@ def test_trainer_evaluate(_test_dir, _train_spec, backbone, task):
 @pytest.mark.cv_unit
 @pytest.mark.visual_changenet_segment
 @pytest.mark.inference
-@pytest.mark.parametrize("backbone",
-                         [("fan_tiny_8_p4_hybrid"),
-                          ("fan_large_16_p4_hybrid"),
-                          ("fan_small_12_p4_hybrid"),
-                          ("fan_base_16_p4_hybrid"),
-                          ("vit_large_nvdinov2"),
-                          ("c_radio_p3_vit_huge_patch16_224_mlpnorm")])
+@pytest.mark.parametrize("backbone", TEST_TOPOLOGIES)
 @pytest.mark.parametrize("task", ['segment'])
 def test_trainer_infer(_test_dir, _train_spec, backbone, task):
 

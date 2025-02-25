@@ -320,10 +320,10 @@ def load_checkpoint(model_path, key, to_cpu=False):
         handle, temp_name = tempfile.mkstemp(".pth")
         os.close(handle)
         decrypt_pytorch(model_path, temp_name, key)
-        loaded_state = torch.load(temp_name, map_location=loc_type)
+        loaded_state = torch.load(temp_name, map_location=loc_type, weights_only=False)
         os.remove(temp_name)
     else:
-        loaded_state = torch.load(model_path, map_location=loc_type)
+        loaded_state = torch.load(model_path, map_location=loc_type, weights_only=False)
         if isinstance(loaded_state, dict):
             if "whole_model" in loaded_state:
                 loaded_state = pickle.loads(loaded_state["whole_model"])

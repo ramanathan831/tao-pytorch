@@ -119,31 +119,38 @@ def _train_spec():
 
     yield experiment_config
 
+
+TEST_TOPOLOGIES = [("fan_tiny_8_p4_hybrid"),
+                   ("fan_small_12_p4_hybrid"),
+                   ("fan_base_16_p4_hybrid"),
+                   ("fan_large_16_p4_hybrid"),
+                   ("fan_Xlarge_16_p4_hybrid"),
+                   ("fan_base_18_p16_224"),
+                   ("fan_tiny_12_p16_224"),
+                   ("fan_small_12_p16_224_se_attn"),
+                   ("fan_small_12_p16_224"),
+                   ("fan_large_24_p16_224"),
+                   ("vit_large_patch14_dinov2_swiglu"),
+                   ("ViT-H-14-SigLIP-CLIPA-224"),
+                   ("ViT-L-14-SigLIP-CLIPA-336"),
+                   ("ViT-L-14-SigLIP-CLIPA-224"),
+                   ("c_radio_v2_vit_base_patch16"),
+                   ("c_radio_v2_vit_large_patch16")]
+
+if not os.getenv("CI_PROJECT_DIR", None):
+    TEST_TOPOLOGIES.extend([
+        ("vit_giant_patch14_reg4_dinov2_swiglu"),
+        ("c_radio_p1_vit_huge_patch16_mlpnorm"),
+        ("c_radio_p2_vit_huge_patch16_mlpnorm"),
+        ("c_radio_p3_vit_huge_patch16_mlpnorm"),
+        ("c_radio_v2_vit_huge_patch16")
+    ])
+
+
 @pytest.mark.cv_unit
 @pytest.mark.classification_pl
 @pytest.mark.train
-@pytest.mark.parametrize("backbone",
-                         [("fan_tiny_8_p4_hybrid"),
-                          ("fan_small_12_p4_hybrid"),
-                          ("fan_base_16_p4_hybrid"),
-                          ("fan_large_16_p4_hybrid"),
-                          ("fan_Xlarge_16_p4_hybrid"),
-                          ("fan_base_18_p16_224"),
-                          ("fan_tiny_12_p16_224"),
-                          ("fan_small_12_p16_224_se_attn"),
-                          ("fan_small_12_p16_224"),
-                          ("fan_large_24_p16_224"),
-                          ("vit_large_patch14_dinov2_swiglu"),
-                          ("vit_giant_patch14_reg4_dinov2_swiglu"),
-                          ("ViT-H-14-SigLIP-CLIPA-224"),
-                          ("ViT-L-14-SigLIP-CLIPA-336"),
-                          ("ViT-L-14-SigLIP-CLIPA-224"),
-                          ("c_radio_p1_vit_huge_patch16_mlpnorm"),
-                          ("c_radio_p2_vit_huge_patch16_mlpnorm"),
-                          ("c_radio_p3_vit_huge_patch16_mlpnorm"),
-                          ("c_radio_v2_vit_base_patch16"),
-                          ("c_radio_v2_vit_large_patch16"),
-                          ("c_radio_v2_vit_huge_patch16")])
+@pytest.mark.parametrize("backbone", TEST_TOPOLOGIES)
 def test_trainer_fit(_test_dir, _train_spec, backbone):
 
     _train_spec.model.backbone.type = backbone
@@ -165,30 +172,9 @@ def test_trainer_fit(_test_dir, _train_spec, backbone):
 
 
 @pytest.mark.cv_unit
-@pytest.mark.segformer_pl
+@pytest.mark.classification_pl
 @pytest.mark.evaluate
-@pytest.mark.parametrize("backbone",
-                         [("fan_tiny_8_p4_hybrid"),
-                          ("fan_small_12_p4_hybrid"),
-                          ("fan_base_16_p4_hybrid"),
-                          ("fan_large_16_p4_hybrid"),
-                          ("fan_Xlarge_16_p4_hybrid"),
-                          ("fan_base_18_p16_224"),
-                          ("fan_tiny_12_p16_224"),
-                          ("fan_small_12_p16_224_se_attn"),
-                          ("fan_small_12_p16_224"),
-                          ("fan_large_24_p16_224"),
-                          ("vit_large_patch14_dinov2_swiglu"),
-                          ("vit_giant_patch14_reg4_dinov2_swiglu"),
-                          ("ViT-H-14-SigLIP-CLIPA-224"),
-                          ("ViT-L-14-SigLIP-CLIPA-336"),
-                          ("ViT-L-14-SigLIP-CLIPA-224"),
-                          ("c_radio_p1_vit_huge_patch16_mlpnorm"),
-                          ("c_radio_p2_vit_huge_patch16_mlpnorm"),
-                          ("c_radio_p3_vit_huge_patch16_mlpnorm"),
-                          ("c_radio_v2_vit_base_patch16"),
-                          ("c_radio_v2_vit_large_patch16"),
-                          ("c_radio_v2_vit_huge_patch16")])
+@pytest.mark.parametrize("backbone", TEST_TOPOLOGIES)
 def test_trainer_evaluate(_test_dir, _train_spec, backbone):
 
     _train_spec.model.backbone.type = backbone
@@ -206,30 +192,9 @@ def test_trainer_evaluate(_test_dir, _train_spec, backbone):
 
 
 @pytest.mark.cv_unit
-@pytest.mark.segformer_pl
+@pytest.mark.classification_pl
 @pytest.mark.inference
-@pytest.mark.parametrize("backbone",
-                         [("fan_tiny_8_p4_hybrid"),
-                          ("fan_small_12_p4_hybrid"),
-                          ("fan_base_16_p4_hybrid"),
-                          ("fan_large_16_p4_hybrid"),
-                          ("fan_Xlarge_16_p4_hybrid"),
-                          ("fan_base_18_p16_224"),
-                          ("fan_tiny_12_p16_224"),
-                          ("fan_small_12_p16_224_se_attn"),
-                          ("fan_small_12_p16_224"),
-                          ("fan_large_24_p16_224"),
-                          ("vit_large_patch14_dinov2_swiglu"),
-                          ("vit_giant_patch14_reg4_dinov2_swiglu"),
-                          ("ViT-H-14-SigLIP-CLIPA-224"),
-                          ("ViT-L-14-SigLIP-CLIPA-336"),
-                          ("ViT-L-14-SigLIP-CLIPA-224"),
-                          ("c_radio_p1_vit_huge_patch16_mlpnorm"),
-                          ("c_radio_p2_vit_huge_patch16_mlpnorm"),
-                          ("c_radio_p3_vit_huge_patch16_mlpnorm"),
-                          ("c_radio_v2_vit_base_patch16"),
-                          ("c_radio_v2_vit_large_patch16"),
-                          ("c_radio_v2_vit_huge_patch16")])
+@pytest.mark.parametrize("backbone", TEST_TOPOLOGIES)
 def test_trainer_infer(_test_dir, _train_spec, backbone):
 
     _train_spec.model.backbone.type = backbone

@@ -12,22 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit test to verify that MSDeformAttnFunction and MMCV's multi_scale_deformable_attn_pytorch are identical"""
+"""Unit test to verify that MSDeformAttnFunction and multi_scale_deformable_attn_pytorch are identical"""
 
 import pytest
 import torch
 import os
 import inspect
+import sys
 
-from mmcv.ops.multi_scale_deform_attn import multi_scale_deformable_attn_pytorch
-from nvidia_tao_pytorch.cv.deformable_detr.model.ops.modules import MSDeformAttnFunction, load_ops
+from nvidia_tao_pytorch.cv.deformable_detr.model.ops.modules import MSDeformAttnFunction, load_ops, multi_scale_deformable_attn_pytorch
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason='requires CUDA support')
 def test_forward_equal_with_pytorch_double():
     # Load operator
     ops_dir = os.path.dirname(inspect.getfile(MSDeformAttnFunction))
-    lib_name = "MultiScaleDeformableAttention.cpython-310-x86_64-linux-gnu.so"
+    lib_name = f"MultiScaleDeformableAttention.cpython-{sys.version_info.major}{sys.version_info.minor}-x86_64-linux-gnu.so"
     load_ops(ops_dir, lib_name)
 
     N, M, D = 1, 2, 2
