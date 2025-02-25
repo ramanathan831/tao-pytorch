@@ -27,6 +27,7 @@ from nvidia_tao_pytorch.sdg.stylegan_xl.dataloader.pl_sx_data_module import SXDa
 from nvidia_tao_pytorch.sdg.stylegan_xl.dataloader.pl_bg_data_module import BGDataModule
 from nvidia_tao_pytorch.sdg.stylegan_xl.model.sx_pl_model import StyleganPlModel
 from nvidia_tao_pytorch.sdg.stylegan_xl.model.bg_pl_model import BigdatasetganPlModel
+from nvidia_tao_pytorch.sdg.stylegan_xl.utils.startup_pretrained_models import download_and_convert_pretrained_models
 
 
 def get_latest_tlt_model(results_dir):
@@ -52,6 +53,9 @@ def run_experiment(experiment_config, key):
 
     # Load pretrained model as starting point if pretrained path is provided
     pretrained_path = experiment_config.train.pretrained_model_path
+    
+    # Download required pretrained modules from NGC and Github
+    download_and_convert_pretrained_models()
 
     # StyleGAN-XL only supports 'stylegan' and 'bigdatasetgan' tasks
     if experiment_config.task == 'stylegan':

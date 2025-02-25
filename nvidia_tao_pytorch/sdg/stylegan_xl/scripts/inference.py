@@ -26,12 +26,16 @@ from nvidia_tao_pytorch.sdg.stylegan_xl.dataloader.pl_sx_data_module import SXDa
 from nvidia_tao_pytorch.sdg.stylegan_xl.dataloader.pl_bg_data_module import BGDataModule
 from nvidia_tao_pytorch.sdg.stylegan_xl.model.sx_pl_model import StyleganPlModel
 from nvidia_tao_pytorch.sdg.stylegan_xl.model.bg_pl_model import BigdatasetganPlModel
+from nvidia_tao_pytorch.sdg.stylegan_xl.utils.startup_pretrained_models import download_and_convert_pretrained_models
 
 
 def run_experiment(experiment_config, key):
     """Start the inference."""
     model_path, trainer_kwargs = initialize_inference_experiment(experiment_config, key)
     num_nodes = experiment_config.train.num_nodes
+
+    # Download required pretrained modules from NGC and Github
+    download_and_convert_pretrained_models()
 
     # StyleGAN-XL only supports 'stylegan' and 'bigdatasetgan' tasks
     if experiment_config.task == 'stylegan':
