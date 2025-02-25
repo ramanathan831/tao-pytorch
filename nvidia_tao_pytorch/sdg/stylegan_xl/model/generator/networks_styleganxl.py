@@ -985,7 +985,7 @@ class SuperresGenerator(torch.nn.Module):
                 in_half_width=fparams.half_widths[prev], out_half_width=fparams.half_widths[idx],
                 conv_kernel=self.conv_kernel, use_radial_filters=self.use_radial_filters,
             )
-            name = f'L{idx+stem_len}_{layer.out_size[0]}_{layer.out_channels}'
+            name = f'L{idx + stem_len}_{layer.out_size[0]}_{layer.out_channels}'
             setattr(self.synthesis, name, layer)
             self.synthesis.layer_names.append(name)
             self.head_layer_names.append(name)

@@ -33,9 +33,10 @@ def run_experiment(cfg: ExperimentConfig) -> None:
     resume_ckpt, trainer_kwargs = initialize_train_experiment(cfg)
     cfg = update_config(cfg, 'train')
 
+    strategy = 'auto'
     if len(trainer_kwargs['devices']) > 1:
         # This is necessary or else Lightning will raise an error since not all params are used in training_step
-        cfg.strategy = 'ddp_find_unused_parameters_true'
+        strategy = 'ddp_find_unused_parameters_true'
 
     cfg.train.lr = cfg.train.lr * len(trainer_kwargs['devices']) * cfg.train.batch_size
     cfg.train.min_lr = cfg.train.lr * cfg.train.min_lr_rate
@@ -60,7 +61,7 @@ def run_experiment(cfg: ExperimentConfig) -> None:
     trainer = Trainer(
         **trainer_kwargs,
         num_nodes=cfg.train.num_nodes,
-        strategy=cfg.strategy,
+        strategy=strategy,
         precision='16-mixed' if cfg.train.use_amp else '32-true',
         accumulate_grad_batches=cfg.train.accum_grad_batches)
 

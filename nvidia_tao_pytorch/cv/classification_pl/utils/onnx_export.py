@@ -70,6 +70,9 @@ class ONNXExporter(object):
             logging.info(f"CPU version of Deformable MHA requires opset version larger than 16. Overriding provided opset {opset_version} to 16.")
             opset_version = 16
 
+        # https://github.com/immich-app/immich/issues/12496
+        torch.backends.mha.set_fastpath_enabled(False)
+
         register_custom_op_symbolic('nvidia::MultiscaleDeformableAttnPlugin_TRT', nvidia_msda, opset_version)
         with torch.no_grad():
             torch.onnx.export(model, dummy_input, onnx_file,

@@ -167,7 +167,7 @@ def test_ddetr_onnx_export(_test_experiment_spec, backbone, batch_size):
 @pytest.mark.parametrize("backbone", ["resnet_50", "gc_vit_xxtiny"])
 @pytest.mark.parametrize("batch_size", [-1, 1])
 def test_ddetr_compare_onnx_output(_test_experiment_spec, backbone, batch_size):
-    """Unit test for ONNX export on D-DETR model. Here mmcv DMHA is used for ONNXRuntime."""
+    """Unit test for ONNX export on D-DETR model. Here pytorch DMHA is used for ONNXRuntime."""
     _test_experiment_spec["model"].backbone = backbone
     _test_experiment_spec["model"].aux_loss = False
     _test_experiment_spec["model"].num_feature_levels = 2

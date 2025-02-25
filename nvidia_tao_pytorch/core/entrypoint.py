@@ -292,7 +292,7 @@ def launch(args, unknown_args, subtasks, network=None):
 
     if not process_passed:
         logging.warning("Execution status: FAIL")
-        return False
+        sys.exit(1)
 
     logging.info("Execution status: PASS")
-    return True
+    sys.exit(0)

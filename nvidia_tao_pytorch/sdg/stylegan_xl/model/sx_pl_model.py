@@ -130,7 +130,7 @@ class SampleImagesExporter(Callback):
             if trainer.global_rank == 0:
                 # Export image snapshot after validation epoch.
                 images = torch.cat([pl_module.G_ema(z=z, c=c, noise_mode='const').cpu() for z, c in zip(self.grid_z, self.grid_c)]).numpy()
-                self.save_image_grid(images, os.path.join(self.run_dir, f'fakes{pl_module.cur_nimg//1000:06d}.png'), drange=[-1, 1], grid_size=self.grid_size)
+                self.save_image_grid(images, os.path.join(self.run_dir, f'fakes{pl_module.cur_nimg // 1000:06d}.png'), drange=[-1, 1], grid_size=self.grid_size)
 
     def save_image_grid(self, img, fname, drange, grid_size):
         """Custom function to save image grid.

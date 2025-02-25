@@ -558,6 +558,6 @@ def _make_pretrained(backbone, verbose=False):
         logging.info(f"Succesfully loaded:    {backbone}")
         logging.info(f"Channels:              {pretrained.CHANNELS}")
         logging.info(f"Resolution Multiplier: {pretrained.RES_MULT}")
-        logging.info(f"Out Res for 256      : {pretrained.RES_MULT*256}")
+        logging.info(f"Out Res for 256      : {pretrained.RES_MULT * 256}")
 
     return pretrained

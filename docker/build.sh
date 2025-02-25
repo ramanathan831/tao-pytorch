@@ -5,7 +5,6 @@ cd "$( dirname "${BASH_SOURCE[0]}" )"
 
 registry="nvcr.io"
 repository="nvstaging/tao/tao_pytorch_base_image"
-base_image="nvcr.io/nvidia/pytorch:24.07-py3"
 
 tag="$USER-$(date +%Y%m%d%H%M)"
 local_tag="$USER"
@@ -57,7 +56,7 @@ if [ $BUILD_DOCKER = "1" ]; then
         NO_CACHE=""
     fi
     DOCKER_BUILDKIT=1 docker build --pull -f $NV_TAO_PYTORCH_TOP/docker/Dockerfile -t $registry/$repository:$local_tag $NO_CACHE \
-        --network=host --build-arg PYTORCH_BASE_IMAGE=${base_image} \
+        --network=host \
         $NV_TAO_PYTORCH_TOP/.
     if [ $PUSH_DOCKER = "1" ]; then
         echo "Pusing docker ..."

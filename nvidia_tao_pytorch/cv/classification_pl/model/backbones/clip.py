@@ -59,7 +59,7 @@ class OpenClip(nn.Module):
         elif isinstance(self.model.visual, OpenClip_VisionTransformer):
             # Override the method at instance level
             # Since open_clip's VisionTransformer does not has its own interpolatinon of positional encoding, we need to create by ourself and override the forward method
-            self.model.visual.forward = self.interpolated_forward.__get__(self.model.visual, OpenClip_VisionTransformer)
+            self.model.visual.forward = self.interpolated_forward
 
         self.freeze = freeze
 
