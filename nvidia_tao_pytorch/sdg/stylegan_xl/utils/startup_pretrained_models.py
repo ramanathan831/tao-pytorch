@@ -18,17 +18,19 @@ import pickle
 import sys
 import torch
 import os
-import shutil
 import tempfile
 
 from nvidia_tao_core.cloud_handlers import utils
 
 
 def download_and_convert_pretrained_models():
+    """Download and convert pretrained models for StyleGAN-XL.
 
+    Raises:
+        RuntimeError: If there is an issue loading the downloaded pickle files.
+    """
     path_pretrained_modules = "/tao-pt/nvidia_tao_pytorch/sdg/stylegan_xl/pretrained_modules"
-    if os.path.exists(os.path.join(path_pretrained_modules, "InceptionV3.pth")) and \
-        os.path.exists(os.path.join(path_pretrained_modules, "tf_efficientnet_lite0_embed.pth")):
+    if os.path.exists(os.path.join(path_pretrained_modules, "InceptionV3.pth")) and os.path.exists(os.path.join(path_pretrained_modules, "tf_efficientnet_lite0_embed.pth")):
         return
     else:
         with tempfile.TemporaryDirectory() as tmpdirname:
@@ -42,7 +44,7 @@ def download_and_convert_pretrained_models():
             tf_efficientnet_lite0_embed_file_path = os.path.join(tmp_path, "in_embeddings/tf_efficientnet_lite0.pkl")
 
             # Try loading the checkpoint using pickle
-            sys.path.append(tmp_path) # Add system path of stylegan-xl source repo to run pickle properly
+            sys.path.append(tmp_path)  # Add system path of stylegan-xl source repo to run pickle properly
             with open(InceptionV3_file_path, 'rb') as f:
                 InceptionV3 = pickle.load(f)
             with open(tf_efficientnet_lite0_embed_file_path, 'rb') as f:
@@ -50,5 +52,6 @@ def download_and_convert_pretrained_models():
 
             torch.save(InceptionV3.state_dict(), os.path.join(path_pretrained_modules, "InceptionV3.pth"))
             torch.save(tf_efficientnet_lite0_embed['embed'].state_dict(), os.path.join(path_pretrained_modules, "tf_efficientnet_lite0_embed.pth"))
+
 
 download_and_convert_pretrained_models()

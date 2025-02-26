@@ -53,7 +53,7 @@ def run_experiment(experiment_config, key):
 
     # Load pretrained model as starting point if pretrained path is provided
     pretrained_path = experiment_config.train.pretrained_model_path
-    
+
     # Download required pretrained modules from NGC and Github
     download_and_convert_pretrained_models()
 
