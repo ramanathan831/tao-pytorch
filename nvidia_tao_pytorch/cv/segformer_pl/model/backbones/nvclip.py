@@ -14,7 +14,7 @@
 
 """ NVCLIP Model Module """
 
-from nvidia_tao_pytorch.cv.segformer.model.backbones.vision_transformer.vit_adapter import (
+from nvidia_tao_pytorch.cv.segformer_pl.model.backbones.vision_transformer.vit_adapter import (
     TIMMTransformerWrapper,
     OpenCLIPTransformerWrapper,
     ViTAdapter
@@ -22,19 +22,17 @@ from nvidia_tao_pytorch.cv.segformer.model.backbones.vision_transformer.vit_adap
 from nvidia_tao_core.config.classification_pyt.model_params_mapping import map_clip_model_cfg
 import torch.nn as nn
 import open_clip as OpenCLIP
-from mmseg.registry import MODELS
 
 
-@MODELS.register_module()
 class vit_base_nvclip_16_siglip(nn.Module):
     """ViT-Base NVCLIP model.."""
 
-    def __init__(self, out_indices=[0, 1, 2, 3], resolution=(1024, 1024), init_cfg=None, **kwargs):
+    def __init__(self, out_indices=[0, 1, 2, 3], resolution=1024, init_cfg=None, **kwargs):
         """ViT-Base NVCLIP model.
 
         Args:
             out_indices (list, optional): List of block indices to return as feature.. Defaults to [0, 1, 2, 3].
-            resolution (tuple, optional): flag to indicate if activation checkpoint is used.. Defaults to (1024, 1024).
+            resolution (int, optional): flag to indicate if activation checkpoint is used.. Defaults to 1024.
             init_cfg (dict, optional): initial config. Defaults to None.
         """
         super().__init__()
@@ -60,23 +58,22 @@ class vit_base_nvclip_16_siglip(nn.Module):
                                              cffn_ratio=0.25,
                                              deform_ratio=0.5,
                                              out_indices=out_indices,
-                                             resolution=resolution[0])
+                                             resolution=resolution)
 
     def forward(self, x):
         """Forward function"""
         return self.nvclip_vit_adapter(x)
 
 
-@MODELS.register_module()
 class vit_huge_nvclip_14_siglip(nn.Module):
     """ViT-Base NVCLIP model."""
 
-    def __init__(self, out_indices=[0, 1, 2, 3], resolution=(1024, 1024), init_cfg=None, **kwargs):
+    def __init__(self, out_indices=[0, 1, 2, 3], resolution=1024, init_cfg=None, **kwargs):
         """ViT-huge NVCLIP model.
 
         Args:
             out_indices (list, optional): List of block indices to return as feature.. Defaults to [0, 1, 2, 3].
-            resolution (tuple, optional): input resolution. Defaults to (1024, 1024).
+            resolution (int, optional): input resolution. Defaults to 1024.
             init_cfg (dict, optional): initial config. Defaults to None.
         """
         super().__init__()
@@ -102,7 +99,7 @@ class vit_huge_nvclip_14_siglip(nn.Module):
                                              cffn_ratio=0.25,
                                              deform_ratio=0.5,
                                              out_indices=out_indices,
-                                             resolution=resolution[0])
+                                             resolution=resolution)
 
     def forward(self, x):
         """Forward function"""
