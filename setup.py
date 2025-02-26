@@ -62,7 +62,7 @@ setuptools.setup(
         'console_scripts': [
             # CV entry points
             'action_recognition=nvidia_tao_pytorch.cv.action_recognition.entrypoint.action_recognition:main',
-            'segformer=nvidia_tao_pytorch.cv.segformer.entrypoint.segformer:main',
+            'segformer=nvidia_tao_pytorch.cv.segformer_pl.entrypoint.segformer:main',
             'classification_pyt=nvidia_tao_pytorch.cv.classification_pl.entrypoint.classification:main',
             'deformable_detr=nvidia_tao_pytorch.cv.deformable_detr.entrypoint.deformable_detr:main',
             'dino=nvidia_tao_pytorch.cv.dino.entrypoint.dino:main',

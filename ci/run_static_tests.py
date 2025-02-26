@@ -49,7 +49,7 @@ def main(cl_args=None):
             for module in  TEST_MODULES:
                 if "cv" in module:
                     submodules_to_test = [
-                        os.path.join(module, item) 
+                        os.path.join(module, item)
                         for item in os.listdir(os.path.join(ROOT_DIR, module))
                         if item not in ["odise", "__pycache__"]
                     ]

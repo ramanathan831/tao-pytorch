@@ -104,7 +104,6 @@ class ONNXExporter(object):
         axis_names = input_names + output_names
         dynamic_axes = get_dynamic_axes(deploy_cfg, axis_names)
         verbose = not onnx_cfg.get('strip_doc_string', True) or onnx_cfg.get('verbose', False)
-
         register_custom_op_symbolic('nvidia::MultiscaleDeformableAttnPlugin_TRT', nvidia_msda, opset_version)
         with torch.no_grad():
             torch.onnx.export(

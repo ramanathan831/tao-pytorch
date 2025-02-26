@@ -95,7 +95,7 @@ def test_changenet_onnx_compare_output(_test_experiment_spec, backbone, batch_si
                                 do_constant_folding=True,
                                 verbose=_test_experiment_spec.export.verbose,
                                 task=task)
-    
+
     onnx_export.check_onnx(onnx_path)
 
     assert os.path.exists(onnx_path), "ONNX file was not generated properly!"
@@ -110,7 +110,7 @@ def test_changenet_onnx_compare_output(_test_experiment_spec, backbone, batch_si
 
     with torch.no_grad():
         torch_output = model(dummy_input0, dummy_input1)
-    
+
     ort_inputs = {sess.get_inputs()[0].name: dummy_input0.detach().cpu().numpy(), sess.get_inputs()[1].name: dummy_input1.detach().cpu().numpy()}
 
     onnx_output = sess.run(None, ort_inputs)
@@ -170,7 +170,7 @@ def test_changenet_onnx_export(_test_experiment_spec, backbone, batch_size, task
                                 do_constant_folding=True,
                                 verbose=_test_experiment_spec.export.verbose,
                                 task=task)
-    
+
     onnx_export.check_onnx(onnx_path)
 
     assert os.path.exists(onnx_path), "ONNX file was not generated properly!"
