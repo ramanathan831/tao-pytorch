@@ -23,7 +23,7 @@ import tempfile
 from nvidia_tao_core.cloud_handlers import utils
 
 
-def download_and_convert_pretrained_models():
+def download_and_convert_pretrained_modules():
     """Download and convert pretrained models for StyleGAN-XL.
 
     Raises:
@@ -52,6 +52,3 @@ def download_and_convert_pretrained_models():
 
             torch.save(InceptionV3.state_dict(), os.path.join(path_pretrained_modules, "InceptionV3.pth"))
             torch.save(tf_efficientnet_lite0_embed['embed'].state_dict(), os.path.join(path_pretrained_modules, "tf_efficientnet_lite0_embed.pth"))
-
-
-download_and_convert_pretrained_models()

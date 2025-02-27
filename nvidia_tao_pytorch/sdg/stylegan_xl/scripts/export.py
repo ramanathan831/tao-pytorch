@@ -31,7 +31,7 @@ from nvidia_tao_pytorch.sdg.stylegan_xl.model.sx_pl_model import StyleganPlModel
 from nvidia_tao_pytorch.sdg.stylegan_xl.model.bg_pl_model import BigdatasetganPlModel
 from nvidia_tao_pytorch.sdg.stylegan_xl.dataloader.pl_sx_data_module import SXDataModule
 from nvidia_tao_pytorch.sdg.stylegan_xl.dataloader.pl_bg_data_module import BGDataModule
-from nvidia_tao_pytorch.sdg.stylegan_xl.utils.startup_pretrained_models import download_and_convert_pretrained_models
+from nvidia_tao_pytorch.sdg.stylegan_xl.utils.startup import download_and_convert_pretrained_modules
 
 
 spec_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
