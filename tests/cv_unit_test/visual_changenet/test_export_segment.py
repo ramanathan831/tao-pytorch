@@ -51,7 +51,10 @@ def _test_experiment_spec():
 @pytest.mark.parametrize("backbone",
                          [("fan_tiny_8_p4_hybrid"),
                           ("vit_large_nvdinov2"),
-                          ("c_radio_p3_vit_huge_patch16_224_mlpnorm")])
+                          ("c_radio_p3_vit_huge_patch16_224_mlpnorm"),
+                          ("c_radio_v2_vit_huge_patch16_224"),
+                          ("c_radio_v2_vit_large_patch16_224"),
+                          ("c_radio_v2_vit_base_patch16_224")])
 @pytest.mark.parametrize("task", ['segment'])
 @pytest.mark.parametrize("batch_size", [-1])
 @pytest.mark.parametrize("opset_version", [16])
@@ -83,7 +86,8 @@ def test_changenet_onnx_compare_output(_test_experiment_spec, backbone, batch_si
     dummy_input1 = torch.ones(input_batch_size, input_channel, input_height, input_width, device='cpu')
     dummy_input = (dummy_input0, dummy_input1)
 
-    onnx_path = os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}.onnx")
+    check_and_create(os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}_compare"))
+    onnx_path = os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}_compare", f"{backbone}_opset{opset_version}_compare.onnx")
 
     onnx_export = ONNXExporter()
     onnx_export.export_model(model, batch_size,
@@ -125,7 +129,10 @@ def test_changenet_onnx_compare_output(_test_experiment_spec, backbone, batch_si
 @pytest.mark.parametrize("backbone",
                          [("fan_tiny_8_p4_hybrid"),
                           ("vit_large_nvdinov2"),
-                          ("c_radio_p3_vit_huge_patch16_224_mlpnorm")])
+                          ("c_radio_p3_vit_huge_patch16_224_mlpnorm"),
+                          ("c_radio_v2_vit_huge_patch16_224"),
+                          ("c_radio_v2_vit_large_patch16_224"),
+                          ("c_radio_v2_vit_base_patch16_224")])
 @pytest.mark.parametrize("task", ['segment'])
 @pytest.mark.parametrize("batch_size", [-1])
 @pytest.mark.parametrize("opset_version", [16])
@@ -158,7 +165,8 @@ def test_changenet_onnx_export(_test_experiment_spec, backbone, batch_size, task
     dummy_input1 = torch.ones(input_batch_size, input_channel, input_height, input_width, device='cuda')
     dummy_input = (dummy_input0, dummy_input1)
 
-    onnx_path = os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}.onnx")
+    check_and_create(os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}"))
+    onnx_path = os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}", f"{backbone}_opset{opset_version}.onnx")
 
     onnx_export = ONNXExporter()
     onnx_export.export_model(model, batch_size,
@@ -176,12 +184,17 @@ def test_changenet_onnx_export(_test_experiment_spec, backbone, batch_size, task
     assert os.path.exists(onnx_path), "ONNX file was not generated properly!"
 
 
-TEST_TOPOLOGIES = [("fan_tiny_8_p4_hybrid"),
-                   ("vit_large_nvdinov2")]
+TEST_TOPOLOGIES = [
+    ("fan_tiny_8_p4_hybrid"),
+    ("vit_large_nvdinov2"),
+    ("c_radio_v2_vit_base_patch16_224"),
+    ("c_radio_v2_vit_large_patch16_224")
+]
 
 if not os.getenv("CI_PROJECT_DIR", None):
     TEST_TOPOLOGIES.extend([
         ("c_radio_p3_vit_huge_patch16_224_mlpnorm")
+        ("c_radio_v2_vit_huge_patch16_224")
     ])
 
 
@@ -190,9 +203,9 @@ if not os.getenv("CI_PROJECT_DIR", None):
 @pytest.mark.parametrize("backbone", TEST_TOPOLOGIES)
 @pytest.mark.parametrize("opset_version", [16])
 def test_cls_trtexec(_test_experiment_spec, backbone, batch_size, opset_version):
-    check_and_create(tmp_top_dir)
+    check_and_create(os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}"))
 
-    onnx_path = os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}.onnx")
+    onnx_path = os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}", f"{backbone}_opset{opset_version}.onnx")
 
     input_height, input_width = OUTPUT_SHAPE, OUTPUT_SHAPE
     # Test TensorRT engine generation for dynamic batch size ONNX

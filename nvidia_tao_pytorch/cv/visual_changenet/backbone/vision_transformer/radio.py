@@ -14,11 +14,20 @@
 
 """ RADIO ViT Model Module """
 
-from nvidia_tao_pytorch.cv.classification_pl.model.backbones.radio import CRadioP1VitHugePatch16Mlpnorm, CRadioP2VitHugePatch16Mlpnorm, CRadioP3VitHugePatch16Mlpnorm
-
+from nvidia_tao_pytorch.cv.classification_pl.model.backbones.radio import (
+    CRadioP1VitHugePatch16Mlpnorm,
+    CRadioP2VitHugePatch16Mlpnorm,
+    CRadioP3VitHugePatch16Mlpnorm,
+    CRadioV2VitHugePatch16,
+    CRadioV2VitLargePatch16,
+    CRadioV2VitBasePatch16
+)
 
 radio_model_dict = {
     'c_radio_p1_vit_huge_patch16_224_mlpnorm': CRadioP1VitHugePatch16Mlpnorm,
     'c_radio_p2_vit_huge_patch16_224_mlpnorm': CRadioP2VitHugePatch16Mlpnorm,
-    'c_radio_p3_vit_huge_patch16_224_mlpnorm': CRadioP3VitHugePatch16Mlpnorm
+    'c_radio_p3_vit_huge_patch16_224_mlpnorm': CRadioP3VitHugePatch16Mlpnorm,
+    'c_radio_v2_vit_huge_patch16_224': CRadioV2VitHugePatch16,
+    'c_radio_v2_vit_large_patch16_224': CRadioV2VitLargePatch16,
+    'c_radio_v2_vit_base_patch16_224': CRadioV2VitBasePatch16
 }

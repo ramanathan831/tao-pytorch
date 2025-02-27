@@ -207,9 +207,9 @@ class ViTAdapter(TIMMVisionTransformer):
 class CRADIOAdapter(nn.Module):
     """ViT-Adapter from https://arxiv.org/abs/2205.08534."""
 
-    def __init__(self, *args, model_cfg=None, conv_inplane=64, n_points=4,
+    def __init__(self, *args, model_name='vit_huge_patch16_224_mlpnorm', model_cfg=None, conv_inplane=64, n_points=4,
                  deform_num_heads=6, init_values=0., interaction_indexes=None, with_cffn=True,
-                 cffn_ratio=0.25, deform_ratio=1.0, add_vit_feature=True,
+                 cffn_ratio=0.25, deform_ratio=1.0, add_vit_feature=True, pretrained_weight_prefix="base_model",
                  use_extra_extractor=True, out_indices=[0, 1, 2, 3], activation_checkpoint=False, add_summary=True, **kwargs):
         """ViT-Adapter Constructor.
 
@@ -235,11 +235,11 @@ class CRADIOAdapter(nn.Module):
         super().__init__()
 
         self.radio = CRADIO(
-            backbone="vit_huge_patch16_224_mlpnorm",
+            backbone=model_name,
             **model_cfg,
             **kwargs
         )
-
+        self.pretrained_weight_prefix = pretrained_weight_prefix
         self.num_block = len(self.radio.model.blocks)
         self.interaction_indexes = interaction_indexes
         self.add_vit_feature = add_vit_feature
@@ -371,7 +371,7 @@ class CRADIOAdapter(nn.Module):
 
     def load_state_dict(self, checkpoint, strict=False):
         """ Load for RADIO"""
-        key_warn = self.radio.model.load_state_dict(get_prefix_state_dict(checkpoint, "base_model."), strict=False)
+        key_warn = self.radio.model.load_state_dict(get_prefix_state_dict(checkpoint, self.pretrained_weight_prefix), strict=False)
         if key_warn.missing_keys:
             print(f"Missing keys in state dict: {key_warn.missing_keys}")
         if key_warn.unexpected_keys:
@@ -458,12 +458,10 @@ def c_radio_p1_vit_huge_patch16_224_mlpnorm(out_indices=[0, 1, 2, 3], resolution
     model_cfg = radio_model_cfg["c_radio_p1_vit_huge_patch16_224_mlpnorm"]
 
     model = CRADIOAdapter(
+        model_name="vit_huge_patch16_224_mlpnorm",
+        pretrained_weight_prefix="base_model.",
         model_cfg=model_cfg,
         img_size=resolution,
-        patch_size=16,
-        embed_dim=1024,
-        depth=24,
-        num_heads=16,
         drop_path_rate=0.4,
         init_values=1e-5,
         conv_inplane=56,
@@ -494,12 +492,10 @@ def c_radio_p2_vit_huge_patch16_224_mlpnorm(out_indices=[0, 1, 2, 3], resolution
     model_cfg = radio_model_cfg["c_radio_p2_vit_huge_patch16_224_mlpnorm"]
 
     model = CRADIOAdapter(
+        model_name="vit_huge_patch16_224_mlpnorm",
+        pretrained_weight_prefix="base_model.",
         model_cfg=model_cfg,
         img_size=resolution,
-        patch_size=16,
-        embed_dim=1024,
-        depth=24,
-        num_heads=16,
         drop_path_rate=0.4,
         init_values=1e-5,
         conv_inplane=56,
@@ -530,12 +526,10 @@ def c_radio_p3_vit_huge_patch16_224_mlpnorm(out_indices=[0, 1, 2, 3], resolution
     model_cfg = radio_model_cfg["c_radio_p3_vit_huge_patch16_224_mlpnorm"]
 
     model = CRADIOAdapter(
+        model_name="vit_huge_patch16_224_mlpnorm",
+        pretrained_weight_prefix="base_model.",
         model_cfg=model_cfg,
         img_size=resolution,
-        patch_size=16,
-        embed_dim=1024,
-        depth=24,
-        num_heads=16,
         drop_path_rate=0.4,
         init_values=1e-5,
         conv_inplane=56,
@@ -553,10 +547,115 @@ def c_radio_p3_vit_huge_patch16_224_mlpnorm(out_indices=[0, 1, 2, 3], resolution
     return model
 
 
+def c_radio_v2_vit_huge_patch16_224(out_indices=[0, 1, 2, 3], resolution=1024, activation_checkpoint=False, use_summary_token=True, **kwargs):
+    """ViT-Huge C-RADIO model.
+
+    Args:
+        out_indices (list): List of block indices to return as feature.
+        activation_checkpoint (bool): flag to indicate if activation checkpoint is used.
+
+    Return:
+        model: ViT model.
+    """
+    model_cfg = radio_model_cfg["c_radio_v2_vit_huge_patch16_224"]
+
+    model = CRADIOAdapter(
+        model_name="vit_huge_patch16_224",
+        pretrained_weight_prefix="radio_model.model.",
+        model_cfg=model_cfg,
+        img_size=resolution,
+        drop_path_rate=0,
+        init_values=1e-5,
+        conv_inplane=56,
+        n_points=4,
+        deform_num_heads=16,
+        cffn_ratio=0.25,
+        deform_ratio=0.5,
+        interaction_indexes=[[0, 7], [8, 15], [16, 23], [24, 31]],
+        out_indices=out_indices,
+        with_cp=activation_checkpoint,
+        add_summary=use_summary_token,
+        **kwargs
+    )
+
+    return model
+
+
+def c_radio_v2_vit_large_patch16_224(out_indices=[0, 1, 2, 3], resolution=1024, activation_checkpoint=False, use_summary_token=True, **kwargs):
+    """ViT-Huge C-RADIO model.
+
+    Args:
+        out_indices (list): List of block indices to return as feature.
+        activation_checkpoint (bool): flag to indicate if activation checkpoint is used.
+
+    Return:
+        model: ViT model.
+    """
+    model_cfg = radio_model_cfg["c_radio_v2_vit_large_patch16_224"]
+
+    model = CRADIOAdapter(
+        model_name="vit_large_patch16_224",
+        pretrained_weight_prefix="radio_model.model.",
+        model_cfg=model_cfg,
+        img_size=resolution,
+        drop_path_rate=0,
+        init_values=1e-5,
+        conv_inplane=56,
+        n_points=4,
+        deform_num_heads=16,
+        cffn_ratio=0.25,
+        deform_ratio=0.5,
+        interaction_indexes=[[0, 5], [6, 11], [12, 17], [18, 23]],
+        out_indices=out_indices,
+        with_cp=activation_checkpoint,
+        add_summary=use_summary_token,
+        **kwargs
+    )
+
+    return model
+
+
+def c_radio_v2_vit_base_patch16_224(out_indices=[0, 1, 2, 3], resolution=1024, activation_checkpoint=False, use_summary_token=True, **kwargs):
+    """ViT-Base C-RADIO model.
+
+    Args:
+        out_indices (list): List of block indices to return as feature.
+        activation_checkpoint (bool): flag to indicate if activation checkpoint is used.
+
+    Return:
+        model: ViT model.
+    """
+    model_cfg = radio_model_cfg["c_radio_v2_vit_base_patch16_224"]
+
+    model = CRADIOAdapter(
+        model_name="vit_base_patch16_224",
+        pretrained_weight_prefix="radio_model.model.",
+        model_cfg=model_cfg,
+        img_size=resolution,
+        drop_path_rate=0,
+        init_values=1e-5,
+        conv_inplane=56,
+        n_points=4,
+        deform_num_heads=16,
+        cffn_ratio=0.25,
+        deform_ratio=0.5,
+        interaction_indexes=[[0, 2], [3, 5], [6, 8], [9, 11]],
+        out_indices=out_indices,
+        with_cp=activation_checkpoint,
+        add_summary=use_summary_token,
+        **kwargs
+    )
+
+    return model
+
+
 vit_adapter_model_dict = {
     'vit_large_nvdinov2': vit_large_nvdinov2,
     'vit_large_dinov2': vit_large_dinov2,  # TODO: @zbhat check EVA/dinov2 support
     'c_radio_p1_vit_huge_patch16_224_mlpnorm': c_radio_p1_vit_huge_patch16_224_mlpnorm,
     'c_radio_p2_vit_huge_patch16_224_mlpnorm': c_radio_p2_vit_huge_patch16_224_mlpnorm,
-    'c_radio_p3_vit_huge_patch16_224_mlpnorm': c_radio_p3_vit_huge_patch16_224_mlpnorm
+    'c_radio_p3_vit_huge_patch16_224_mlpnorm': c_radio_p3_vit_huge_patch16_224_mlpnorm,
+    'c_radio_v2_vit_huge_patch16_224': c_radio_v2_vit_huge_patch16_224,
+    'c_radio_v2_vit_large_patch16_224': c_radio_v2_vit_large_patch16_224,
+    'c_radio_v2_vit_base_patch16_224': c_radio_v2_vit_base_patch16_224
 }

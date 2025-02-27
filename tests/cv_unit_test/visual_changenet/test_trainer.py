@@ -163,11 +163,14 @@ TEST_TOPOLOGIES = [("fan_tiny_8_p4_hybrid"),
                    ("fan_large_16_p4_hybrid"),
                    ("fan_small_12_p4_hybrid"),
                    ("fan_base_16_p4_hybrid"),
-                   ("vit_large_nvdinov2")]
+                   ("vit_large_nvdinov2"),
+                   ("c_radio_v2_vit_base_patch16_224"),
+                   ("c_radio_v2_vit_large_patch16_224")]
 
 if not os.getenv("CI_PROJECT_DIR", None):
     TEST_TOPOLOGIES.extend([
-        ("c_radio_p3_vit_huge_patch16_224_mlpnorm")
+        ("c_radio_p3_vit_huge_patch16_224_mlpnorm"),
+        ("c_radio_v2_vit_huge_patch16_224")
     ])
 
 

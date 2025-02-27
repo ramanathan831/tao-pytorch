@@ -370,7 +370,10 @@ def build_model(experiment_config,
                     "vit_large_nvdinov2": [1024, 1024, 1024, 1024],
                     "c_radio_p1_vit_huge_patch16_224_mlpnorm": [1280, 1280, 1280, 1280],
                     "c_radio_p2_vit_huge_patch16_224_mlpnorm": [1280, 1280, 1280, 1280],
-                    "c_radio_p3_vit_huge_patch16_224_mlpnorm": [1280, 1280, 1280, 1280]
+                    "c_radio_p3_vit_huge_patch16_224_mlpnorm": [1280, 1280, 1280, 1280],
+                    "c_radio_v2_vit_base_patch16_224": [768, 768, 768, 768],
+                    "c_radio_v2_vit_large_patch16_224": [1024, 1024, 1024, 1024],
+                    "c_radio_v2_vit_huge_patch16_224": [1280, 1280, 1280, 1280]
                     }
 
     if backbone in channels_map:

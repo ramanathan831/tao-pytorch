@@ -46,7 +46,10 @@ def _test_experiment_spec():
                           ("vit_large_nvdinov2"),
                           ("c_radio_p1_vit_huge_patch16_224_mlpnorm"),
                           ("c_radio_p2_vit_huge_patch16_224_mlpnorm"),
-                          ("c_radio_p3_vit_huge_patch16_224_mlpnorm")])
+                          ("c_radio_p3_vit_huge_patch16_224_mlpnorm"),
+                          ("c_radio_v2_vit_huge_patch16_224"),
+                          ("c_radio_v2_vit_large_patch16_224"),
+                          ("c_radio_v2_vit_base_patch16_224")])
 @pytest.mark.parametrize("export", [False, True])
 @pytest.mark.parametrize("difference_module, num_golden",
                          [('learnable', 1),
@@ -77,7 +80,10 @@ def test_changenet_model(_test_experiment_spec, backbone, export, task, differen
                           ("vit_large_nvdinov2"),
                           ("c_radio_p1_vit_huge_patch16_224_mlpnorm"),
                           ("c_radio_p2_vit_huge_patch16_224_mlpnorm"),
-                          ("c_radio_p3_vit_huge_patch16_224_mlpnorm")])
+                          ("c_radio_p3_vit_huge_patch16_224_mlpnorm"),
+                          ("c_radio_v2_vit_huge_patch16_224"),
+                          ("c_radio_v2_vit_large_patch16_224"),
+                          ("c_radio_v2_vit_base_patch16_224")])
 @pytest.mark.parametrize("export", [False, True])
 @pytest.mark.parametrize("task", ['segment'])
 def test_changenet_model_segment(_test_experiment_spec, backbone, export, task):
