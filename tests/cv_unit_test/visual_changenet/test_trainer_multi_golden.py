@@ -165,14 +165,23 @@ def _infer_spec():
     yield experiment_config
 
 
+TEST_TOPOLOGIES = [("vit_large_nvdinov2"),
+                   ("c_radio_v2_vit_base_patch16_224"),
+                   ("c_radio_v2_vit_large_patch16_224")]
+
+if not os.getenv("CI_PROJECT_DIR", None):
+    TEST_TOPOLOGIES.extend([
+        ("c_radio_p3_vit_huge_patch16_224_mlpnorm"),
+        ("c_radio_v2_vit_huge_patch16_224")
+    ])
+
+
 @pytest.mark.cv_unit
 @pytest.mark.visual_changenet_classify
 @pytest.mark.train
 @pytest.mark.parametrize("loss, difference_module, num_golden",
                          [("ce", "learnable", 4)])
-@pytest.mark.parametrize("backbone",
-                         [("vit_large_nvdinov2"),
-                          ("c_radio_p3_vit_huge_patch16_224_mlpnorm")])
+@pytest.mark.parametrize("backbone", TEST_TOPOLOGIES)
 @pytest.mark.parametrize("task", ['classify'])
 def test_trainer_fit(_test_dir, _train_spec, loss, difference_module, num_golden, backbone, task):
 
@@ -204,9 +213,7 @@ def test_trainer_fit(_test_dir, _train_spec, loss, difference_module, num_golden
 @pytest.mark.evaluate
 @pytest.mark.parametrize("loss, difference_module, num_golden",
                          [("ce", "learnable", 4)])
-@pytest.mark.parametrize("backbone",
-                         [("vit_large_nvdinov2"),
-                          ("c_radio_p3_vit_huge_patch16_224_mlpnorm")])
+@pytest.mark.parametrize("backbone", TEST_TOPOLOGIES)
 @pytest.mark.parametrize("task", ['classify'])
 def test_trainer_evaluate(_test_dir, _eval_spec, loss, difference_module, num_golden, backbone, task):
 
@@ -235,9 +242,7 @@ def test_trainer_evaluate(_test_dir, _eval_spec, loss, difference_module, num_go
 @pytest.mark.inference
 @pytest.mark.parametrize("loss, difference_module, num_golden",
                          [("ce", "learnable", 4)])
-@pytest.mark.parametrize("backbone",
-                         [("vit_large_nvdinov2"),
-                          ("c_radio_p3_vit_huge_patch16_224_mlpnorm")])
+@pytest.mark.parametrize("backbone", TEST_TOPOLOGIES)
 @pytest.mark.parametrize("task", ['classify'])
 def test_trainer_infer(_test_dir, _infer_spec, loss, difference_module, num_golden, backbone, task):
 
