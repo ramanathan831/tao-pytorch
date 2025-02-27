@@ -65,7 +65,7 @@ model:
 dataset:
   common:
     cond: True
-    num_classes: 6 # Be 0 when cond==True
+    num_classes: 6 # Be 0 when cond==False
     img_channels: 3
     img_resolution: 512
   # stylegan:
