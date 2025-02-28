@@ -52,15 +52,16 @@ class CLDataModule(pl.LightningDataModule):
         """
         is_distributed = is_dist_avail_and_initialized()
 
-        if stage == 'fit' or stage is None:
-            if self.dataset == 'CLDataset':
+        if stage == "fit" or stage is None:
+            if self.dataset == "CLDataset":
                 self.train_dataset = CLDataset(
                     root_dir=self.root_dir,
                     augmentation=self.augmentation,
                     split="train",
                     img_size=self.img_size,
                     to_tensor=True,
-                    prefix=self.dataset_config["train"]["data_prefix"]
+                    prefix=self.dataset_config["train"]["data_prefix"],
+                    nolabel_folder=self.dataset_config["train_nolabel"]["folder_path"],
                 )
                 self.val_dataset = CLDataset(
                     root_dir=self.root_dir,
@@ -68,46 +69,51 @@ class CLDataModule(pl.LightningDataModule):
                     split="val",
                     img_size=self.img_size,
                     to_tensor=True,
-                    prefix=self.dataset_config["val"]["data_prefix"]
+                    prefix=self.dataset_config["val"]["data_prefix"],
                 )
             else:
                 raise NotImplementedError(
-                    'Wrong dataset name %s (choose one from [CLDataset,])'
-                    % self.dataset)
+                    "Wrong dataset name %s (choose one from [CLDataset,])"
+                    % self.dataset
+                )
             if is_distributed:
-                self.train_sampler = distributed.DistributedSampler(self.train_dataset, shuffle=True)
+                self.train_sampler = distributed.DistributedSampler(
+                    self.train_dataset, shuffle=True
+                )
             else:
                 self.train_sampler = RandomSampler(self.train_dataset)
 
-        if stage == 'test' or stage is None:
-            if self.dataset == 'CLDataset':
+        if stage == "test" or stage is None:
+            if self.dataset == "CLDataset":
                 self.test_dataset = CLDataset(
                     root_dir=self.root_dir,
                     augmentation=self.augmentation,
                     split="val",
                     img_size=self.img_size,
                     to_tensor=True,
-                    prefix=self.dataset_config["val"]["data_prefix"]
+                    prefix=self.dataset_config["val"]["data_prefix"],
                 )
             else:
                 raise NotImplementedError(
-                    'Wrong dataset name %s (choose one from [CLDataset,])'
-                    % self.dataset)
+                    "Wrong dataset name %s (choose one from [CLDataset,])"
+                    % self.dataset
+                )
 
-        if stage == 'predict' or stage is None:
-            if self.dataset == 'CLDataset':
+        if stage == "predict" or stage is None:
+            if self.dataset == "CLDataset":
                 self.predict_dataset = CLDataset(
                     root_dir=self.root_dir,
                     augmentation=self.augmentation,
                     split="test",
                     img_size=self.img_size,
                     to_tensor=True,
-                    prefix=self.dataset_config["test"]["data_prefix"]
+                    prefix=self.dataset_config["test"]["data_prefix"],
                 )
             else:
                 raise NotImplementedError(
-                    'Wrong dataset name %s (choose one from [CLDataset,])'
-                    % self.dataset)
+                    "Wrong dataset name %s (choose one from [CLDataset,])"
+                    % self.dataset
+                )
 
     def train_dataloader(self):
         """Build the dataloader for training.
@@ -118,7 +124,10 @@ class CLDataModule(pl.LightningDataModule):
         train_loader = DataLoader(
             self.train_dataset,
             num_workers=self.num_workers,
-            batch_sampler=BatchSampler(self.train_sampler, self.batch_size, drop_last=False),
+            batch_sampler=BatchSampler(
+                self.train_sampler, self.batch_size, drop_last=False
+            ),
+            collate_fn=self.train_dataset.collate_fn,
         )
         return train_loader
 
@@ -132,7 +141,8 @@ class CLDataModule(pl.LightningDataModule):
             self.val_dataset,
             num_workers=self.num_workers,
             batch_size=self.batch_size,
-            shuffle=False
+            shuffle=False,
+            collate_fn=self.train_dataset.collate_fn,
         )
         return val_loader
 
@@ -147,7 +157,7 @@ class CLDataModule(pl.LightningDataModule):
             num_workers=self.num_workers,
             batch_size=self.batch_size,
             shuffle=False,
-            pin_memory=False
+            pin_memory=False,
         )
         return test_loader
 
@@ -162,6 +172,6 @@ class CLDataModule(pl.LightningDataModule):
             num_workers=self.num_workers,
             batch_size=self.batch_size,
             shuffle=False,
-            pin_memory=False
+            pin_memory=False,
         )
         return predict_loader

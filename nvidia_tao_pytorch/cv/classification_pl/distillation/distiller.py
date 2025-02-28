@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,66 +12,83 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Classifier_pl Model PyTorch Lightning Module"""
-
-import re
+"""Distiller module for classification model"""
 import os
-import csv
+import re
+import copy
 from typing import Sequence
 
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import Callback, ModelCheckpoint
-from pytorch_lightning.callbacks import LearningRateMonitor
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
 import torch.optim as optim
 from torch.optim import lr_scheduler
 from torchmetrics.classification import Accuracy
 from torchmetrics import MetricCollection
+from pytorch_lightning.callbacks import Callback, ModelCheckpoint
 
-from nvidia_tao_pytorch.core.lightning.tao_lightning_module import TAOLightningModule
-from nvidia_tao_pytorch.core.path_utils import expand_path
 import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
-from nvidia_tao_pytorch.cv.classification_pl.model.classifier import build_model
-from nvidia_tao_pytorch.cv.classification_pl.utils.loss import Cross_Entropy
-from nvidia_tao_pytorch.core.callbacks.ema import EMA, EMAModelCheckpoint
 from nvidia_tao_pytorch.core.callbacks.loggers import TAOStatusLogger
+from nvidia_tao_pytorch.core.callbacks.ema import EMA, EMAModelCheckpoint
 from nvidia_tao_pytorch.core.utilities import get_latest_checkpoint
-from nvidia_tao_pytorch.cv.classification_pl.utils.utils_vis import (
-    save_with_text_overlay,
+
+from nvidia_tao_pytorch.core.distillation.distiller import Distiller
+from nvidia_tao_pytorch.core.distillation.losses import LPCriterion, KLDivCriterion
+
+from nvidia_tao_pytorch.cv.classification_pl.model.classifier import build_model
+from nvidia_tao_pytorch.cv.classification_pl.model.backbones import (
+    fan_model_dict,
+    nvdino_model_dict,
+    cradio_model_dict,
+    faster_vit_model_dict,
+    gc_vit_model_dict,
+    clip_model_dict,
 )
+from nvidia_tao_pytorch.cv.classification_pl.utils.loss import Cross_Entropy
+from nvidia_tao_pytorch.cv.classification_pl.dataloader.dataset import NOCLASS_IDX
 
 
-class ClassifierPlModel(TAOLightningModule):
-    """
-    PTL Model for Classifier
-    """
+class ClassDistiller(Distiller):
+    """Classification Distiller"""
 
     def __init__(self, experiment_spec, export=False):
-        """pl_model initialization
+        """Initializes the distiller from given experiment_spec."""
+        self.supported_teacher_arch = (
+            list(fan_model_dict.keys()) +
+            list(nvdino_model_dict.keys()) +
+            list(cradio_model_dict.keys()) +
+            list(faster_vit_model_dict.keys()) +
+            list(gc_vit_model_dict.keys()) +
+            list(clip_model_dict.keys())
+        )
 
-        Args:
-            experiment_spec (OmegaConf.DictConfig): Experiment configuration contains all the configurations. Default define in tao-core and user specify in yaml.
-            export (bool, optional): No use in current Classifier repo because the model will not change the forward/architecture. Defaults to False.
-        """
-        super().__init__(experiment_spec)
-        # Overriding what's done in super()
+        # Restricting students to only some
+        self.supported_student_arch = list(fan_model_dict.keys()) + list(
+            faster_vit_model_dict.keys()
+        )
+        # Init local params
+        self.experiment_spec = experiment_spec
         self.checkpoint_filename = "classifier_model"
         self.dataset_config = self.experiment_spec.dataset
         self.model_config = self.experiment_spec.model
         self.train_config = self.experiment_spec.train
         self.eval_config = self.experiment_spec.evaluate
         self.infer_config = self.experiment_spec.inference
+        self.distill_config = self.experiment_spec.distill
 
         self.status_logging_dict = {}
         self.lr = self.train_config.optim.lr
         self.optimizer = self.train_config.optim
         self.lr_policy = self.optimizer.policy
-        self.lr_policy_params = self.optimizer.policy_params
         self.max_epochs = self.train_config.num_epochs
         self.monitor_name = self.train_config.optim.monitor_name
 
         self.n_class = self.dataset_config.num_classes
         self.binary = self.model_config.head.binary
+        self.distill_weight = self.distill_config.loss_lambda
+        self.distill_loss = self.distill_config.loss_type
 
         # construct prediction id 2 class name mapping for visualization
         self.id_2_class_names = {}
@@ -80,24 +97,6 @@ class ClassifierPlModel(TAOLightningModule):
             for idx, line in enumerate(f):
                 self.id_2_class_names[idx] = line.strip()
                 self.class_names.append(line.strip())
-
-        train_acc = {}
-        val_acc = {}
-        if self.binary:
-            self.sigmoid = torch.nn.Sigmoid()
-            train_acc["train_binary_acc"] = Accuracy(task="binary")
-            val_acc["val_binary_acc"] = Accuracy(task="binary")
-        else:
-            for topk in self.model_config.head.topk:
-                train_acc[f"train_acc_{topk}"] = Accuracy(
-                    task="multiclass", num_classes=self.n_class, top_k=topk
-                )
-                val_acc[f"val_acc_{topk}"] = Accuracy(
-                    task="multiclass", num_classes=self.n_class, top_k=topk
-                )
-        self.train_acc = MetricCollection(train_acc)
-        self.valid_acc = MetricCollection(val_acc)
-        self.batch_size = self.dataset_config.batch_size
 
         # #  training log
         self.epoch_acc = 0
@@ -108,23 +107,54 @@ class ClassifierPlModel(TAOLightningModule):
 
         self.vis_after_n_batches = self.eval_config.vis_after_n_batches
         self.vis_after_n_batches_infer = self.infer_config.vis_after_n_batches
-
         # init the model
-        self._build_model(export)
-        self._build_criterion()
+        super().__init__(experiment_spec, export)
+
+        train_acc = {}
+        val_acc = {}
+        if self.binary:
+            self.sigmoid = torch.nn.Sigmoid()
+            train_acc["train_binary_acc"] = Accuracy(
+                task="binary", ignore_index=NOCLASS_IDX
+            )
+            val_acc["val_binary_acc"] = Accuracy(
+                task="binary", ignore_index=NOCLASS_IDX
+            )
+        else:
+            for topk in self.model_config.head.topk:
+                train_acc[f"train_acc_{topk}"] = Accuracy(
+                    task="multiclass",
+                    num_classes=self.n_class,
+                    top_k=topk,
+                    ignore_index=NOCLASS_IDX,
+                )
+                val_acc[f"val_acc_{topk}"] = Accuracy(
+                    task="multiclass",
+                    num_classes=self.n_class,
+                    top_k=topk,
+                    ignore_index=NOCLASS_IDX,
+                )
+        self.train_acc = MetricCollection(train_acc)
+        self.valid_acc = MetricCollection(val_acc)
+        self.batch_size = self.dataset_config.batch_size
 
     def configure_callbacks(self) -> Sequence[Callback] | pl.Callback:
         """Configures logging and checkpoint-saving callbacks"""
         # This is called when trainer.fit() is called
+        self.checkpoint_filename = "classifier_model"
         callbacks = []
         results_dir = self.experiment_spec["results_dir"]
         checkpoint_interval = self.experiment_spec["train"]["checkpoint_interval"]
 
-        status_logger_callback = TAOStatusLogger(results_dir, append=True)
+        status_logger_callback = TAOStatusLogger(
+            results_dir,
+            append=True,
+        )
 
         resume_ckpt = self.experiment_spec["train"][
             "resume_training_checkpoint_path"
         ] or get_latest_checkpoint(results_dir)
+
         resumed_epoch = 0
         if resume_ckpt:
             resumed_epoch = re.search("epoch_(\\d+)", resume_ckpt)
@@ -138,7 +168,7 @@ class ClassifierPlModel(TAOLightningModule):
 
         if self.experiment_spec["train"]["enable_ema"]:
             # Apply Exponential Moving Average Callback
-            ema_callback = EMA(decay=0.9998)
+            ema_callback = EMA(**self.experiment_spec["train"]["ema"])
             ckpt_func = EMAModelCheckpoint
             callbacks.append(ema_callback)
         else:
@@ -164,13 +194,62 @@ class ClassifierPlModel(TAOLightningModule):
             enable_version_counter=False,
         )
         callbacks.append(checkpoint_callback)
-        lr_monitor = LearningRateMonitor(logging_interval="step")
-        callbacks.append(lr_monitor)
         return callbacks
 
-    def _build_model(self, export):
+    def _setup_bindings(self):
+        """Setup bindings to be captured during training for distillation."""
+        pass
+
+    def _build_model(self, export=False):
         """Internal function to build the model."""
+        # Build the teacher config
+        teacher_cfg = copy.deepcopy(self.experiment_spec)
+        teacher_cfg.model = self.experiment_spec.distill.teacher
+
+        # Check if supported teacher arch
+        assert (
+            teacher_cfg.model.backbone.type in self.supported_teacher_arch
+        ), f"Teacher arch {teacher_cfg.model.backbone.type} not supported.\
+            Supported archs: {self.supported_teacher_arch}"
+
+        # Check if supported student arch
+        assert (
+            self.experiment_spec.model.backbone.type in self.supported_student_arch
+        ), f"Student arch {self.experiment_spec.model.backbone.type} not supported.\
+            Supported archs: {self.supported_student_arch}"
+
+        # Build the teacher model
+        self.teacher = build_model(experiment_config=teacher_cfg, export=export)
+        # Build the student model
         self.model = build_model(experiment_config=self.experiment_spec, export=export)
+        state_dict = torch.load(self.experiment_spec.distill.pretrained_teacher_model_path)['state_dict']
+        updated_state_dict = {}
+        for k, v in state_dict.items():
+            if k == "head.fc.weight":
+                updated_state_dict["decoder.fc.weight"] = v
+            elif k == "head.fc.bias":
+                updated_state_dict["decoder.fc.bias"] = v
+            else:
+                updated_state_dict[k] = v
+        if self.experiment_spec.distill.pretrained_teacher_model_path:
+            self.teacher.load_state_dict(
+                updated_state_dict,
+                strict=True,
+            )
+        self.teacher.eval()
+        self.model.train()
+
+        # Freeze teacher
+        for _, param in self.teacher.named_parameters():
+            param.requires_grad = False
+
+        for module in self.teacher.modules():
+            if isinstance(module, nn.BatchNorm2d):
+                module.eval()
+            if isinstance(module, nn.LayerNorm):
+                module.eval()
+            if isinstance(module, nn.Dropout):
+                module.eval()
 
     def _build_criterion(self):
         """Internal function to build the loss function."""
@@ -184,6 +263,13 @@ class ClassifierPlModel(TAOLightningModule):
             )
         else:
             raise NotImplementedError(self.train_config["loss"])
+
+        self.criterions = {
+            "L1": LPCriterion(p=1),
+            "L2": LPCriterion(p=2),
+            "KL": KLDivCriterion(),
+            "CE": Cross_Entropy(soft=True, binary=False, label_smoothing=False),
+        }
 
     def configure_optimizers(self):
         """Configure optimizers for training"""
@@ -223,15 +309,10 @@ class ClassifierPlModel(TAOLightningModule):
 
             scheduler = lr_scheduler.LambdaLR(self.optimizer_G, lr_lambda=lambda_rule)
         elif self.lr_policy == "step":
-            if self.lr_policy_params is not None:
-                step_size = self.lr_policy_params.step_size
-                gamma = self.lr_policy_params.gamma
-            else:   # default values
-                step_size = self.max_epochs // 4
-                gamma = 0.1
+            step_size = self.max_epochs // 8
             # args.lr_decay_iters
             scheduler = lr_scheduler.StepLR(
-                self.optimizer_G, step_size=step_size, gamma=gamma
+                self.optimizer_G, step_size=step_size, gamma=0.9
             )
         elif self.lr_policy == "CosineAnnealingLR":
             scheduler = lr_scheduler.CosineAnnealingLR(
@@ -250,134 +331,36 @@ class ClassifierPlModel(TAOLightningModule):
         optim_dict["monitor"] = self.monitor_name
         return optim_dict
 
-    def _initialize_csv(self, file_name, class_names, with_gt_label):
-        """Initializes the CSV file with the appropriate header."""
-        with open(file_name, "w") as f:
-            writer = csv.writer(f)
-            heading = ["img_name"]
-            if with_gt_label:
-                heading = heading + class_names
-            heading = heading + ["pred_label", "pred_score"]
-            if with_gt_label:
-                heading.append("gt_label")
-            writer.writerow(heading)
-
-    def _write_prediction_row(
-        self,
-        writer,
-        name,
-        class_scores,
-        pred_label,
-        pred_score,
-        with_gt_label,
-        gt_label=None,
-    ):
-        """Writes a single prediction row to the CSV."""
-        # also add the visualization folder for the inference
-        if "inference" in self.vis_dir:
-            # check "visualize" folder exists in vis_dir, if not, create one
-            if not os.path.exists(os.path.join(self.vis_dir, "visualize")):
-                os.makedirs(os.path.join(self.vis_dir, "visualize"))
-        row = [name]
-        if with_gt_label and gt_label is not None:
-            row = row + class_scores
-        row = row + [pred_label, pred_score]
-        if with_gt_label and gt_label is not None:
-            row.append(gt_label)
-        writer.writerow(row)
-
-    def _visualize_predictions(self, out, batch, batch_idx, with_gt_label=False):
-        """
-        Save the predictions and ground truth in csv format. With the csv keys as ["img_name", "pred_label", "pred_score", "gt_label"] and also each class's score.
-        """
-        out = torch.nn.functional.softmax(
-            out, dim=1
-        )  # Apply softmax to get probabilities
-        file_name = expand_path(
-            os.path.join(self.vis_dir, "result.csv")
-        )  # Get the file path
-
-        # Initialize the CSV file header on the first batch
-        if batch_idx == 0:
-            self._initialize_csv(file_name, self.class_names, with_gt_label)
-
-        write_out_argument = []
-        with open(file_name, "a") as f:  # Open the file in append mode
-            writer = csv.writer(f)
-            for i in range(len(batch["name"])):  # Iterate over the batch size
-                # Convert each class score to a list
-                each_class_score = out[i].cpu().detach().tolist()
-                pred_score, pred_label_idx = torch.max(
-                    out[i], 0
-                )  # Get the max score and corresponding label index
-                pred_label = self.class_names[
-                    pred_label_idx.item()
-                ]  # Map index to class name
-
-                if with_gt_label:  # Include ground truth label if required
-                    gt_label = self.class_names[batch["class"][i].item()]
-                    self._write_prediction_row(
-                        writer,
-                        batch["name"][i],
-                        each_class_score,
-                        pred_label,
-                        pred_score.item(),
-                        with_gt_label,
-                        gt_label,
-                    )
-                else:
-                    self._write_prediction_row(
-                        writer,
-                        batch["name"][i],
-                        each_class_score,
-                        pred_label,
-                        pred_score.item(),
-                        with_gt_label,
-                    )
-                    # for pred_score, only keep 4 decimal points
-                    write_out_argument.append(
-                        [pred_label_idx.item(), round(pred_score.item(), 3), pred_label]
-                    )
-
-        if not with_gt_label:
-            # imgs = de_norm(batch['img'], self.dataset_config["augmentation"]["mean"], self.dataset_config["augmentation"]["std"])
-            # imgs_size = np.transpose(batch["size"].cpu().numpy())
-            # for i, img in enumerate(imgs):
-            for i in range(len(batch["name"])):
-                filename = batch["name"][i].split("/")[-1]
-                img_path = expand_path(
-                    os.path.join(self.vis_dir, "visualize", filename)
-                )
-                # save_with_text_overlay(img, write_out_argument[i], img_path, imgs_size[i])
-                save_with_text_overlay(
-                    batch["name"][i], write_out_argument[i], img_path
-                )
-
-    def _forward_pass(self, batch, split="train"):
-        """Forward pass for training, validation and testing."""
-        out = self.model(batch["img"])
-        if self.binary:
-            out = self.sigmoid(out.squeeze(1))
-        if split == "predict":
-            self.loss = None
-        else:
-            self.loss = self.criterion(out, batch["class"].long())
-        return out, self.loss
-
     def training_step(self, batch, batch_idx):
-        """Training step."""
-        out, loss = self._forward_pass(batch, "train")
+        """Training step"""
+        out = self.model(batch["img"])
         acc = self.train_acc(out, batch["class"].long())
         self.log_dict(acc)
-        self.log(
-            "train_loss",
-            loss,
-            on_step=True,
-            on_epoch=True,
-            prog_bar=True,
-            sync_dist=True,
-            batch_size=self.batch_size,
-        )
+        if self.binary:
+            out = self.sigmoid(out.squeeze(1))
+        loss = self.criterion(out, batch["class"].long())
+
+        teacher_outputs = self.teacher(batch["img"])
+        # TODO(@yuw): potentially enable BCE/sigmoid for multi-category
+        if self.distill_loss == "CE":
+            distillation_loss = self.criterions["CE"](
+                out, F.softmax(teacher_outputs, dim=-1)
+            )
+        else:
+            distillation_loss = self.criterions[self.distill_loss](
+                out, teacher_outputs
+            )
+
+        supervised_loss = (1 - self.distill_weight) * loss
+        distill_loss = self.distill_weight * distillation_loss * 100
+
+        if torch.isnan(supervised_loss):
+            supervised_loss = torch.tensor(0.0)
+
+        if torch.isnan(distill_loss):
+            distill_loss = torch.tensor(0.0)
+
+        total_loss = supervised_loss + distill_loss
         self.log(
             "lr",
             self.lr_schedulers().get_last_lr()[-1],
@@ -386,12 +369,41 @@ class ClassifierPlModel(TAOLightningModule):
             prog_bar=True,
             sync_dist=True
         )
-        return loss
+        self.log(
+            "supervised_loss",
+            supervised_loss,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+            sync_dist=True,
+            batch_size=self.batch_size,
+            rank_zero_only=True
+        )
+        self.log(
+            "distillation_loss",
+            distill_loss,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+            sync_dist=True,
+            batch_size=self.batch_size,
+            rank_zero_only=True
+        )
+        self.log(
+            "total_loss",
+            total_loss,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+            sync_dist=True,
+            batch_size=self.batch_size,
+            rank_zero_only=True
+        )
+        return {"loss": total_loss}
 
     def on_train_epoch_end(self):
         """Log Training metrics to status.json"""
-        average_train_loss = self.trainer.logged_metrics["train_loss_epoch"].item()
-        # self.log('train_acc_epoch', self.train_acc.compute())
+        average_train_loss = self.trainer.logged_metrics["total_loss_epoch"].item()
         self.train_acc.reset()
         self.status_logging_dict = {}
         self.status_logging_dict["train_loss"] = average_train_loss
@@ -399,12 +411,15 @@ class ClassifierPlModel(TAOLightningModule):
         status_logging.get_status_logger().kpi = self.status_logging_dict
         status_logging.get_status_logger().write(
             message="Train metrics generated.",
-            status_level=status_logging.Status.RUNNING
+            status_level=status_logging.Status.RUNNING,
         )
 
     def validation_step(self, batch, batch_idx):
         """Validation step."""
-        out, loss = self._forward_pass(batch, "val")
+        out = self.model(batch["img"])
+        if self.binary:
+            out = self.sigmoid(out.squeeze(1))
+        loss = self.criterion(out, batch["class"].long())
         self.valid_acc.update(out, batch["class"].long())
         self.log(
             "val_loss",
@@ -414,6 +429,7 @@ class ClassifierPlModel(TAOLightningModule):
             prog_bar=True,
             sync_dist=True,
             batch_size=self.batch_size,
+            rank_zero_only=True
         )
         return loss
 
@@ -443,36 +459,10 @@ class ClassifierPlModel(TAOLightningModule):
 
         pl.utilities.memory.garbage_collection_cuda()
 
-    def test_step(self, batch, batch_idx):
-        """Test step."""
-        out, loss = self._forward_pass(batch, "test")
-
-        # Calculate running metrics
-        self.valid_acc.update(out, batch["class"].long())
-
-        self._visualize_predictions(out, batch, batch_idx, with_gt_label=True)
-
-        self.log("test_loss", loss, on_step=True, on_epoch=False, prog_bar=True)
-
-    def on_test_epoch_end(self):
-        """Test epoch end."""
-        # scores, mean_scores = self._collect_epoch_states()  # needed for update metrics
-        acc = self.valid_acc.compute()
-        self.log_dict(acc, sync_dist=True)
-        self.valid_acc.reset()
-        self.status_logging_dict = {}
-        for acc_key in acc.keys():
-            self.status_logging_dict[acc_key] = acc[acc_key].item()
-        status_logging.get_status_logger().kpi = self.status_logging_dict
-        status_logging.get_status_logger().write(
-            message="Test metrics generated.",
-            status_level=status_logging.Status.RUNNING,
-        )
-
-    def predict_step(self, batch, batch_idx):
-        """Predict step."""
-        out, _ = self._forward_pass(batch, "predict")
-
-        self._visualize_predictions(out, batch, batch_idx, with_gt_label=False)
-
-        return out
+    def on_save_checkpoint(self, checkpoint):
+        """Save the checkpoint but ignore the teacher weights."""
+        keys_to_pop = [
+            key for key in checkpoint["state_dict"].keys() if key.startswith("teacher")
+        ]
+        for key in keys_to_pop:
+            checkpoint["state_dict"].pop(key)
