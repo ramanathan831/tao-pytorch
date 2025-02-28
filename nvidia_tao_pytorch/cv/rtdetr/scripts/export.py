@@ -72,6 +72,8 @@ def run_export(experiment_config):
     input_height = experiment_config.export.input_height
     opset_version = experiment_config.export.opset_version
     batch_size = experiment_config.export.batch_size
+    if experiment_config.model.frozen_fm.enabled:
+        batch_size = 1
     on_cpu = experiment_config.export.on_cpu
     if batch_size is None or batch_size == -1:
         input_batch_size = 1
