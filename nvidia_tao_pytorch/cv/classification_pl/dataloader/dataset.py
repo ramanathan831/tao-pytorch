@@ -17,11 +17,17 @@
 import os
 import glob
 from PIL import Image, ImageFile
-
+import torch
 from torch.utils.data import Dataset
 
 from nvidia_tao_pytorch.core.path_utils import expand_path
-from nvidia_tao_pytorch.cv.classification_pl.dataloader.augmentation import CLDataAugmentation
+from nvidia_tao_pytorch.cv.classification_pl.dataloader.augmentation import (
+    CLDataAugmentation,
+)
+
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+Image.MAX_IMAGE_PIXELS = 9000000000
+NOCLASS_IDX = -1
 
 
 class CLDataset(Dataset):
@@ -30,31 +36,38 @@ class CLDataset(Dataset):
 
     Args:
         root_dir (str): The root directory of the dataset.
+        prefix (str): The prefix of the image folders.
         augmentation (dict): A dictionary containing the augmentation parameters.
         split (str): The split of the dataset (train | val | test).
+        nolabel_folder (str): Path to image folder with no labels(unstructured data)
         img_size (int): The size of the images after resizing.
         to_tensor (bool): Convert the images to tensors.
-        prefix (str): The prefix of the image folders.
     """
 
-    def __init__(self, root_dir, augmentation=None, split='train', img_size=256, to_tensor=True, prefix=None):
+    def __init__(
+        self,
+        root_dir,
+        prefix,
+        augmentation,
+        nolabel_folder=None,
+        split="train",
+        img_size=256,
+        to_tensor=True,
+    ):
         """Initialize"""
         super(CLDataset, self).__init__()
-        # Set PIL flag to make sure that PIL can read truncated images
-        ImageFile.LOAD_TRUNCATED_IMAGES = True
-        Image.MAX_IMAGE_PIXELS = 9000000000
-
         self.root_dir = root_dir
         self.img_size = img_size
         self.split = split  # train | val | test
         self.prefix = prefix
-        assert self.prefix is not None, "Prefix is required for classification dataset. Define prefix in the config file dataset section."
+        self.nolabel_folder = nolabel_folder
+
+        self.class_names = {}
 
         # read class.txt and each line is a class name
-        self.class_names = {}
         # find wheter the class.txt is in the root_dir
-        if os.path.exists(os.path.join(self.root_dir, 'classes.txt')):
-            with open(os.path.join(self.root_dir, 'classes.txt')) as f:
+        if os.path.exists(os.path.join(self.root_dir, "classes.txt")):
+            with open(os.path.join(self.root_dir, "classes.txt")) as f:
                 for idx, line in enumerate(f):
                     self.class_names[line.strip()] = idx
         else:
@@ -62,11 +75,11 @@ class CLDataset(Dataset):
             for idx, class_name in enumerate(class_names):
                 self.class_names[class_name] = idx
             # write the class.txt
-            with open(os.path.join(self.root_dir, 'classes.txt'), 'w') as f:
+            with open(os.path.join(self.root_dir, "classes.txt"), "w") as f:
                 for class_name in class_names:
                     f.write(f"{class_name}\n")
 
-        if split == 'train' or split == 'val':
+        if split == "train" or split == "val":
             self.img_name_list = self.get_image_file_names(inference=False)
         else:
             self.img_name_list = self.get_image_file_names(inference=True)
@@ -79,19 +92,21 @@ class CLDataset(Dataset):
 
         aug_kwargs = {
             "img_size": self.img_size,
-            "mean": augmentation['mean'],
-            "std": augmentation['std'],
+            "mean": augmentation["mean"],
+            "std": augmentation["std"],
         }
 
-        if self.split == 'train':
-            aug_kwargs.update({
-                "random_flip": augmentation['random_flip'],
-                "random_rotate": augmentation['random_rotate'],
-                "random_color": augmentation['random_color'],
-                "with_scale_random_crop": augmentation['with_scale_random_crop'],
-                "with_random_crop": augmentation['with_random_crop'],
-                "with_random_blur": augmentation['with_random_blur'],
-            })
+        if self.split == "train":
+            aug_kwargs.update(
+                {
+                    "random_flip": augmentation["random_flip"],
+                    "random_rotate": augmentation["random_rotate"],
+                    "random_color": augmentation["random_color"],
+                    "with_scale_random_crop": augmentation["with_scale_random_crop"],
+                    "with_random_crop": augmentation["with_random_crop"],
+                    "with_random_blur": augmentation["with_random_blur"],
+                }
+            )
 
         self.augmentor = CLDataAugmentation(**aug_kwargs)
 
@@ -106,26 +121,36 @@ class CLDataset(Dataset):
             dict: A dictionary containing two augmented images ('A' and 'B') and the image name ('name').
         """
         img_path = self.img_name_list[index]
-        # name = img_path.split('/')[-1]
         img_path = self.get_img_path(img_path)
         try:
-            img = Image.open(img_path).convert('RGB')
+            img = Image.open(img_path).convert("RGB")
         except Exception as e:
             raise ValueError(f"Error loading image {img_path}: {e}")
 
         # record the h,w of the image for visualization
         h, w = img.size
 
-        if self.split == 'train' or self.split == 'val':
-            class_name = img_path.split('/')[-2]
-            c = self.class_names[class_name]
+        if self.split == "train" or self.split == "val":
+            # Check if the image is in the nolabel folder
+            is_structured = (
+                img_path.find(self.nolabel_folder) == -1
+                if self.nolabel_folder is not None and self.split == "train"
+                else True
+            )
+            split_img_path = img_path.split("/")
+            class_name = (
+                split_img_path[-2]
+                if len(split_img_path) >= 2 and is_structured
+                else "nolabel"
+            )
+            c = self.class_names.get(class_name, NOCLASS_IDX)
 
             [img] = self.augmentor.transform([img], to_tensor=self.to_tensor)
-            return {'img': img, 'class': c, 'name': img_path}
+            return {"img": img, "class": c, "name": img_path}
 
         else:
             [img] = self.augmentor.transform([img], to_tensor=self.to_tensor)
-            return {'img': img, 'name': img_path, "size": (h, w)}
+            return {"img": img, "name": img_path, "size": (h, w)}
 
     def __len__(self):
         """Return the total number of images in the dataset."""
@@ -146,14 +171,30 @@ class CLDataset(Dataset):
         if inference:
             for s in suffix:
                 img_name_list.extend(
-                    glob.glob(os.path.join(self.root_dir, self.prefix, f"*.{s}"), recursive=True)
+                    glob.glob(
+                        os.path.join(self.root_dir, self.prefix, f"*.{s}"),
+                        recursive=True,
+                    )
                 )
         else:
             for class_name in self.class_names:
                 for s in suffix:
                     img_name_list.extend(
-                        glob.glob(os.path.join(self.root_dir, self.prefix, class_name, f"*.{s}"))
+                        glob.glob(
+                            os.path.join(
+                                self.root_dir, self.prefix, class_name, f"*.{s}"
+                            )
+                        )
                     )
+
+            if self.nolabel_folder:
+                img_name_list.extend(
+                    glob.glob(
+                        os.path.join(self.nolabel_folder, f"**/*.{s}"),
+                        recursive=True,
+                    )
+                )
+
         return img_name_list
 
     def get_img_path(self, path):
@@ -161,3 +202,16 @@ class CLDataset(Dataset):
         Get the full path of an image given its filename and folder name.
         """
         return expand_path(path)
+
+    def collate_fn(self, batch):
+        """Collate items in a batch."""
+        out = {}
+        images = []
+        labels = []
+
+        for item in batch:
+            images.append(item["img"])
+            labels.append(item["class"])
+        out["img"] = torch.stack(images)
+        out["class"] = torch.tensor(labels)
+        return out

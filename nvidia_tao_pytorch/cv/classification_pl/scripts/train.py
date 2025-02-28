@@ -17,16 +17,16 @@
 import os
 from pytorch_lightning import Trainer
 
+from nvidia_tao_core.config.classification_pl.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_pytorch.core.initialize_experiments import initialize_train_experiment
 from nvidia_tao_pytorch.core.tlt_logging import obfuscate_logs
-from nvidia_tao_core.config.classification_pl.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.classification_pl.dataloader.pl_classification_data_module import CLDataModule
 from nvidia_tao_pytorch.cv.classification_pl.model.classifier_pl_model import ClassifierPlModel
 
 
-def run_experiment(experiment_config, key):
+def run_experiment(experiment_config, key, lightning_module=ClassifierPlModel):
     """Start the training."""
     resume_ckpt, trainer_kwargs = initialize_train_experiment(experiment_config, key)
 
@@ -41,13 +41,13 @@ def run_experiment(experiment_config, key):
     dm = CLDataModule(experiment_config.dataset)
 
     if pretrained_path:
-        model = ClassifierPlModel.load_from_checkpoint(
+        model = lightning_module.load_from_checkpoint(
             pretrained_path,
             map_location="cpu",
             experiment_spec=experiment_config
         )
     else:
-        model = ClassifierPlModel(experiment_config)
+        model = lightning_module(experiment_config)
 
     strategy = 'auto'
     if len(trainer_kwargs['devices']) > 1:
@@ -61,7 +61,6 @@ def run_experiment(experiment_config, key):
         precision=precision,
         use_distributed_sampler=False,
         sync_batchnorm=sync_batchnorm,
-        # callbacks=callbacks,
     )
 
     trainer.fit(model, dm, ckpt_path=resume_ckpt)
@@ -82,7 +81,8 @@ def main(cfg: ExperimentConfig) -> None:
     obfuscate_logs(cfg)
     run_experiment(
         experiment_config=cfg,
-        key=cfg.encryption_key
+        key=cfg.encryption_key,
+        lightning_module=ClassifierPlModel
     )
 
 

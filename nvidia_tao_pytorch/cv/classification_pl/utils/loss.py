@@ -29,6 +29,7 @@
 """Loss Functions for Classification"""
 
 import torch.nn as nn
+from nvidia_tao_pytorch.cv.classification_pl.dataloader.dataset import NOCLASS_IDX
 
 
 class BCELoss(nn.Module):
@@ -40,12 +41,14 @@ class BCELoss(nn.Module):
         reduction (str): The reduction method to apply to the output.
     """
 
-    def __init__(self, label_smoothing=0.0, reduction='mean'):
+    def __init__(self, label_smoothing=0.0, reduction="mean"):
         """
         Constructor for BCELoss
         """
         super(BCELoss, self).__init__()
-        assert 0 <= label_smoothing < 1, "label_smoothing value must be between 0 and 1."
+        assert (
+            0 <= label_smoothing < 1
+        ), "label_smoothing value must be between 0 and 1."
         self.label_smoothing = label_smoothing
         self.reduction = reduction
         self.bce_with_logits = nn.BCELoss(reduction=reduction)
@@ -54,14 +57,18 @@ class BCELoss(nn.Module):
         """
         Forward pass for BCELoss
         """
-        target = target.float()
+        mask = target != NOCLASS_IDX
+
+        target = target[mask].float()
         if self.label_smoothing > 0:
             positive_smoothed_labels = 1.0 - self.label_smoothing
             negative_smoothed_labels = self.label_smoothing
-            target = target * positive_smoothed_labels + \
+            target = (
+                target * positive_smoothed_labels +
                 (1 - target) * negative_smoothed_labels
+            )
 
-        loss = self.bce_with_logits(tensor, target)
+        loss = self.bce_with_logits(tensor[mask], target)
         return loss
 
 
@@ -73,18 +80,24 @@ class Cross_Entropy(nn.Module):
         binary (bool): If True, use BCELoss, otherwise use CrossEntropyLoss.
         weight (Tensor): A manual rescaling weight given to each class.
         label_smoothing (float): The label smoothing value.
+        soft (bool): If True, allow soft label from a teacher model.
     """
 
-    def __init__(self, binary, label_smoothing=0.1):
-        """
-        Constructor for Cross_Entropy
-        """
+    def __init__(self, binary, weight=None, label_smoothing=0.1, soft=False):
         super(Cross_Entropy, self).__init__()
         self.binary = binary
-        if self.binary:
-            self.loss = BCELoss(label_smoothing=label_smoothing)
+        self.soft = soft
+        if soft:
+            self.loss = nn.BCEWithLogitsLoss(pos_weight=weight)
         else:
-            self.loss = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
+            if self.binary:
+                self.loss = BCELoss(label_smoothing=label_smoothing, reduction="mean")
+            else:
+                self.loss = nn.CrossEntropyLoss(
+                    label_smoothing=label_smoothing,
+                    reduction="mean",
+                    ignore_index=NOCLASS_IDX,
+                )
 
     def forward(self, pred, target):
         """

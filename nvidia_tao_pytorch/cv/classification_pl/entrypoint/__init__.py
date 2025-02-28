@@ -1,3 +1,4 @@
+
 # Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,4 +13,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-""" Init File for Classification"""
+"""Classification Entrypoint."""
