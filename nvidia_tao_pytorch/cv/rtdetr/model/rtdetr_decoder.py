@@ -117,7 +117,7 @@ class TransformerDecoderLayer(nn.Module):
 class TransformerDecoder(nn.Module):
     """Transfromer Decoder module."""
 
-    def __init__(self, hidden_dim, decoder_layer, num_layers, eval_idx=-1, frozen_fm_cfg=None):
+    def __init__(self, hidden_dim, decoder_layer, num_layers, eval_idx=-1, frozen_fm_cfg=None, export=False):
         """ Initializes the Transformer Decoder Module """
         super(TransformerDecoder, self).__init__()
         self.layers = nn.ModuleList([copy.deepcopy(decoder_layer) for _ in range(num_layers)])
@@ -126,6 +126,7 @@ class TransformerDecoder(nn.Module):
         self.eval_idx = eval_idx if eval_idx >= 0 else num_layers + eval_idx
 
         self.frozen_fm_cfg = frozen_fm_cfg
+        self.export = export
         if frozen_fm_cfg and frozen_fm_cfg.enabled:
             if "radio" in frozen_fm_cfg.backbone:
                 self.radio_dim = radio_model_dict[os.path.basename(frozen_fm_cfg.checkpoint)][1]
@@ -154,7 +155,7 @@ class TransformerDecoder(nn.Module):
         dec_out_bboxes = []
         dec_out_logits = []
         ref_points_detach = F.sigmoid(ref_points_unact)
-        b, nq, _ = ref_points_detach.shape  # 1, 300, 4
+        bs, nq, _ = ref_points_detach.shape  # 1, 300, 4
 
         ref_points = None
         for i, layer in enumerate(self.layers):
@@ -162,9 +163,11 @@ class TransformerDecoder(nn.Module):
             # begin global query
             ###################################################################
             if self.frozen_fm_cfg and self.frozen_fm_cfg.enabled:
+                if self.export:
+                    bs = 1
                 assert image_query is not None, "Image query is not defined."
                 image_query_per_layer = self.image_query_norm[i](self.image_query_proj[i](image_query))
-                image_query_ref = torch.tile(torch.Tensor([0.5, 0.5, 1.0, 1.0]), [b, 1, 1]).to(output.device)  # TODO(@yuw): (b, 1, 1) --> (1, 1, 1) for export
+                image_query_ref = torch.tile(torch.Tensor([0.5, 0.5, 1.0, 1.0]), [bs, 1, 1]).to(output.device)
                 output = torch.cat([output, image_query_per_layer], dim=1)
                 ref_points_detach = torch.cat([ref_points_detach, image_query_ref], dim=1)
             ###################################################################
@@ -234,7 +237,8 @@ class RTDETRTransformer(nn.Module):
                  eval_idx=-1,
                  eps=1e-2,
                  aux_loss=True,
-                 frozen_fm_cfg=None):
+                 frozen_fm_cfg=None,
+                 export=False):
         """Initialize Encoder-Decoder Class for RT-DETR."""
         super(RTDETRTransformer, self).__init__()
         assert position_embed_type in ['sine', 'learned'], \
@@ -255,12 +259,13 @@ class RTDETRTransformer(nn.Module):
         self.eval_spatial_size = eval_spatial_size
         self.aux_loss = aux_loss
         self.frozen_fm_cfg = frozen_fm_cfg
+        self.export = export
         # backbone feature projection
         self._build_input_proj_layer(feat_channels)
 
         # Transformer module
         decoder_layer = TransformerDecoderLayer(hidden_dim, nhead, dim_feedforward, dropout, activation, num_levels, num_decoder_points)
-        self.decoder = TransformerDecoder(hidden_dim, decoder_layer, num_decoder_layers, eval_idx, frozen_fm_cfg)
+        self.decoder = TransformerDecoder(hidden_dim, decoder_layer, num_decoder_layers, eval_idx, frozen_fm_cfg, export)
 
         self.num_denoising = num_denoising
         self.label_noise_ratio = label_noise_ratio
@@ -506,7 +511,7 @@ class RTDETRTransformer(nn.Module):
             dn_out_bboxes, out_bboxes = torch.split(out_bboxes, dn_meta['dn_num_split'], dim=2)
             dn_out_logits, out_logits = torch.split(out_logits, dn_meta['dn_num_split'], dim=2)
 
-        out = {'pred_logits': out_logits[-1], 'pred_boxes': out_bboxes[-1], 'dsrcs': feats}
+        out = {'pred_logits': out_logits[-1], 'pred_boxes': out_bboxes[-1]}
 
         if self.training and self.aux_loss:
             out['aux_outputs'] = self._set_aux_loss(out_logits[:-1], out_bboxes[:-1])
@@ -515,10 +520,11 @@ class RTDETRTransformer(nn.Module):
             if self.training and dn_meta is not None:
                 out['dn_aux_outputs'] = self._set_aux_loss(dn_out_logits, dn_out_bboxes)
                 out['dn_meta'] = dn_meta
-
-        out['obj_queries'] = target
-        out['scores_per_img'] = scores_per_img
-        out['enc_topk_bboxes'] = enc_topk_bboxes
+        if not self.export:
+            out['obj_queries'] = target
+            out['scores_per_img'] = scores_per_img
+            out['enc_topk_bboxes'] = enc_topk_bboxes
+            out['dsrcs'] = feats
         return out
 
     @torch.jit.unused

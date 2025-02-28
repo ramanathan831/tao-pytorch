@@ -16,12 +16,14 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from argparse import Namespace
+torch.serialization.add_safe_globals([Namespace])
 
 
 class RTDETR(nn.Module):
     """RT-DETR Module."""
 
-    def __init__(self, backbone: nn.Module, encoder, decoder, multi_scale=None, frozen_fm_cfg=None):
+    def __init__(self, backbone: nn.Module, encoder, decoder, multi_scale=None, frozen_fm_cfg=None, export=False):
         """Init function."""
         super().__init__()
         self.backbone = backbone
@@ -29,6 +31,7 @@ class RTDETR(nn.Module):
         self.encoder = encoder
         self.multi_scale = multi_scale
         self.frozen_fm_cfg = frozen_fm_cfg
+        self.export = export
         if frozen_fm_cfg and frozen_fm_cfg.enabled:
             if "radio" in frozen_fm_cfg.backbone:
                 model_version = frozen_fm_cfg.checkpoint
@@ -60,8 +63,9 @@ class RTDETR(nn.Module):
         else:
             x, proj_feats = self.encoder(feats)
             x = self.decoder(x, targets)
-        x['bb_feats'] = feats
-        x['srcs'] = proj_feats
+        if not self.export:
+            x['bb_feats'] = feats
+            x['srcs'] = proj_feats
 
         return x
 

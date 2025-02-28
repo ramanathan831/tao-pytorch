@@ -63,6 +63,7 @@ class RTDETRModel(nn.Module):
                  multi_scale=[480, 512, 544, 576, 608, 640, 640, 640, 672, 704, 736, 768, 800],
                  activation_checkpoint=False,
                  frozen_fm_cfg=None,
+                 export=False,
                  ):
         """Initialize RT-DETR Model."""
         super().__init__()
@@ -146,6 +147,7 @@ class RTDETRModel(nn.Module):
             eval_spatial_size=eval_spatial_size,
             num_classes=num_classes,
             frozen_fm_cfg=frozen_fm_cfg,
+            export=export,
         )
 
         self.model = RTDETR(
@@ -154,6 +156,7 @@ class RTDETRModel(nn.Module):
             decoder=decoder,
             multi_scale=multi_scale,
             frozen_fm_cfg=frozen_fm_cfg,
+            export=export,
         )
 
     def forward(self, x, targets=None):
@@ -238,6 +241,7 @@ def build_model(experiment_config,
         eval_idx=eval_idx,
         activation_checkpoint=activation_checkpoint,
         # frozen FM
-        frozen_fm_cfg=frozen_fm_cfg
+        frozen_fm_cfg=frozen_fm_cfg,
+        export=export,
     )
     return model
