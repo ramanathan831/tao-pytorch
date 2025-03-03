@@ -109,7 +109,7 @@ def run_export(experiment_config):
         os.makedirs(output_root)
 
     # Download required pretrained modules from NGC and Github
-    download_and_convert_pretrained_models()
+    download_and_convert_pretrained_modules()
 
     if experiment_config.task == 'stylegan':
         # build dataloader

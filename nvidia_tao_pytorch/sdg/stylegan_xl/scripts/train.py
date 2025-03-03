@@ -55,7 +55,7 @@ def run_experiment(experiment_config, key):
     pretrained_path = experiment_config.train.pretrained_model_path
 
     # Download required pretrained modules from NGC and Github
-    download_and_convert_pretrained_models()
+    download_and_convert_pretrained_modules()
 
     # StyleGAN-XL only supports 'stylegan' and 'bigdatasetgan' tasks
     if experiment_config.task == 'stylegan':
