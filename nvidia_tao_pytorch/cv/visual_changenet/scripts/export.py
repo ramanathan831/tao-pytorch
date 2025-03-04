@@ -141,7 +141,7 @@ def run_export(experiment_config):
         dummy_input1 = torch.ones(input_batch_size, input_channel, input_height, input_width, device=device)
     else:
         dummy_input1 = torch.ones(input_batch_size, num_golden, input_channel, input_height, input_width, device=device)
-        dummy_input = (dummy_input0, dummy_input1)
+    dummy_input = (dummy_input0, dummy_input1)
 
     if output_file.endswith('.etlt'):
         tmp_onnx_file = output_file.replace('.etlt', '.onnx')
