@@ -50,7 +50,9 @@ class ConvModule(nn.Module):
         """Initialize ConvModule"""
         super().__init__()
 
-        self.conv = torch.nn.Conv2d(in_channels, out_channels, kernel_size, padding=padding, bias=norm is not None)
+        # https://mmcv.readthedocs.io/en/2.x/api/generated/mmcv.cnn.ConvModule.html
+        # Bugfix: MAL vit model was trained using mmcv where there are bias terms in the conv layer
+        self.conv = torch.nn.Conv2d(in_channels, out_channels, kernel_size, padding=padding, bias=(norm is None))
 
         if norm:
             # @seanf note: this was refactored from an mmcv implementation
