@@ -31,7 +31,7 @@ def run_experiment(experiment_config, key, lightning_module=ClassifierPlModel):
     resume_ckpt, trainer_kwargs = initialize_train_experiment(experiment_config, key)
 
     num_nodes = experiment_config.train.num_nodes
-
+    clip_grad_norm = experiment_config.train.clip_grad_norm
     # Load pretrained model as starting point if pretrained path is provided
     pretrained_path = experiment_config.train.pretrained_model_path
 
@@ -39,6 +39,7 @@ def run_experiment(experiment_config, key, lightning_module=ClassifierPlModel):
     sync_batchnorm = False
 
     dm = CLDataModule(experiment_config.dataset)
+    dm.setup(stage="fit")
 
     if pretrained_path:
         model = lightning_module.load_from_checkpoint(
@@ -55,7 +56,7 @@ def run_experiment(experiment_config, key, lightning_module=ClassifierPlModel):
 
     trainer = Trainer(
         **trainer_kwargs,
-        gradient_clip_val=5.0,
+        gradient_clip_val=clip_grad_norm,
         num_nodes=num_nodes,
         strategy=strategy,
         precision=precision,

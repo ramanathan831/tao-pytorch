@@ -102,6 +102,8 @@ class CLDataset(Dataset):
                     "random_flip": augmentation["random_flip"],
                     "random_rotate": augmentation["random_rotate"],
                     "random_color": augmentation["random_color"],
+                    "random_erase": augmentation["random_erase"],
+                    "random_aug": augmentation["random_aug"],
                     "with_scale_random_crop": augmentation["with_scale_random_crop"],
                     "with_random_crop": augmentation["with_random_crop"],
                     "with_random_blur": augmentation["with_random_blur"],
@@ -131,10 +133,11 @@ class CLDataset(Dataset):
         h, w = img.size
 
         if self.split == "train" or self.split == "val":
+
             # Check if the image is in the nolabel folder
             is_structured = (
                 img_path.find(self.nolabel_folder) == -1
-                if self.nolabel_folder is not None and self.split == "train"
+                if self.nolabel_folder and self.split == "train"
                 else True
             )
             split_img_path = img_path.split("/")
@@ -172,7 +175,7 @@ class CLDataset(Dataset):
             for s in suffix:
                 img_name_list.extend(
                     glob.glob(
-                        os.path.join(self.root_dir, self.prefix, f"*.{s}"),
+                        os.path.join(self.root_dir, self.prefix, f"**/*.{s}"),
                         recursive=True,
                     )
                 )

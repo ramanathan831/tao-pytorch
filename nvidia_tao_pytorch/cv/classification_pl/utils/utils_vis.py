@@ -27,6 +27,7 @@
 # limitations under the License.
 
 """Classification utils."""
+import os
 import numpy as np
 import torch
 import cv2
@@ -118,3 +119,28 @@ def de_norm(tensor_data, mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
         for t, m, s in zip(tensor_data, mean, std):
             t.mul_(s).add_(m)
         return tensor_data
+
+
+def sync_tensor(tensor: torch.Tensor | float, reduce_method="mean") -> torch.Tensor | list[torch.Tensor]:
+    """
+    Syncs a tensor across all GPUs.
+
+    Args:
+        tensor (torch.Tensor | float): The tensor to sync.
+        reduce_method (str): The reduction method to use. Options are "mean", "cat", and "root".
+
+    Returns:
+        torch.Tensor | list[torch.Tensor]: The synced tensor.
+    """
+    if not torch.distributed.is_initialized():
+        return tensor
+    if not isinstance(tensor, torch.Tensor):
+        tensor = torch.Tensor(1).fill_(tensor).cuda()
+    tensor_list = [torch.empty_like(tensor) for _ in range(int(os.environ["WORLD_SIZE"]))]
+    torch.distributed.all_gather(tensor_list, tensor.contiguous(), async_op=False)
+    if reduce_method == "cat":
+        return torch.cat(tensor_list, dim=0)
+    elif reduce_method == "root":
+        return tensor_list[0]
+    else:
+        return tensor_list
