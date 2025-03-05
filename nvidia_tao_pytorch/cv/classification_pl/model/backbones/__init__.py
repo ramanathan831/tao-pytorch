@@ -59,7 +59,7 @@ faster_vit_model_dict = {
     'faster_vit_4_21k_224': FasterVit421k224,
     'faster_vit_4_21k_384': FasterVit421k384,
     'faster_vit_4_21k_512': FasterVit421k512,
-    'faster_vit_4_21k_768': FasterVit421k768
+    'faster_vit_4_21k_768': FasterVit421k768,
 }
 
 gc_vit_model_dict = {

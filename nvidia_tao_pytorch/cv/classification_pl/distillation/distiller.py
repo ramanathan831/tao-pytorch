@@ -28,6 +28,7 @@ from torch.optim import lr_scheduler
 from torchmetrics.classification import Accuracy
 from torchmetrics import MetricCollection
 from pytorch_lightning.callbacks import Callback, ModelCheckpoint
+from transformers.optimization import get_cosine_schedule_with_warmup
 
 import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
 from nvidia_tao_pytorch.core.callbacks.loggers import TAOStatusLogger
@@ -271,27 +272,49 @@ class ClassDistiller(Distiller):
             "CE": Cross_Entropy(soft=True, binary=False, label_smoothing=False),
         }
 
+    @staticmethod
+    def _get_parameter_groups(model, weight_decay, skip_names=()):
+        decay = []
+        no_decay = []
+
+        for name, param in model.named_parameters():
+            if not param.requires_grad:
+                continue
+
+            if any(s in name for s in skip_names):
+                no_decay.append(param)
+            else:
+                decay.append(param)
+
+        return [
+            {"params": no_decay, "weight_decay": 0.0},
+            {"params": decay, "weight_decay": weight_decay},
+        ]
+
     def configure_optimizers(self):
         """Configure optimizers for training"""
+        parameters = self._get_parameter_groups(
+            self.model, self.optimizer.weight_decay, self.optimizer.skip_names
+        )
         # define optimizers
         if self.optimizer.optim == "sgd":
             self.optimizer_G = optim.SGD(
-                self.model.parameters(),
+                parameters,
                 lr=self.lr,
                 momentum=self.optimizer.momentum,  # 0.9
                 weight_decay=self.optimizer.weight_decay,
             )  # 5e-4
         elif self.optimizer.optim == "adam":
             self.optimizer_G = optim.Adam(
-                self.model.parameters(),
+                parameters,
                 lr=self.lr,
                 weight_decay=self.optimizer.weight_decay,
             )  # 0
         elif self.optimizer.optim == "adamw":
             self.optimizer_G = optim.AdamW(
-                self.model.parameters(),
+                parameters,
                 lr=self.lr,
-                betas=[0.0, 0.9],
+                betas=self.optimizer.betas,
                 weight_decay=self.optimizer.weight_decay,
             )
         else:
@@ -299,8 +322,9 @@ class ClassDistiller(Distiller):
                 "Optimizer {} is not implemented".format(self.optimizer.optim)
             )
 
-        # define lr schedulers
-        if self.lr_policy == "linear":
+        # Create main scheduler based on policy
+        lr_policy = self.lr_policy.lower()
+        if lr_policy == "linear":
 
             def lambda_rule(epoch):
                 # gradually decay learning rate from epoch 0 to max_epochs
@@ -308,26 +332,47 @@ class ClassDistiller(Distiller):
                 return lr_l
 
             scheduler = lr_scheduler.LambdaLR(self.optimizer_G, lr_lambda=lambda_rule)
-        elif self.lr_policy == "step":
-            step_size = self.max_epochs // 8
+        elif lr_policy == "step":
+            interval = "epoch"
+            if self.lr_policy_params is not None:
+                step_size = self.lr_policy_params.step_size
+                gamma = self.lr_policy_params.gamma
+            else:   # default values
+                step_size = self.max_epochs // 4
+                gamma = 0.1
             # args.lr_decay_iters
             scheduler = lr_scheduler.StepLR(
-                self.optimizer_G, step_size=step_size, gamma=0.9
+                self.optimizer_G, step_size=step_size, gamma=gamma
             )
-        elif self.lr_policy == "CosineAnnealingLR":
-            scheduler = lr_scheduler.CosineAnnealingLR(
-                self.optimizer_G, T_max=200, eta_min=0
+        elif lr_policy == "multistep":
+            interval = "epoch"
+            if self.lr_policy_params is not None:
+                milestones = self.lr_policy_params.milestones
+                gamma = self.lr_policy_params.gamma
+            else:
+                milestones = [self.max_epochs // 2]
+                gamma = 0.1
+            scheduler = lr_scheduler.MultiStepLR(self.optimizer_G, milestones, gamma=gamma)
+        elif lr_policy == "cosine":
+            interval = "step"
+            epoch_steps = self.trainer.estimated_stepping_batches // (self.trainer.max_epochs * self.trainer.accumulate_grad_batches)
+            scheduler = get_cosine_schedule_with_warmup(
+                self.optimizer_G,
+                num_training_steps=self.trainer.estimated_stepping_batches,
+                num_warmup_steps=epoch_steps * self.optimizer.warmup_epochs,
             )
         else:
-            return NotImplementedError(
-                "learning rate policy [%s] is not implemented", self.lr_policy
-            )
+            raise NotImplementedError('learning rate policy [{}] is not implemented'.format(self.lr_policy))
 
         self.lr_scheduler = scheduler
 
         optim_dict = {}
         optim_dict["optimizer"] = self.optimizer_G
-        optim_dict["lr_scheduler"] = self.lr_scheduler
+        optim_dict["lr_scheduler"] = {
+            "scheduler": self.lr_scheduler,
+            "interval": interval,
+            "frequency": 1
+        }
         optim_dict["monitor"] = self.monitor_name
         return optim_dict
 

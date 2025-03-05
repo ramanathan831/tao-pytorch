@@ -134,7 +134,7 @@ class HybridEmbed(nn.Module):
     def __init__(self, backbone, img_size=224, patch_size=2, feature_size=None, in_chans=3, embed_dim=384):
         """ Init Function """
         super().__init__()
-        assert isinstance(backbone, nn.Module)
+        assert isinstance(backbone, nn.Module), "backbone must be a nn.Module"
         img_size = to_2tuple(img_size)
         patch_size = to_2tuple(patch_size)
         self.img_size = img_size

@@ -128,6 +128,7 @@ class CLDataModule(pl.LightningDataModule):
                 self.train_sampler, self.batch_size, drop_last=False
             ),
             collate_fn=self.train_dataset.collate_fn,
+            pin_memory=True,
         )
         return train_loader
 
@@ -143,6 +144,7 @@ class CLDataModule(pl.LightningDataModule):
             batch_size=self.batch_size,
             shuffle=False,
             collate_fn=self.train_dataset.collate_fn,
+            pin_memory=True,
         )
         return val_loader
 

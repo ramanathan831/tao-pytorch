@@ -17,7 +17,8 @@
 import re
 import os
 import csv
-from typing import Sequence
+from typing import Sequence, Union
+import numpy as np
 
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import Callback, ModelCheckpoint
@@ -27,6 +28,7 @@ import torch.optim as optim
 from torch.optim import lr_scheduler
 from torchmetrics.classification import Accuracy
 from torchmetrics import MetricCollection
+from transformers.optimization import get_cosine_schedule_with_warmup
 
 from nvidia_tao_pytorch.core.lightning.tao_lightning_module import TAOLightningModule
 from nvidia_tao_pytorch.core.path_utils import expand_path
@@ -37,8 +39,9 @@ from nvidia_tao_pytorch.core.callbacks.ema import EMA, EMAModelCheckpoint
 from nvidia_tao_pytorch.core.callbacks.loggers import TAOStatusLogger
 from nvidia_tao_pytorch.core.utilities import get_latest_checkpoint
 from nvidia_tao_pytorch.cv.classification_pl.utils.utils_vis import (
-    save_with_text_overlay,
+    save_with_text_overlay, sync_tensor
 )
+from nvidia_tao_pytorch.cv.classification_pl.dataloader.augmentation import apply_mixup_cutmix
 
 
 class ClassifierPlModel(TAOLightningModule):
@@ -113,7 +116,7 @@ class ClassifierPlModel(TAOLightningModule):
         self._build_model(export)
         self._build_criterion()
 
-    def configure_callbacks(self) -> Sequence[Callback] | pl.Callback:
+    def configure_callbacks(self) -> Union[Sequence[Callback], pl.Callback]:
         """Configures logging and checkpoint-saving callbacks"""
         # This is called when trainer.fit() is called
         callbacks = []
@@ -138,7 +141,7 @@ class ClassifierPlModel(TAOLightningModule):
 
         if self.experiment_spec["train"]["enable_ema"]:
             # Apply Exponential Moving Average Callback
-            ema_callback = EMA(decay=0.9998)
+            ema_callback = EMA(decay=self.experiment_spec["train"]["ema_decay"])
             ckpt_func = EMAModelCheckpoint
             callbacks.append(ema_callback)
         else:
@@ -185,27 +188,49 @@ class ClassifierPlModel(TAOLightningModule):
         else:
             raise NotImplementedError(self.train_config["loss"])
 
+    @staticmethod
+    def _get_parameter_groups(model, weight_decay, skip_names=()):
+        decay = []
+        no_decay = []
+
+        for name, param in model.named_parameters():
+            if not param.requires_grad:
+                continue
+
+            if any(s in name for s in skip_names):
+                no_decay.append(param)
+            else:
+                decay.append(param)
+
+        return [
+            {"params": no_decay, "weight_decay": 0.0},
+            {"params": decay, "weight_decay": weight_decay},
+        ]
+
     def configure_optimizers(self):
         """Configure optimizers for training"""
+        parameters = self._get_parameter_groups(
+            self.model, self.optimizer.weight_decay, self.optimizer.skip_names
+        )
         # define optimizers
         if self.optimizer.optim == "sgd":
             self.optimizer_G = optim.SGD(
-                self.model.parameters(),
+                parameters,
                 lr=self.lr,
                 momentum=self.optimizer.momentum,  # 0.9
                 weight_decay=self.optimizer.weight_decay,
             )  # 5e-4
         elif self.optimizer.optim == "adam":
             self.optimizer_G = optim.Adam(
-                self.model.parameters(),
+                parameters,
                 lr=self.lr,
                 weight_decay=self.optimizer.weight_decay,
             )  # 0
         elif self.optimizer.optim == "adamw":
             self.optimizer_G = optim.AdamW(
-                self.model.parameters(),
+                parameters,
                 lr=self.lr,
-                betas=[0.0, 0.9],
+                betas=self.optimizer.betas,
                 weight_decay=self.optimizer.weight_decay,
             )
         else:
@@ -213,8 +238,10 @@ class ClassifierPlModel(TAOLightningModule):
                 "Optimizer {} is not implemented".format(self.optimizer.optim)
             )
 
-        # define lr schedulers
-        if self.lr_policy == "linear":
+        # Create main scheduler based on policy
+        lr_policy = self.lr_policy.lower()
+        if lr_policy == "linear":
+            interval = "epoch"
 
             def lambda_rule(epoch):
                 # gradually decay learning rate from epoch 0 to max_epochs
@@ -222,7 +249,8 @@ class ClassifierPlModel(TAOLightningModule):
                 return lr_l
 
             scheduler = lr_scheduler.LambdaLR(self.optimizer_G, lr_lambda=lambda_rule)
-        elif self.lr_policy == "step":
+        elif lr_policy == "step":
+            interval = "epoch"
             if self.lr_policy_params is not None:
                 step_size = self.lr_policy_params.step_size
                 gamma = self.lr_policy_params.gamma
@@ -233,20 +261,35 @@ class ClassifierPlModel(TAOLightningModule):
             scheduler = lr_scheduler.StepLR(
                 self.optimizer_G, step_size=step_size, gamma=gamma
             )
-        elif self.lr_policy == "CosineAnnealingLR":
-            scheduler = lr_scheduler.CosineAnnealingLR(
-                self.optimizer_G, T_max=200, eta_min=0
+        elif lr_policy == "multistep":
+            interval = "epoch"
+            if self.lr_policy_params is not None:
+                milestones = self.lr_policy_params.milestones
+                gamma = self.lr_policy_params.gamma
+            else:
+                milestones = [self.max_epochs // 2]
+                gamma = 0.1
+            scheduler = lr_scheduler.MultiStepLR(self.optimizer_G, milestones, gamma=gamma)
+        elif lr_policy == "cosine":
+            interval = "step"
+            epoch_steps = self.trainer.estimated_stepping_batches // (self.trainer.max_epochs * self.trainer.accumulate_grad_batches)
+            scheduler = get_cosine_schedule_with_warmup(
+                self.optimizer_G,
+                num_training_steps=self.trainer.estimated_stepping_batches,
+                num_warmup_steps=epoch_steps * self.optimizer.warmup_epochs,
             )
         else:
-            return NotImplementedError(
-                "learning rate policy [%s] is not implemented", self.lr_policy
-            )
+            raise NotImplementedError('learning rate policy [{}] is not implemented'.format(self.lr_policy))
 
         self.lr_scheduler = scheduler
 
         optim_dict = {}
         optim_dict["optimizer"] = self.optimizer_G
-        optim_dict["lr_scheduler"] = self.lr_scheduler
+        optim_dict["lr_scheduler"] = {
+            "scheduler": self.lr_scheduler,
+            "interval": interval,
+            "frequency": 1
+        }
         optim_dict["monitor"] = self.monitor_name
         return optim_dict
 
@@ -290,6 +333,8 @@ class ClassifierPlModel(TAOLightningModule):
         """
         Save the predictions and ground truth in csv format. With the csv keys as ["img_name", "pred_label", "pred_score", "gt_label"] and also each class's score.
         """
+        if self.binary:
+            out = torch.stack([1 - out, out], dim=1)
         out = torch.nn.functional.softmax(
             out, dim=1
         )  # Apply softmax to get probabilities
@@ -361,11 +406,36 @@ class ClassifierPlModel(TAOLightningModule):
         if split == "predict":
             self.loss = None
         else:
-            self.loss = self.criterion(out, batch["class"].long())
+            # if score in batch it means using mixup or cutmix
+            if "score" in batch:
+                self.loss = self.criterion(out, batch['score'].float())
+            elif "class" in batch:
+                self.loss = self.criterion(out, batch['class'].long())
+            else:
+                raise ValueError("No label key 'class' or 'score' in batch")
         return out, self.loss
+
+    def _apply_mixup_cutmix(self, batch):
+        """Apply mixup or cutmix augmentation."""
+        # convert to one_hot as mixup need one hot label
+        score = torch.nn.functional.one_hot(batch["class"].clone().detach().long(), len(self.class_names)).float()
+        # random select "mixup" or "cutmix"
+        mixup_type = "mixup" if torch.rand(1) < 0.5 else "cutmix"
+
+        lam = float(torch.distributions.beta.Beta(self.dataset_config["augmentation"]["mixup_alpha"], self.dataset_config["augmentation"]["mixup_alpha"]).sample())
+        lam = float(np.clip(lam, 0, 1))
+        lam = float(sync_tensor(lam, reduce_method="root"))
+
+        img, score = apply_mixup_cutmix(batch["img"], score, mix_type=mixup_type, lam=lam)
+        batch["img"] = img
+        batch["score"] = score
+        return batch
 
     def training_step(self, batch, batch_idx):
         """Training step."""
+        if self.dataset_config.augmentation.mixup_cutmix:
+            batch = self._apply_mixup_cutmix(batch)
+
         out, loss = self._forward_pass(batch, "train")
         acc = self.train_acc(out, batch["class"].long())
         self.log_dict(acc)

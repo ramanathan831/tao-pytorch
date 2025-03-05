@@ -159,6 +159,7 @@ def build_model(experiment_config,
 
     # We need these because the multiple select feature from these backbone has fixed feature dimensions
     channels_map = {
+        "faster_vit_anyres_av": 1024,  # TODO(@yuw): make it configurable!
         "fan_tiny_8_p4_hybrid": 192,  # FAN
         "fan_small_12_p4_hybrid": 384,
         "fan_base_16_p4_hybrid": 448,
