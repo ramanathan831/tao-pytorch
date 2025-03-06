@@ -19,7 +19,7 @@ import logging
 
 import torch.nn as nn
 from nvidia_tao_pytorch.core.distributed.comm import get_global_rank
-from nvidia_tao_pytorch.cv.segformer_pl.model.backbones import vit_adapter_model_dict, fan_model_dict, mit_model_dict
+from nvidia_tao_pytorch.cv.segformer_pl.model.backbones import vit_adapter_model_dict, fan_model_dict, mit_model_dict, cradio_vit_adapter_model_dict
 from nvidia_tao_pytorch.cv.segformer_pl.model.decode_heads.segformer_head import TAOSegFormerHead
 from nvidia_tao_pytorch.cv.segformer_pl.model.segformer_utils import count_params
 from nvidia_tao_pytorch.cv.deformable_detr.utils.misc import load_pretrained_weights
@@ -96,6 +96,21 @@ class SegFormer(nn.Module):
 
         elif 'mit' in self.model_name:
             self.backbone = mit_model_dict[self.model_name]()
+            pretrained_backbone_ckp = load_pretrained_weights(pretrained_backbone_path) if pretrained_backbone_path else None
+            if pretrained_backbone_ckp is not None:
+                _tmp_st_output = self.backbone.load_state_dict(pretrained_backbone_ckp, strict=False)
+
+                if get_global_rank() == 0:
+                    logger.info(f"Loaded pretrained weights from {pretrained_backbone_path}")
+                    logger.info(f"{_tmp_st_output}")
+
+        elif 'radio' in self.model_name:
+            assert img_size % 32 == 0, "Input image resolution must be a multiple of 32 for ViT-Adapter"
+            self.backbone = cradio_vit_adapter_model_dict[self.model_name](
+                out_indices=return_interm_indices,
+                resolution=img_size,
+                activation_checkpoint=activation_checkpoint,
+                use_summary_token=True)
             pretrained_backbone_ckp = load_pretrained_weights(pretrained_backbone_path) if pretrained_backbone_path else None
             if pretrained_backbone_ckp is not None:
                 _tmp_st_output = self.backbone.load_state_dict(pretrained_backbone_ckp, strict=False)
@@ -183,7 +198,10 @@ def build_model(experiment_config,
         "vit_large_nvdinov2": [1024, 1024, 1024, 1024],
         "vit_giant_nvdinov2": [1536, 1536, 1536, 1536],
         "vit_base_nvclip_16_siglip": [768, 768, 768, 768],
-        "vit_huge_nvclip_14_siglip": [1280, 1280, 1280, 1280]
+        "vit_huge_nvclip_14_siglip": [1280, 1280, 1280, 1280],
+        "c_radio_v2_vit_base_patch16_224": [768, 768, 768, 768],
+        "c_radio_v2_vit_large_patch16_224": [1024, 1024, 1024, 1024],
+        "c_radio_v2_vit_huge_patch16_224": [1280, 1280, 1280, 1280]
     }
 
     if backbone in channels_map:
