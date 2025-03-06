@@ -55,7 +55,7 @@ def _init():
 
         # # Method 2: Prebuilt .so with 'torch.ops.load_library', This method should use torch::RegisterOperators in C++, and call the plugin in python like: _plugin.bias_act(input_tensor)
         ops_dir = os.path.dirname(os.path.abspath(__file__))
-        lib_name = f"bias_act_plugin.cpython-{sys.version_info.major}{sys.version_info.minor}-x86_64-linux-gnu.so"
+        lib_name = f"bias_act_plugin.cpython-{sys.version_info.major}{sys.version_info.minor}-{os.uname().machine}-linux-gnu.so"
         torch.ops.load_library(os.path.join(ops_dir, lib_name))
         _plugin = torch.ops.nvidia
     return True

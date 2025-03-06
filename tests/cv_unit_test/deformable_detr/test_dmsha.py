@@ -27,7 +27,7 @@ from nvidia_tao_pytorch.cv.deformable_detr.model.ops.modules import MSDeformAttn
 def test_forward_equal_with_pytorch_double():
     # Load operator
     ops_dir = os.path.dirname(inspect.getfile(MSDeformAttnFunction))
-    lib_name = f"MultiScaleDeformableAttention.cpython-{sys.version_info.major}{sys.version_info.minor}-x86_64-linux-gnu.so"
+    lib_name = f"MultiScaleDeformableAttention.cpython-{sys.version_info.major}{sys.version_info.minor}-{os.uname().machine}-linux-gnu.so"
     load_ops(ops_dir, lib_name)
 
     N, M, D = 1, 2, 2
