@@ -61,7 +61,9 @@ def _test_experiment_spec():
                           ("fan_small_12_p4_hybrid"),
                           ("fan_base_16_p4_hybrid"),
                           ("vit_large_nvdinov2"),
-                          ("vit_base_nvclip_16_siglip")])
+                          ("vit_base_nvclip_16_siglip"),
+                          ("c_radio_v2_vit_base_patch16_224"),
+                          ("c_radio_v2_vit_large_patch16_224")])
 @pytest.mark.parametrize("batch_size", [-1])
 @pytest.mark.parametrize("opset_version", [17])
 def test_segformer_onnx_compare_output(_test_experiment_spec, backbone, batch_size, opset_version):
@@ -149,7 +151,9 @@ def test_segformer_onnx_compare_output(_test_experiment_spec, backbone, batch_si
                           ("fan_small_12_p4_hybrid"),
                           ("fan_base_16_p4_hybrid"),
                           ("vit_large_nvdinov2"),
-                          ("vit_base_nvclip_16_siglip")])
+                          ("vit_base_nvclip_16_siglip"),
+                          ("c_radio_v2_vit_base_patch16_224"),
+                          ("c_radio_v2_vit_large_patch16_224")])
 @pytest.mark.parametrize("batch_size", [-1])
 @pytest.mark.parametrize("opset_version", [17])
 def test_segformer_onnx_export(_test_experiment_spec, backbone, batch_size, opset_version):
@@ -212,7 +216,9 @@ def test_segformer_onnx_export(_test_experiment_spec, backbone, batch_size, opse
                           ("fan_small_12_p4_hybrid"),
                           ("fan_base_16_p4_hybrid"),
                           ("vit_large_nvdinov2"),
-                          ("vit_base_nvclip_16_siglip")])
+                          ("vit_base_nvclip_16_siglip"),
+                          ("c_radio_v2_vit_base_patch16_224"),
+                          ("c_radio_v2_vit_large_patch16_224")])
 @pytest.mark.parametrize("opset_version", [17])
 def test_cls_trtexec(_test_experiment_spec, backbone, batch_size, opset_version):
     check_and_create(tmp_top_dir)

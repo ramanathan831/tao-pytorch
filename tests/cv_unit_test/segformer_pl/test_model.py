@@ -51,7 +51,10 @@ def _test_experiment_spec():
                           ("vit_large_nvdinov2"),
                           ("vit_giant_nvdinov2"),
                           ("vit_base_nvclip_16_siglip"),
-                          ("vit_huge_nvclip_14_siglip")])
+                          ("vit_huge_nvclip_14_siglip"),
+                          ("c_radio_v2_vit_base_patch16_224"),
+                          ("c_radio_v2_vit_large_patch16_224"),
+                          ("c_radio_v2_vit_huge_patch16_224")])
 @pytest.mark.parametrize("export", [False, True])
 def test_changenet_model_segment(_test_experiment_spec, backbone, export):
     _test_experiment_spec["model"].backbone['type'] = backbone
