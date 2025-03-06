@@ -1,15 +1,10 @@
 # ODISE
-black==22.3.0
 diffdist==0.1
 flake8-comprehensions==3.16.0
 fvcore==0.1.5.post20221221
-huggingface-hub==0.28.1
-importlib_metadata==8.6.1
 iopath==0.1.9  # needs to be <0.1.10 for detectron2==0.6
-jmespath==1.0.1
 kornia==0.8.0
 kornia-rs==0.1.8
-s3transfer==0.11.2
 taming-transformers-rom1504==0.0.6
 yacs==0.1.8
 git+https://github.com/facebookresearch/detectron2.git

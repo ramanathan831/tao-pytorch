@@ -9,12 +9,30 @@ RUN apt-get upgrade && apt-get update && \
   rm requirements-apt.txt && \
   rm -rf /var/lib/apt/lists/*
 
+ARG TRT_VERSION_MAJOR=10
+ARG TRT_VERSION_MINOR=8
+ARG TRT_VERSION_PATCH=0
+ARG TRT_VERSION_BUILD=40
+
+ARG TRT_VERSION_MAJOR_MINOR=$TRT_VERSION_MAJOR.$TRT_VERSION_MINOR
+ARG TRT_VERSION_MAJOR_MINOR_PATCH=$TRT_VERSION_MAJOR.$TRT_VERSION_MINOR.$TRT_VERSION_PATCH
+ARG TRT_VERSION_FULL=$TRT_VERSION_MAJOR_MINOR_PATCH.$TRT_VERSION_BUILD
+
+ARG CUDA_VERSION_MAJOR=12
+ARG CUDA_VERSION_MINOR=8
+ARG CUDA_VERSION_PATCH=0
+ARG CUDA_VERSION_BUILD=038
+ARG CUDA_VERSION_MAJOR_MINOR=$CUDA_VERSION_MAJOR.$CUDA_VERSION_MINOR
+ARG CUDA_VERSION_FULL=$CUDA_VERSION_MAJOR_MINOR.$CUDA_VERSION_PATCH.$CUDA_VERSION_BUILD
+ARG CUDNN_VERSION=9.7.0.66
+
+ENV TRT_VERSION=$TRT_VERSION_FULL+cuda$CUDA_VERSION_FULL
+
 # Installing custom packages in /opt.
 WORKDIR /opt
 
 # Clone and checkout TensorRT OSS
-# Moving TensorRT to 10.8 branch.
-ENV TRT_TAG="release/10.8"
+ENV TRT_TAG="release/$TRT_VERSION_MAJOR_MINOR"
 # Install TRT OSS
 RUN mkdir trt_oss_src && \
   cd trt_oss_src && \
@@ -25,13 +43,13 @@ RUN mkdir trt_oss_src && \
   mkdir -p build && cd build  && \
   cmake .. \
     -DGPU_ARCHS="53;60;61;70;75;80;86;90" \
-    -DTRT_LIB_DIR=/usr/lib/x86_64-linux-gnu \
+    -DTRT_LIB_DIR=/usr/lib/$(uname -p)-linux-gnu \
     -DTRT_OUT_DIR=`pwd`/out \
-    -DCUDA_VERSION=12.8.0 \
-    -DCUDNN_VERSION=9.7.0.66 && \
+    -DCUDA_VERSION=$CUDA_VERSION_MAJOR_MINOR \
+    -DCUDNN_VERSION=$CUDNN_VERSION && \
   make -j16 nvinfer_plugin nvinfer_plugin_static && \
-  cp out/libnvinfer_plugin.so.10.8.0 /usr/lib/x86_64-linux-gnu/libnvinfer_plugin.so.10.8.0 && \
-  cp out/libnvinfer_plugin_static.a /usr/lib/x86_64-linux-gnu/libnvinfer_plugin_static.a && \
+  cp out/libnvinfer_plugin.so.$TRT_VERSION_MAJOR_MINOR_PATCH /usr/lib/$(uname -p)-linux-gnu/libnvinfer_plugin.so.$TRT_VERSION_MAJOR_MINOR_PATCH && \
+  cp out/libnvinfer_plugin_static.a /usr/lib/$(uname -p)-linux-gnu/libnvinfer_plugin_static.a && \
   cd ../../../ && \
   rm -rf trt_oss_src
 

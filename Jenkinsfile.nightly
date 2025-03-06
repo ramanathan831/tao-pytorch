@@ -38,7 +38,7 @@ spec:
       - name: DOCKER_TLS_CERTDIR
         value: ""
   - name: base-image
-    image: nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:00170d195bbd07a51a0d002180bc7eb5af911d6736bff3090a43968ba2b8357d
+    image: nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:ffebcc9eedd410007a7144a6514de8424b4d8246d32ba0aba8b7cb5987ca7c84
     securityContext:
       privileged: true
     command:
@@ -233,7 +233,7 @@ spec:
           def TAO_WHEEL_VERSION="5.2.0"
           def BUILD_TYPE="dev"
           def VER="${TAO_WHEEL_VERSION}.${BUILD_NUMBER}.${BUILD_TYPE}0"
-          def PYTHON_VER="cp310-cp310"
+          def PYTHON_VER="cp312-cp312"
           def ARCH="linux_x86_64"
           def SRC="dist/nvidia_tao_pytorch-${VER}-${PYTHON_VER}-${ARCH}.whl"
           def TARGET="sw-tao-pypi-local/nvidia-tao-pytorch/${VER}/"
@@ -255,7 +255,7 @@ spec:
           def TAO_WHEEL_VERSION="5.2.0"
           def BUILD_TYPE="dev"
           def VER="${TAO_WHEEL_VERSION}.${BUILD_NUMBER}.${BUILD_TYPE}0"
-          def PYTHON_VER="cp310-cp310"
+          def PYTHON_VER="cp312-cp312"
           def ARCH="linux_x86_64"
           sh "echo '${BUILD_NUMBER}-${BUILD_TYPE}' > build.info"
           // build_wheel.sh obfuscates and then builds wheel, we skip obfuscation step
@@ -274,7 +274,7 @@ spec:
           def TAO_WHEEL_VERSION="5.2.0"
           def BUILD_TYPE="dev"
           def VER="${TAO_WHEEL_VERSION}.${BUILD_NUMBER}.${BUILD_TYPE}0"
-          def PYTHON_VER="cp310-cp310"
+          def PYTHON_VER="cp312-cp312"
           def ARCH="linux_x86_64"
           def SRC="dist/nvidia_tao_pytorch-${VER}-${PYTHON_VER}-${ARCH}.whl"
           def TARGET="sw-tao-pypi-local/nvidia-tao-pytorch-unobf/${VER}/"
@@ -299,7 +299,7 @@ spec:
     container("docker") {
       stage ('release_docker_build') {
         gitlabCommitStatus(name: "release_docker_build", connection: gitLabConnection('git-lab-master')) {
-          withEnv(["TAO_VERSION=5.2.0", "IMAGE_NAME=nvcr.io/nvstaging/tao/tao-toolkit-pyt", "CUDA_VERSION=12.2"]){
+          withEnv(["TAO_VERSION=5.2.0", "IMAGE_NAME=nvcr.io/nvstaging/tao/tao-toolkit-pyt", "CUDA_VERSION=12.8"]){
             docker.withRegistry('https://nvcr.io', 'NGC_API_KEY') {
               sh "docker build -t ${IMAGE_NAME}:v${TAO_VERSION}-${BUILD_NUMBER}-dev-cuda${CUDA_VERSION} --network=host -f ${WORKSPACE}/release/docker/Dockerfile ${WORKSPACE}"
               sh "docker push ${IMAGE_NAME}:v${TAO_VERSION}-${BUILD_NUMBER}-dev-cuda${CUDA_VERSION}"
@@ -314,7 +314,7 @@ spec:
       }
 
       stage ('docker_coverage_build') {
-        withEnv(["TAO_VERSION=5.2.0", "IMAGE_NAME=nvcr.io/nvstaging/tao/tao-toolkit-pyt", "CUDA_VERSION=12.2"]){
+        withEnv(["TAO_VERSION=5.2.0", "IMAGE_NAME=nvcr.io/nvstaging/tao/tao-toolkit-pyt", "CUDA_VERSION=12.8"]){
           docker.withRegistry('https://nvcr.io', 'NGC_API_KEY') {
             sh "cat coverage_build.txt >> ${WORKSPACE}/release/docker/Dockerfile"
             sh "cat ${WORKSPACE}/release/docker/Dockerfile"

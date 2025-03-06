@@ -81,7 +81,7 @@ class MSDeformAttn(nn.Module):
         self._reset_parameters()
         # load custom ops
         ops_dir = os.path.dirname(os.path.abspath(__file__))
-        lib_name = f"MultiScaleDeformableAttention.cpython-{sys.version_info.major}{sys.version_info.minor}-x86_64-linux-gnu.so"
+        lib_name = f"MultiScaleDeformableAttention.cpython-{sys.version_info.major}{sys.version_info.minor}-{os.uname().machine}-linux-gnu.so"
         load_ops(ops_dir, lib_name)
 
     def _reset_parameters(self):
