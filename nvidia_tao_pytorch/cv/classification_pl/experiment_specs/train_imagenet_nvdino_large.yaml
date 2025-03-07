@@ -1,9 +1,11 @@
 encryption_key: tlt_encode
-results_dir: /tao-pt/mount/result/classification_pl/imagenet/nvdino_pretrain_0113_clipgradient5_criterion_score_cosine_noaug_1
+results_dir: ???
 wandb:
   enable: False
 train:
   seed: 47
+  enable_ema: True
+  ema_decay: 0.9992
   resume_training_checkpoint_path: null
   num_epochs: 25
   num_nodes: 1
@@ -18,29 +20,25 @@ train:
   optim:
     lr: 0.005
     optim: "adamw"
-    # policy: "step"
-    policy: "CosineAnnealingLR"
+    policy: "step"
+    policy: "cosine"
     weight_decay: 0.05
+    warmup_epochs: 5
 
-# evaluate:
-#   checkpoint: /tao-pt/mount/result/classification_pl/imagenet/nvdino_pretrain_0103_freeze_lr_0.005_epoch20/train/classifier_model_latest.pth
+evaluate:
+  checkpoint: ???
 
-# inference:
-#   checkpoint:
-#   vis_after_n_batches: 1
+inference:
+  checkpoint: ???
 
-# export:
-#   results_dir: "${results_dir}/export"
-#   gpu_id: 0
-#   checkpoint:
-#   onnx_file: "${export.results_dir}/classifier.onnx"
-#   input_width: 224
-#   input_height: 224
-#   batch_size: -1
-
-# gen_trt_engine:
-#   tensorrt:
-#     data_type: FP32
+export:
+  results_dir: "${results_dir}/export"
+  gpu_id: 0
+  checkpoint:
+  onnx_file: "${export.results_dir}/classifier.onnx"
+  input_width: 224
+  input_height: 224
+  batch_size: -1
 
 model:
   backbone:
@@ -67,7 +65,7 @@ dataset:
     random_flip:
       vflip_probability: 0
       hflip_probability: 0.5
-      enable: False
+      enable: True
     random_rotate:
       rotate_probability: 0.5
       angle_list: [90, 180, 270]
@@ -76,10 +74,10 @@ dataset:
       brightness: 0.4
       contrast: 0.4
       saturation: 0.4
-      enable: False
+      enable: True
     with_scale_random_crop:
       enable: False
-    with_random_crop: False
+    with_random_crop: True
     with_random_blur: False
   train:
     data_prefix: imagenet/train
