@@ -4,7 +4,7 @@ WORKDIR /workspace/tao-experiments
 RUN python -m pip install coverage
 
 # enable coverage hook on python startup
-ARG hook_file=/usr/local/lib/python3.10/dist-packages/coverage.pth
+ARG hook_file=/usr/local/lib/python3.12/dist-packages/coverage.pth
 RUN echo "import coverage; coverage.process_startup()" > ${hook_file}
 
 # Enable code coverage run
