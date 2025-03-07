@@ -1,16 +1,18 @@
 encryption_key: tlt_encode
-results_dir: /tao-pt/mount/result/classification_pl/imagenet/nvdino_giant_pretrain_0114_final_scale0.8_lr0.0025
+results_dir: ???
 wandb:
   enable: False
 train:
-  ema: True
-  ema_type: refusion
   seed: 47
+  enable_ema: True
+  ema_decay: 0.9992
   resume_training_checkpoint_path: null
   num_epochs: 25
   num_nodes: 1
   num_gpus: 8
   gpu_ids: [0, 1, 2, 3, 4, 5, 6, 7]
+  # num_gpus: 1
+  # gpu_ids: [0]
   validation_interval: 1
   checkpoint_interval: 10
   tensorboard:
@@ -19,29 +21,24 @@ train:
     lr: 0.0025
     optim: "adamw"
     # policy: "step"
-    policy: "CosineAnnealingLR"
+    policy: "cosine"
     weight_decay: 0.05
+    warmup_epochs: 5
 
-# evaluate:
-#   checkpoint:
-#   vis_after_n_batches: 1
+evaluate:
+  checkpoint: ???
 
-# inference:
-#   checkpoint:
-#   vis_after_n_batches: 1
+inference:
+  checkpoint: ???
 
-# export:
-#   results_dir: "${results_dir}/export"
-#   gpu_id: 0
-#   checkpoint:
-#   onnx_file: "${export.results_dir}/classifier.onnx"
-#   input_width: 224
-#   input_height: 224
-#   batch_size: -1
-
-# gen_trt_engine:
-#   tensorrt:
-#     data_type: FP32
+export:
+  results_dir: "${results_dir}/export"
+  gpu_id: 0
+  checkpoint:
+  onnx_file: "${export.results_dir}/classifier.onnx"
+  input_width: 224
+  input_height: 224
+  batch_size: -1
 
 model:
   backbone:
