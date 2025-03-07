@@ -17,6 +17,7 @@
 import os
 import torch
 import torch.nn.functional as F
+import torch.distributed as dist
 import numpy as np
 import PIL
 import onnxruntime
@@ -109,7 +110,9 @@ def run_export(experiment_config):
         os.makedirs(output_root)
 
     # Download required pretrained modules from NGC and Github
+    dist.barrier()
     download_and_convert_pretrained_modules()
+    dist.barrier()
 
     if experiment_config.task == 'stylegan':
         # build dataloader

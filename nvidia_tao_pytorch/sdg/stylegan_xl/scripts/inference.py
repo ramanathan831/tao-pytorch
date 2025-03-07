@@ -15,6 +15,7 @@
 """Inference with StyleGAN-XL model."""
 
 import os
+import torch.distributed as dist
 from pytorch_lightning import Trainer
 
 from nvidia_tao_core.config.stylegan_xl.default_config import ExperimentConfig
@@ -35,7 +36,9 @@ def run_experiment(experiment_config, key):
     num_nodes = experiment_config.train.num_nodes
 
     # Download required pretrained modules from NGC and Github
+    dist.barrier()
     download_and_convert_pretrained_modules()
+    dist.barrier()
 
     # StyleGAN-XL only supports 'stylegan' and 'bigdatasetgan' tasks
     if experiment_config.task == 'stylegan':
