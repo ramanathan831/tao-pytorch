@@ -15,6 +15,7 @@
 """Evaluate StyleGAN XL model."""
 
 import os
+import torch.distributed as dist
 from pytorch_lightning import Trainer
 
 from nvidia_tao_core.config.stylegan_xl.default_config import ExperimentConfig
@@ -26,12 +27,18 @@ from nvidia_tao_pytorch.sdg.stylegan_xl.dataloader.pl_sx_data_module import SXDa
 from nvidia_tao_pytorch.sdg.stylegan_xl.dataloader.pl_bg_data_module import BGDataModule
 from nvidia_tao_pytorch.sdg.stylegan_xl.model.sx_pl_model import StyleganPlModel
 from nvidia_tao_pytorch.sdg.stylegan_xl.model.bg_pl_model import BigdatasetganPlModel
+from nvidia_tao_pytorch.sdg.stylegan_xl.utils.startup import download_and_convert_pretrained_modules
 
 
 def run_experiment(experiment_config, key):
     """Start the evaluation."""
     model_path, trainer_kwargs = initialize_evaluation_experiment(experiment_config)
     num_nodes = experiment_config.train.num_nodes
+
+    # Download required pretrained modules from NGC and Github
+    dist.barrier()
+    download_and_convert_pretrained_modules()
+    dist.barrier()
 
     # StyleGAN-XL only supports 'stylegan' and 'bigdatasetgan' tasks
     if experiment_config.task == 'stylegan':

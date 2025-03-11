@@ -35,7 +35,7 @@ train:
     infrequent_logging_frequency: 1
 
 model:
-  input_embeddings_path: /tao-pt/nvidia_tao_pytorch/sdg/stylegan_xl/model/in_embeddings/tf_efficientnet_lite0_embed.pth
+  input_embeddings_path: /tao-pt/nvidia_tao_pytorch/sdg/stylegan_xl/pretrained_modules/tf_efficientnet_lite0_embed.pth
   generator:
     backbone: stylegan3-t
     superres: False
@@ -56,7 +56,7 @@ model:
     discriminator:
       backbones: ["deit_base_distilled_patch16_224", "tf_efficientnet_lite0"]
     metrics:
-      inception_fid_path: /tao-pt/nvidia_tao_pytorch/sdg/stylegan_xl/model/metrics/InceptionV3.pth
+      inception_fid_path: /tao-pt/nvidia_tao_pytorch/sdg/stylegan_xl/pretrained_modules/InceptionV3.pth
   # bigdatasetgan:
   #   feature_extractor:
   #     stylegan_checkpoint_path: /localhome/local-maxhuang/TLT/branch/2408_styleGAN/tlt-pytorch/gastro_from16_to32_to64_to128_to256_to512/trained_ngc/model_epoch_1099.pth
@@ -65,7 +65,7 @@ model:
 dataset:
   common:
     cond: True
-    num_classes: 6 # Be 0 when cond==True
+    num_classes: 6 # Be 0 when cond==False
     img_channels: 3
     img_resolution: 16 # 512 if the below is using resolution 512x512 images 
   stylegan:
