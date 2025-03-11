@@ -14,6 +14,7 @@
 
 """NVDINOv2 Model Module"""
 import os
+import copy
 from typing import Any, Dict, Sequence
 
 import torch
@@ -57,32 +58,58 @@ class CustomModelCheckpoint(ModelCheckpoint):
         """
         # Call the original save_checkpoint method to save the checkpoint as usual
         trainer.save_checkpoint(filepath, self.save_weights_only)
-
         # Custom checkpoint saving with model conversion
         state_dict = trainer.lightning_module.state_dict()
-        student_state_dict = {}
-        teacher_state_dict = {}
-        for k, v in list(state_dict.items()):
-            k_save = k
-            if "student.backbone." in k:
-                k_save = k.replace("student.backbone.", "")
-            elif "teacher.backbone." in k:
-                k_save = k.replace("teacher.backbone.", "")
-            else:
-                continue
 
-            if re.match(r"dino_head\.", k_save):
-                continue
-            if re.match(r"mask_token", k_save):
-                continue
+        if trainer.lightning_module.model_config.distill:
+            student_state_dict = {}
+            student_ema_state_dict = {}
+            for k, v in list(state_dict.items()):
+                k_save = k
+                if "student.backbone." in k:
+                    k_save = k.replace("student.backbone.", "")
+                elif "student_ema.backbone." in k:
+                    k_save = k.replace("student_ema.backbone.", "")
+                else:
+                    continue
 
-            if "student.backbone." in k:
-                student_state_dict[k_save] = v
-            elif "teacher.backbone." in k:
-                teacher_state_dict[k_save] = v
+                if re.match(r"dino_head\.", k_save):
+                    continue
+                if re.match(r"mask_token", k_save):
+                    continue
 
-        torch.save(student_state_dict, os.path.join(trainer.default_root_dir, f'student_epoch_{trainer.current_epoch:03d}_step_{trainer.global_step:05d}' + self.FILE_EXTENSION))
-        torch.save(teacher_state_dict, os.path.join(trainer.default_root_dir, f'teacher_epoch_{trainer.current_epoch:03d}_step_{trainer.global_step:05d}' + self.FILE_EXTENSION))
+                if "student.backbone." in k:
+                    student_state_dict[k_save] = v
+                elif "student_ema.backbone." in k:
+                    student_ema_state_dict[k_save] = v
+
+            torch.save(student_state_dict, os.path.join(trainer.default_root_dir, f'student_epoch_{trainer.current_epoch:03d}_step_{trainer.global_step:05d}' + self.FILE_EXTENSION))
+            torch.save(student_ema_state_dict, os.path.join(trainer.default_root_dir, f'student_ema_epoch_{trainer.current_epoch:03d}_step_{trainer.global_step:05d}' + self.FILE_EXTENSION))
+
+        else:
+            student_state_dict = {}
+            teacher_state_dict = {}
+            for k, v in list(state_dict.items()):
+                k_save = k
+                if "student.backbone." in k:
+                    k_save = k.replace("student.backbone.", "")
+                elif "teacher.backbone." in k:
+                    k_save = k.replace("teacher.backbone.", "")
+                else:
+                    continue
+
+                if re.match(r"dino_head\.", k_save):
+                    continue
+                if re.match(r"mask_token", k_save):
+                    continue
+
+                if "student.backbone." in k:
+                    student_state_dict[k_save] = v
+                elif "teacher.backbone." in k:
+                    teacher_state_dict[k_save] = v
+
+            torch.save(student_state_dict, os.path.join(trainer.default_root_dir, f'student_epoch_{trainer.current_epoch:03d}_step_{trainer.global_step:05d}' + self.FILE_EXTENSION))
+            torch.save(teacher_state_dict, os.path.join(trainer.default_root_dir, f'teacher_epoch_{trainer.current_epoch:03d}_step_{trainer.global_step:05d}' + self.FILE_EXTENSION))
 
         self._last_global_step_saved = trainer.global_step
         self._last_checkpoint_saved = filepath
@@ -105,7 +132,6 @@ class DinoV2PlModel(TAOLightningModule):
         super().__init__(experiment_spec)
 
         # Basic configs
-        self.backbone = experiment_spec.model.backbone.type
         self.dataset_config = experiment_spec.dataset
         self.train_config = experiment_spec.train
         self.model_config = experiment_spec.model
@@ -121,14 +147,22 @@ class DinoV2PlModel(TAOLightningModule):
         self.num_prototypes = self.train_config["num_prototypes"]
         self.num_gpus = max(self.train_config["num_gpus"], len(self.train_config["gpu_ids"]))
         self.use_custom_attention = self.train_config["use_custom_attention"]
-        # Backbone
-        self.backbone_type = self.model_config.backbone['type']
-        self.embed_dim = model_params.map_params['embed_dim'][self.backbone_type]
-        self.depth = model_params.map_params['depth'][self.backbone_type]
-        self.num_heads = model_params.map_params['num_heads'][self.backbone_type]
-        self.init_values = model_params.map_params['init_values'][self.backbone_type]
-        self.drop_path_schedule = model_params.map_params['drop_path_schedule'][self.backbone_type]
-        self.num_classes = model_params.map_params['num_classes'][self.backbone_type]
+        # Teacher Backbone
+        self.teacher_backbone_type = self.model_config.backbone['teacher_type']
+        self.teacher_depth = model_params.map_params['depth'][self.teacher_backbone_type]
+        self.teacher_num_heads = model_params.map_params['num_heads'][self.teacher_backbone_type]
+        self.teacher_init_values = model_params.map_params['init_values'][self.teacher_backbone_type]
+        self.teacher_drop_path_schedule = model_params.map_params['drop_path_schedule'][self.teacher_backbone_type]
+        self.teacher_num_classes = model_params.map_params['num_classes'][self.teacher_backbone_type]
+        self.teacher_embed_dim = model_params.map_params['embed_dim'][self.teacher_backbone_type]  # self.teacher_embed_dim should be equal to self.student_embed_dim
+        # Student Backbone
+        self.student_backbone_type = self.model_config.backbone['student_type']
+        self.student_depth = model_params.map_params['depth'][self.student_backbone_type]
+        self.student_num_heads = model_params.map_params['num_heads'][self.student_backbone_type]
+        self.student_init_values = model_params.map_params['init_values'][self.student_backbone_type]
+        self.student_drop_path_schedule = model_params.map_params['drop_path_schedule'][self.student_backbone_type]
+        self.student_num_classes = model_params.map_params['num_classes'][self.student_backbone_type]
+        self.student_embed_dim = model_params.map_params['embed_dim'][self.student_backbone_type]
 
         self.patch_size = self.model_config.backbone['patch_size']
         self.img_size = self.model_config.backbone['img_size']
@@ -209,11 +243,21 @@ class DinoV2PlModel(TAOLightningModule):
         self.need_to_synchronize_streams = True
 
         # Sync teacher weight
-        self.teacher.load_state_dict(self.student.state_dict(), strict=False)
+        if self.model_config.distill.enable:
+            pass  # teacher will be loaded with a pretrained checkpoint when distillation
+        else:
+            self.teacher.load_state_dict(self.student.state_dict(), strict=False)
 
         # Disable teacher gradients
         for param in self.teacher.parameters():
             param.requires_grad = False
+
+        # Disable student_ema gradients
+        if self.model_config.distill.enable:
+            for param in self.student_ema.parameters():
+                param.requires_grad = False
+            # Disable gradients for mask_token
+            self.student.backbone.mask_token.requires_grad = False
 
         self.checkpoint_filename = 'nvdinov2_model'
         self.dm = []
@@ -225,12 +269,12 @@ class DinoV2PlModel(TAOLightningModule):
                 'backbone': DinoV2VisionTransformer(
                     img_size=self.img_size,
                     patch_size=self.patch_size,
-                    embed_dim=self.embed_dim,
-                    depth=self.depth,
-                    num_heads=self.num_heads,
-                    init_values=self.init_values,
-                    drop_path_schedule=self.drop_path_schedule,
-                    num_classes=self.num_classes,
+                    embed_dim=self.student_embed_dim,
+                    depth=self.student_depth,
+                    num_heads=self.student_num_heads,
+                    init_values=self.student_init_values,
+                    drop_path_schedule=self.student_drop_path_schedule,
+                    num_classes=self.student_num_classes,
                     drop_path_rate=self.drop_path_rate,
                     mlp_layer=SwiGLUFused,
                     norm_layer=nn.LayerNorm,
@@ -239,14 +283,14 @@ class DinoV2PlModel(TAOLightningModule):
                     use_custom_attention=self.use_custom_attention
                 ),
                 'dino_head': DinoHead(
-                    in_dim=self.embed_dim,
+                    in_dim=self.student_embed_dim,
                     out_dim=self.num_prototypes,
                     num_layers=self.head_layers,
                     hidden_dim=self.hidden_dim,
                     bottleneck_dim=self.bottleneck_dim
                 ),
                 'ibot_head': DinoHead(
-                    in_dim=self.embed_dim,
+                    in_dim=self.student_embed_dim,
                     out_dim=self.num_prototypes,
                     num_layers=self.head_layers,
                     hidden_dim=self.hidden_dim,
@@ -259,12 +303,12 @@ class DinoV2PlModel(TAOLightningModule):
                 'backbone': DinoV2VisionTransformer(
                     img_size=self.img_size,
                     patch_size=self.patch_size,
-                    embed_dim=self.embed_dim,
-                    depth=self.depth,
-                    num_heads=self.num_heads,
-                    init_values=self.init_values,
-                    drop_path_schedule=self.drop_path_schedule,
-                    num_classes=self.num_classes,
+                    embed_dim=self.teacher_embed_dim,
+                    depth=self.teacher_depth,
+                    num_heads=self.teacher_num_heads,
+                    init_values=self.teacher_init_values,
+                    drop_path_schedule=self.teacher_drop_path_schedule,
+                    num_classes=self.teacher_num_classes,
                     mlp_layer=SwiGLUFused,
                     norm_layer=nn.LayerNorm,
                     act_layer=nn.SiLU,
@@ -272,14 +316,14 @@ class DinoV2PlModel(TAOLightningModule):
                     use_custom_attention=self.use_custom_attention
                 ),
                 'dino_head': DinoHead(
-                    in_dim=self.embed_dim,
+                    in_dim=self.teacher_embed_dim,
                     out_dim=self.num_prototypes,
                     num_layers=self.head_layers,
                     hidden_dim=self.hidden_dim,
                     bottleneck_dim=self.bottleneck_dim
                 ),
                 'ibot_head': DinoHead(
-                    in_dim=self.embed_dim,
+                    in_dim=self.teacher_embed_dim,
                     out_dim=self.num_prototypes,
                     num_layers=self.head_layers,
                     hidden_dim=self.hidden_dim,
@@ -287,6 +331,28 @@ class DinoV2PlModel(TAOLightningModule):
                 )
             }
         )
+        if self.model_config.distill.enable:
+            # Create a student ema for distillation
+            self.student_ema = copy.deepcopy(self.student)
+
+            # Strictly load teacher (backbone + head) forzen weights from full pl checkpoint
+            assert self.model_config.distill.pretrained_non_distill_pl_model_path is not None, (
+                "In distillation mode, you need to provide the pretrained_non_distill_pl_model_path to initialize a frozen teacher."
+            )
+            pretrained_backbone_head_state_dict = torch.load(self.model_config.distill.pretrained_non_distill_pl_model_path, map_location="cpu")['state_dict']
+            teacher_state_dict = {}
+            for k, v in list(pretrained_backbone_head_state_dict.items()):
+                k_save = k
+                if "teacher." in k:
+                    k_save = k.replace("teacher.", "")
+                    teacher_state_dict[k_save] = v
+
+            self.teacher.load_state_dict(teacher_state_dict)
+        else:
+            assert self.student_backbone_type == self.teacher_backbone_type, (
+                f"In non-distillation mode, student_type and teacher_type should be the same. "
+                f"Currently, the teacher_type is {self.teacher_backbone_type}, and the student_type is {self.student_backbone_type}."
+            )
 
     def restore_pretrained_weights(self):
         """Load pretrained weight"""
@@ -308,12 +374,15 @@ class DinoV2PlModel(TAOLightningModule):
             print('Unexpected keys:', unexpected_keys)
 
         self.student.backbone.load_state_dict(cur_student_backbone_weights)
-        self.teacher.load_state_dict(self.student.state_dict(), strict=False)
+        if not self.model_config.distill.enable:
+            self.teacher.load_state_dict(self.student.state_dict(), strict=False)
 
     def configure_model(self):
         """Warp models"""
         self.teacher = nn.ModuleDict({k: wrap(v) for k, v in self.teacher.items()})
         self.student = nn.ModuleDict({k: wrap(v) for k, v in self.student.items()})
+        if self.model_config.distill.enable:
+            self.student_ema = nn.ModuleDict({k: wrap(v) for k, v in self.student_ema.items()})
 
     def update_param_groups(self, optimizer, schedules: Dict[str, float]):
         """Update parameters with schedulers
@@ -434,12 +503,20 @@ class DinoV2PlModel(TAOLightningModule):
         n_global_crops_loss_terms = self.n_global_crops * (self.n_global_crops - 1)
 
         # Now we need to process student
-        (
-            student_backbone_global_output,
-            student_backbone_local_output,
-        ) = self.student.backbone(
-            [global_crops, local_crops], masks=[global_masks, None]
-        )
+        if self.model_config.distill.enable and self.model_config.distill.disable_masking:
+            (
+                student_backbone_global_output,
+                student_backbone_local_output,
+            ) = self.student.backbone(
+                [global_crops, local_crops], masks=[None, None]
+            )
+        else:
+            (
+                student_backbone_global_output,
+                student_backbone_local_output,
+            ) = self.student.backbone(
+                [global_crops, local_crops], masks=[global_masks, None]
+            )
 
         # Student local crops cls tokens, global crops cls tokens, and global crops patch tokens
         inputs_for_student_head_list = [
@@ -578,6 +655,9 @@ class DinoV2PlModel(TAOLightningModule):
         """
         # Teacher need to be in eval mode
         self.teacher.eval()
+        if self.model_config.distill.enable:
+            self.student_ema.eval()
+            # self.student.backbone.mask_token.eval()
         optimizer = self.optimizers()
         schedules = {k: v(self.global_step) for k, v in self.schedulers.items()}
 
@@ -588,6 +668,7 @@ class DinoV2PlModel(TAOLightningModule):
         # Get batch
         global_crops = batch["global_crops"]  # (N, C, H, W)
         local_crops = batch["local_crops"]  # (N, C, H, W)
+        # assert 1==2, (global_crops.shape, local_crops.shape)
         global_masks = batch[
             "global_masks"
         ]  # (N, H // patch_size * W // patch_size) e.g. (32, 196)
@@ -622,7 +703,6 @@ class DinoV2PlModel(TAOLightningModule):
             teacher_dino_centered=teacher_dino_centered,
             teacher_ibot_centered=teacher_ibot_centered,
         )
-
         self.manual_backward(loss)
 
         # Gradient clipping, we need to do this manually, reference:
@@ -713,6 +793,12 @@ class DinoV2PlModel(TAOLightningModule):
         Args:
             momentum (float): Momentum factor for the EMA update.
         """
+        if self.model_config.distill.enable:
+            teacher = self.student_ema
+            student = self.student
+        else:
+            teacher = self.teacher
+            student = self.student
         # wait for all to sync up before moving on
         if not isinstance(self.trainer.strategy, SingleDeviceStrategy):
             torch.cuda.synchronize()
@@ -722,16 +808,16 @@ class DinoV2PlModel(TAOLightningModule):
         student_params_list = []
 
         if isinstance(self.trainer.strategy, FSDPStrategy):
-            for key in self.teacher.keys():
+            for key in student.keys():
                 for student_param, teacher_param in zip(
-                    FullyShardedDataParallel.fsdp_modules(self.student[key]),
-                    FullyShardedDataParallel.fsdp_modules(self.teacher[key]),
+                    FullyShardedDataParallel.fsdp_modules(student[key]),
+                    FullyShardedDataParallel.fsdp_modules(teacher[key]),
                 ):
                     teacher_params_list += teacher_param.params
                     student_params_list += student_param.params
         else:
             for teacher_param, student_param in zip(
-                self.teacher.parameters(), self.student.parameters()
+                teacher.parameters(), student.parameters()
             ):
                 teacher_params_list.append(teacher_param.data)
                 student_params_list.append(student_param.data)
@@ -752,7 +838,7 @@ class DinoV2PlModel(TAOLightningModule):
         params_groups = []
         seen_params = {}
 
-        n_blocks = self.teacher.backbone.n_blocks
+        n_blocks = self.student.backbone.n_blocks
 
         for name, param in self.student.named_parameters():
             if not param.requires_grad:
