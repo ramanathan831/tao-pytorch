@@ -17,7 +17,7 @@
 from timm.models.layers import trunc_normal_
 from torch import nn
 from torch.nn import functional as F
-from torch.nn.utils import weight_norm
+from torch.nn.utils.parametrizations import weight_norm
 
 
 class DinoHead(nn.Module):
@@ -64,7 +64,7 @@ class DinoHead(nn.Module):
         self.apply(self._init_weights)
 
         self.last_layer = weight_norm(nn.Linear(bottleneck_dim, out_dim, bias=False))
-        self.last_layer.weight_g.data.fill_(1)
+        self.last_layer.parametrizations.weight.original0.data.fill_(1)
 
     def forward(self, x):
         """Forward pass for DINO head.

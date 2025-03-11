@@ -2,8 +2,13 @@ encryption_key: tlt_encode
     
 results_dir: /tao-pt/tao-experiments/result/nvdinov2
 model:
+  distill:
+    enable: False
+    disable_masking: False
+    pretrained_non_distill_pl_model_path: null
   backbone: 
-    type: "vit_l"
+    teacher_type: "vit_l"
+    student_type: "vit_l"
     drop_path_rate: 0.4
     patch_size: 14
     img_size: 518

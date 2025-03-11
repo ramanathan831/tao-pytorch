@@ -50,7 +50,7 @@ def run_experiment(experiment_config, key):
                       num_nodes=num_nodes,
                       strategy='auto',
                       precision=precision,
-                      use_distributed_sampler=True,
+                      use_distributed_sampler=False,
                       sync_batchnorm=True,
                       )
 
