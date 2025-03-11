@@ -873,8 +873,8 @@ class DinoV2PlModel(TAOLightningModule):
                                                     )
 
         # For now, we use our custom one since Lightning's callback for this is minimal
-        TAOExceptionCheckpoint.FILE_EXTENSION = ModelCheckpoint.FILE_EXTENSION
-        TAOExceptionCheckpoint.CHECKPOINT_NAME_LAST = ModelCheckpoint.CHECKPOINT_NAME_LAST
+        TAOExceptionCheckpoint.FILE_EXTENSION = CustomModelCheckpoint.FILE_EXTENSION
+        TAOExceptionCheckpoint.CHECKPOINT_NAME_LAST = CustomModelCheckpoint.CHECKPOINT_NAME_LAST
         exception_checkpoint_callback = TAOExceptionCheckpoint(dirpath=results_dir)
 
         return [status_logger_callback, checkpoint_callback, exception_checkpoint_callback]
