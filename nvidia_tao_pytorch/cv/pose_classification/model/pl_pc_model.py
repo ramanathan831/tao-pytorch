@@ -125,12 +125,7 @@ class PoseClassificationModel(TAOLightningModule):
         return loss
 
     def on_train_epoch_end(self):
-        """
-        Log Training metrics to status.json at the end of the epoch.
-
-        Args:
-            training_step_outputs (list): List of outputs from each training step.
-        """
+        """Log Training metrics to status.json at the end of the epoch."""
         average_train_loss = self.trainer.logged_metrics["train_loss_epoch"].item()
 
         self.status_logging_dict = {}

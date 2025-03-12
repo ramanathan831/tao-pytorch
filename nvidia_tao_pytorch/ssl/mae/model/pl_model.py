@@ -15,7 +15,6 @@
 """ Main PTL model file for MAE. """
 import os
 import pandas as pd
-import numpy as np
 import logging
 import functools
 
@@ -266,10 +265,6 @@ class MAEPlModule(TAOLightningModule):
                 "frequency": 1},
             'monitor': self.cfg.train.optim.monitor_name}
 
-    def on_train_epoch_start(self):
-        """Train epoch start. Declaring output list."""
-        self.training_step_outputs = []
-
     def training_step(self, batch, batch_idx):
         """Training step."""
         if self.cfg.train.stage == 'pretrain':
@@ -284,14 +279,14 @@ class MAEPlModule(TAOLightningModule):
             loss = self.criterion(outputs, targets)
 
         loss_total = loss.item()
-        self.log("train_loss", loss_total, on_step=True, on_epoch=False, prog_bar=True, sync_dist=True, batch_size=batch_size)
+        self.log("train_loss", loss_total, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True, batch_size=batch_size)
         self.log("lr", self.lr_schedulers().get_last_lr()[-1], on_step=True, on_epoch=False, prog_bar=True, sync_dist=True)
-        self.training_step_outputs.append(loss_total)
+
         return loss
 
     def on_train_epoch_end(self):
         """Log Training metrics to status.json"""
-        average_train_loss = np.array(self.training_step_outputs).mean()
+        average_train_loss = self.trainer.logged_metrics["train_loss_epoch"].item()
         self.status_logging_dict = {}
         self.status_logging_dict["train_loss"] = average_train_loss
         status_logging.get_status_logger().kpi = self.status_logging_dict
@@ -299,7 +294,6 @@ class MAEPlModule(TAOLightningModule):
             message="Train metrics generated.",
             status_level=status_logging.Status.RUNNING
         )
-        self.training_step_outputs.clear()
 
     def on_validation_epoch_start(self) -> None:
         """

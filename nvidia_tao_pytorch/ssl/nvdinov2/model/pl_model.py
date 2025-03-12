@@ -636,13 +636,6 @@ class DinoV2PlModel(TAOLightningModule):
 
         return loss
 
-    def on_train_epoch_start(self):
-        """Train epoch start. Declaring output dict."""
-        self.training_step_outputs = {
-            'loss': 0,
-            'steps': 0,
-        }
-
     def training_step(self, batch: Any, batch_idx: int):
         """Performs a training step for the model.
 
@@ -720,15 +713,14 @@ class DinoV2PlModel(TAOLightningModule):
         # EMA to update teacher
         self.update_teacher(schedules["momentum"])
 
-        self.log("train_loss", loss, on_step=True, on_epoch=False, prog_bar=True, sync_dist=True, batch_size=self.batch_size,)
+        self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True, batch_size=self.batch_size)
 
-        self.training_step_outputs['loss'] += loss.item()
-        self.training_step_outputs['steps'] += 1
         return loss
 
     def on_train_epoch_end(self):
         """Log Training metrics to status.json"""
-        average_train_loss = self.training_step_outputs['loss'] / self.training_step_outputs['steps']
+        average_train_loss = self.trainer.logged_metrics["train_loss_epoch"].item()
+
         self.status_logging_dict = {}
         self.status_logging_dict["train_loss"] = average_train_loss
 
@@ -737,8 +729,6 @@ class DinoV2PlModel(TAOLightningModule):
             message="Train metrics generated.",
             status_level=status_logging.Status.RUNNING
         )
-
-        self.training_step_outputs.clear()
 
     def on_predict_epoch_start(self):
         """Predict epoch start"""

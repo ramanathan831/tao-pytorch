@@ -63,7 +63,7 @@ class Distiller(TAOLightningModule):
         raise NotImplementedError('Subclasses must implement training_step')
 
     @abstractmethod
-    def on_train_epoch_end(self, training_step_outputs):
+    def on_train_epoch_end(self):
         """Internal function to define the training epoch end."""
         raise NotImplementedError('Subclasses must implement training_epoch_end')
 
