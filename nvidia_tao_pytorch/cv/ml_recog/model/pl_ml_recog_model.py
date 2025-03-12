@@ -283,10 +283,7 @@ class MLRecogModel(TAOLightningModule):
         pl.utilities.memory.garbage_collection_cuda()
 
     def on_train_epoch_end(self):
-        """Generates train and validation metrics and the end of training epoch.
-
-        training_step_outputs (List[Dict[str, torch.Tensor]]): List of outputs from training_step.
-        """
+        """Generates train and validation metrics and the end of training epoch."""
         average_train_loss = self.trainer.logged_metrics["train_loss_epoch"].item()
         report_loss = np.around(average_train_loss, decimals=4)
         report_trunk_lr = '{:.4e}'.format(self.schedulers['trunk'].get_lr()[0])
