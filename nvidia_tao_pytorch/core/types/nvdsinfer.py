@@ -17,13 +17,9 @@
 import yaml
 from abc import abstractmethod
 from dataclasses import asdict, dataclass, is_dataclass, field
+from copy import deepcopy
 from typing import List
 
-VALID_COLOR_FORMATS = {
-    "rgb": 0,
-    "bgr": 1,
-    "l": 2
-}
 VALID_CHANNEL_ORDERS = ["channels_first", "channels_last"]
 VALID_BACKENDS = ["onnx"]
 VALID_NETWORK_TYPES = [0, 1, 2, 3, 100]
@@ -50,19 +46,45 @@ def replace_key_characters(dictionary: dict, find_char: str = "-", replace_char:
             value = replace_key_characters(value, find_char=find_char, replace_char=replace_char)
         if find_char in key:
             updated_key = key.replace(find_char, replace_char)
-            dictionary[updated_key] = dictionary[key]
+            dictionary[updated_key] = deepcopy(dictionary[key])
         del dictionary[key]
     return dictionary
 
 
 def recursively_join_list(dictionary: dict) -> dict:
-    """Recursively traverse a dictionary and convert list to strings."""
+    """Recursively traverse a dictionary and convert list to strings.
+
+    Args:
+      dictionary (dict): The input dictionary to edit.
+
+    Returns:
+      dictionary (dict): Return dictionary.
+    """
     for key, value in dictionary.items():
         if isinstance(value, dict):
             value = recursively_join_list(value)
         if isinstance(value, list):
             value = ";".join([str(item) for item in value])
         dictionary[key] = value
+    return dictionary
+
+
+def remove_null_keys(dictionary: dict) -> dict:
+    """Recursively remove null keys from the dictionary.
+
+    Args:
+      dictionary (dict): The dictionary to edit.
+
+    Returns:
+      dictionary (dict): Return dictionary.
+    """
+    keys = list(dictionary.keys())
+    values = list(dictionary.values())
+    for key, value in zip(keys, values):
+        if isinstance(value, dict):
+            value = remove_null_keys(value)
+        if not value or key in SKIP_LIST:
+            del dictionary[key]
     return dictionary
 
 
@@ -73,11 +95,7 @@ class BaseDSType:
     def as_dict(self) -> dict:
         """Write a member function to serialize this as a dictionary."""
         config_dictionary = asdict(self)
-        keys = list(config_dictionary.keys())
-        values = list(config_dictionary.values())
-        for key, value in zip(keys, values):
-            if value is None or key in SKIP_LIST:
-                del config_dictionary[key]
+        config_dictionary = remove_null_keys(config_dictionary)
         return config_dictionary
 
     @abstractmethod
@@ -92,7 +110,12 @@ class BaseDSType:
             self.as_dict()
         )
         config_dictionary = replace_key_characters(config_dictionary, find_char="_", replace_char="-")
-        return yaml.safe_dump(config_dictionary)
+        config_keys = list(config_dictionary.keys())
+        if "property-field" in config_keys:
+            config_dictionary["property"] = deepcopy(config_dictionary["property-field"])
+            del config_dictionary["property-field"]
+        return_string = yaml.safe_dump(config_dictionary)
+        return return_string
 
 
 @dataclass
@@ -149,9 +172,10 @@ class BaseNvDSPropertyConfig(BaseDSType):
     network_type: int = 100
     maintain_aspect_ratio: int = 1
     output_tensor_meta: int = 1
+    output_blob_names: List = field(default_factory=lambda: ["pred_boxes", "pred_logits"])
     num_detected_classes: int = 19
     network_mode: int = 0
-    model_color_format: str = "rgb"
+    model_color_format: int = 1
     data_format: str = "channels_first"
     infer_dims: List = field(default_factory=lambda: [3, 544, 960])
 
@@ -160,11 +184,6 @@ class BaseNvDSPropertyConfig(BaseDSType):
         assert self.network_type in VALID_NETWORK_TYPES, (
             f"Invalid Network type {self.network_type} requested. Supported network types: {VALID_NETWORK_TYPES}"
         )
-        if self.model_color_format not in VALID_COLOR_FORMATS:
-            raise NotImplementedError(
-                f"Color format specified is not valid: {self.model_color_format.lower()}. "
-                f"Valid color formats include {VALID_COLOR_FORMATS}"
-            )
 
         if self.data_format not in VALID_CHANNEL_ORDERS:
             raise NotImplementedError(
@@ -174,17 +193,15 @@ class BaseNvDSPropertyConfig(BaseDSType):
         channel_index = 0
         if self.data_format == "channels_last":
             channel_index = -1
-        if self.model_color_format == "l":
-            assert self.infer_dims[channel_index] == 1, (
-                "Channel count mismatched with color_format. "
-                f"Provided\ndata_format: {self.infer_dims[channel_index]}\n color_format: {self.model_color_format}"
-            )
+        if self.infer_dims[channel_index] == 1:
+            assert self.model_color_format == 2, "Model format should be 2"
         else:
             assert self.infer_dims[channel_index] == 3, (
                 "Channel count mismatched with color_format. "
                 f"Provided\ndata_format: {self.infer_dims[channel_index]}\n color_format: {self.model_color_format}"
             )
-        self.model_color_format = VALID_COLOR_FORMATS[self.model_color_format]
+            assert len(self.offsets) == 3, "Offsets must be 3 channel input."
+            assert self.model_color_format in [0, 1], "Model format should be `0` or `1`"
 
 
 @dataclass

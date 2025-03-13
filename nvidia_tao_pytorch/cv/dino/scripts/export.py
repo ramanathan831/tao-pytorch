@@ -23,8 +23,9 @@ from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_pytorch.core.utilities import encrypt_onnx
 from nvidia_tao_pytorch.core.tlt_logging import logging
-from nvidia_tao_pytorch.cv.dino.utils.onnx_export import ONNXExporter
 from nvidia_tao_pytorch.cv.dino.model.pl_dino_model import DINOPlModel
+from nvidia_tao_pytorch.cv.dino.types.dino_nvdsinfer import DINONvDSInferConfig
+from nvidia_tao_pytorch.cv.dino.utils.onnx_export import ONNXExporter
 
 
 spec_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -76,8 +77,10 @@ def run_export(experiment_config):
     input_channel = experiment_config.export.input_channel
     input_width = experiment_config.export.input_width
     input_height = experiment_config.export.input_height
+    input_shape = [input_channel, input_height, input_width]
     opset_version = experiment_config.export.opset_version
     batch_size = experiment_config.export.batch_size
+    serialize_nvdsinfer = experiment_config.export.serialize_nvdsinfer
     on_cpu = experiment_config.export.on_cpu
     if batch_size is None or batch_size == -1:
         input_batch_size = 1
@@ -99,6 +102,25 @@ def run_export(experiment_config):
     if not os.path.exists(output_root):
         os.makedirs(output_root)
 
+    # Setting up input/output tensor names.
+    input_names = ['inputs']
+    output_names = ["pred_logits", "pred_boxes"]
+
+    if serialize_nvdsinfer:
+        nvdsinfer_yaml_file = os.path.join(
+            output_root, "nvdsinfer_config.yaml"
+        )
+        logging.info("Serializing the deepstream config to {}".format(
+            nvdsinfer_yaml_file
+        ))
+        nvds_config = DINONvDSInferConfig()
+        nvds_config.property_field.onnx_file = os.path.basename(output_file)
+        nvds_config.property_field.output_blob_names = output_names
+        # To Do: Define how to serialize the labels.txt
+        nvds_config.property_field.infer_dims = input_shape
+        with open(nvdsinfer_yaml_file, "w") as nvds_file:
+            nvds_file.write(str(nvds_config))
+
     # load model
     pl_model = DINOPlModel.load_from_checkpoint(model_path,
                                                 map_location='cpu' if on_cpu else 'cuda',
@@ -109,14 +131,11 @@ def run_export(experiment_config):
     if not on_cpu:
         model.cuda()
 
-    input_names = ['inputs']
-    output_names = ["pred_logits", "pred_boxes"]
-
     # create dummy input
     if on_cpu:
-        dummy_input = torch.ones(input_batch_size, input_channel, input_height, input_width, device='cpu')
+        dummy_input = torch.ones(input_batch_size, *input_shape, device='cpu')
     else:
-        dummy_input = torch.ones(input_batch_size, input_channel, input_height, input_width, device='cuda')
+        dummy_input = torch.ones(input_batch_size, *input_shape, device='cuda')
 
     if output_file.endswith('.etlt'):
         tmp_onnx_file = output_file.replace('.etlt', '.onnx')

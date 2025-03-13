@@ -23,6 +23,7 @@ from nvidia_tao_pytorch.core.tlt_logging import logging
 from nvidia_tao_pytorch.cv.deformable_detr.utils.onnx_export import ONNXExporter
 from nvidia_tao_core.config.rtdetr.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.rtdetr.model.pl_rtdetr_model import RTDETRPlModel
+from nvidia_tao_pytorch.cv.rtdetr.types.rtdetr_nvdsinfer import RTDETRNvDSInferConfig
 
 
 spec_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -70,7 +71,9 @@ def run_export(experiment_config):
     input_channel = experiment_config.export.input_channel
     input_width = experiment_config.export.input_width
     input_height = experiment_config.export.input_height
+    input_shape = [input_channel, input_height, input_width]
     opset_version = experiment_config.export.opset_version
+    serialize_nvdsinfer = experiment_config.export.serialize_nvdsinfer
     batch_size = experiment_config.export.batch_size
     if experiment_config.model.frozen_fm.enabled:
         batch_size = 1
@@ -95,6 +98,26 @@ def run_export(experiment_config):
     if not os.path.exists(output_root):
         os.makedirs(output_root)
 
+    # Setting input/output tensor names.
+    input_names = ['inputs']
+    output_names = ["pred_logits", "pred_boxes"]
+
+    if serialize_nvdsinfer:
+        nvdsinfer_yaml_file = os.path.join(
+            output_root, "nvdsinfer_config.yaml"
+        )
+        logging.info("Serializing the deepstream config to {}".format(
+            nvdsinfer_yaml_file
+        ))
+        nvds_config = RTDETRNvDSInferConfig()
+        nvds_config.property_field.onnx_file = os.path.basename(output_file)
+        nvds_config.property_field.output_blob_names = output_names
+        # To Do: Define how to serialize the labels.txt
+        # nvds_config.property_field.labelfile_path="labels.txt"
+        nvds_config.property_field.infer_dims = input_shape
+        with open(nvdsinfer_yaml_file, "w") as nvds_file:
+            nvds_file.write(str(nvds_config))
+
     # load model
     pl_model = RTDETRPlModel.load_from_checkpoint(model_path,
                                                   map_location='cpu' if on_cpu else 'cuda',
@@ -105,14 +128,11 @@ def run_export(experiment_config):
     if not on_cpu:
         model.cuda()
 
-    input_names = ['inputs']
-    output_names = ["pred_logits", "pred_boxes"]
-
     # create dummy input
     if on_cpu:
-        dummy_input = torch.ones(input_batch_size, input_channel, input_height, input_width, device='cpu')
+        dummy_input = torch.ones(input_batch_size, *input_shape, device='cpu')
     else:
-        dummy_input = torch.ones(input_batch_size, input_channel, input_height, input_width, device='cuda')
+        dummy_input = torch.ones(input_batch_size, *input_shape, device='cuda')
 
     onnx_export = ONNXExporter()
     onnx_export.export_model(model, batch_size,
