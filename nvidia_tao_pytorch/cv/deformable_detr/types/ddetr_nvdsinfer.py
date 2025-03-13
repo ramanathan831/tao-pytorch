@@ -14,7 +14,7 @@
 
 """GST-Nvinfer config file for DDETR."""
 
-from dataclasses import dataclass, is_dataclass
+from dataclasses import dataclass, is_dataclass, field
 from nvidia_tao_pytorch.core.types.nvdsinfer import (
     BaseDSType,
     BaseNVDSClassAttributes,
@@ -41,13 +41,15 @@ class DDETRNvDSClassAttribute(BaseNVDSClassAttributes):
 class DDETRNvDSInferConfig(BaseDSType):
     """RTDETRNvDSInfer config element."""
 
-    property: DDETRNvDSPropertyConfig = DDETRNvDSPropertyConfig(
+    property_field: DDETRNvDSPropertyConfig = field(default_factory=lambda: DDETRNvDSPropertyConfig(
         cluster_mode=4,
         net_scale_factor=0.0173520735728,
         network_type=0,
-        network_mode=2
-    )
-    class_attrs_all: DDETRNvDSClassAttribute = DDETRNvDSClassAttribute()
+        network_mode=2,
+        output_blob_names=["pred_boxes", "pred_logits"],
+        model_color_format=0
+    ))
+    class_attrs_all: DDETRNvDSClassAttribute = field(default_factory=lambda: DDETRNvDSClassAttribute())
 
     def validate(self):
         """Function to validate the dataclass."""

@@ -17,13 +17,14 @@
 import os
 import torch
 
+from nvidia_tao_core.config.classification_pl.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.cookbooks.tlt_pytorch_cookbook import TLTPyTorchCookbook
 from nvidia_tao_pytorch.core.tlt_logging import logging
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_pytorch.core.utilities import encrypt_onnx
 from nvidia_tao_pytorch.cv.classification_pl.utils.onnx_export import ONNXExporter
-from nvidia_tao_core.config.classification_pl.default_config import ExperimentConfig
+from nvidia_tao_pytorch.cv.classification_pl.types.classification_nvdsinfer import ClassificationNvDSInferConfig
 from nvidia_tao_pytorch.cv.classification_pl.model.classifier_pl_model import ClassifierPlModel
 
 spec_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -75,7 +76,9 @@ def run_export(experiment_config):
     input_channel = experiment_config.export.input_channel
     input_width = experiment_config.export.input_width
     input_height = experiment_config.export.input_height
+    input_shape = [input_channel, input_height, input_width]
     opset_version = experiment_config.export.opset_version
+    serialize_nvdsinfer = experiment_config.export.serialize_nvdsinfer
     batch_size = experiment_config.export.batch_size
     on_cpu = experiment_config.export.on_cpu
     if batch_size is None or batch_size == -1:
@@ -98,6 +101,26 @@ def run_export(experiment_config):
     if not os.path.exists(output_root):
         os.makedirs(output_root)
 
+    # Setting input/output tensor names.
+    input_names = ['input']
+    output_names = ['output']
+
+    if serialize_nvdsinfer:
+        nvdsinfer_yaml_file = os.path.join(
+            output_root, "nvdsinfer_config.yaml"
+        )
+        logging.info("Serializing the deepstream config to {}".format(
+            nvdsinfer_yaml_file
+        ))
+        nvds_config = ClassificationNvDSInferConfig()
+        nvds_config.property_field.onnx_file = os.path.basename(output_file)
+        nvds_config.property_field.output_blob_names = output_names
+        # To Do: Define how to serialize the labels.txt
+        # nvds_config.property_field.labelfile_path="labels.txt"
+        nvds_config.property_field.infer_dims = input_shape
+        with open(nvdsinfer_yaml_file, "w") as nvds_file:
+            nvds_file.write(str(nvds_config))
+
     # load model
     sf_model = ClassifierPlModel.load_from_checkpoint(
         model_path,
@@ -106,9 +129,6 @@ def run_export(experiment_config):
         export=True
     )
 
-    input_names = ['input']
-    output_names = ['output']
-
     model = sf_model.model
     model.eval()
     if not on_cpu:
@@ -116,9 +136,9 @@ def run_export(experiment_config):
 
     # create dummy input
     if on_cpu:
-        dummy_input = torch.ones(input_batch_size, input_channel, input_height, input_width, device='cpu')
+        dummy_input = torch.ones(input_batch_size, *input_shape, device='cpu')
     else:
-        dummy_input = torch.ones(input_batch_size, input_channel, input_height, input_width, device='cuda')
+        dummy_input = torch.ones(input_batch_size, *input_shape, device='cuda')
 
     if output_file.endswith('.etlt'):
         tmp_onnx_file = output_file.replace('.etlt', '.onnx')

@@ -14,7 +14,7 @@
 
 """GST-Nvinfer config file for DINO."""
 
-from dataclasses import dataclass, is_dataclass
+from dataclasses import dataclass, is_dataclass, field
 from nvidia_tao_pytorch.core.types.nvdsinfer import (
     BaseDSType,
     BaseNVDSClassAttributes,
@@ -41,12 +41,14 @@ class DINONvDSClassAttribute(BaseNVDSClassAttributes):
 class DINONvDSInferConfig(BaseDSType):
     """RTDETRNvDSInfer config element."""
 
-    property: DINONvDSPropertyConfig = DINONvDSPropertyConfig(
+    property_field: DINONvDSPropertyConfig = field(default_factory=lambda: DINONvDSPropertyConfig(
         cluster_mode=4,
         net_scale_factor=0.0173520735728,
         network_type=0,
-        network_mode=2
-    )
+        network_mode=2,
+        output_blob_names=["pred_boxes", "pred_logits"],
+        model_color_format=0
+    ))
     class_attrs_all: DINONvDSClassAttribute = DINONvDSClassAttribute()
 
     def validate(self):
