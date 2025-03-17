@@ -13,14 +13,16 @@
 # limitations under the License.
 
 """NVDINOv2 Model Module"""
-import os
 import copy
+import os
+import re
 from typing import Any, Dict, Sequence
 
+import pandas as pd
 import torch
 import torch._dynamo.config
 import torch.distributed as dist
-from torch import nn
+import torch.nn as nn
 import torch.optim as optim
 from torch.distributed.fsdp import FullyShardedDataParallel, ShardingStrategy
 from torch.distributed.fsdp._runtime_utils import _reshard
@@ -30,18 +32,18 @@ from pytorch_lightning.strategies.fsdp import FSDPStrategy
 from pytorch_lightning.strategies.single_device import SingleDeviceStrategy
 from pytorch_lightning.callbacks import Callback, ModelCheckpoint
 from xformers.ops.fmha import BlockDiagonalMask
-import re
-import pandas as pd
+import nvidia_tao_core.config.nvdinov2.default_config as model_params
 
-from nvidia_tao_pytorch.ssl.nvdinov2.model.loss import DinoV2Loss, KoLeoLoss
+import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
 from nvidia_tao_pytorch.core.callbacks.loggers import TAOStatusLogger
 from nvidia_tao_pytorch.core.callbacks.model_checkpoint import TAOExceptionCheckpoint
+from nvidia_tao_pytorch.core.distributed.comm import get_global_rank
 from nvidia_tao_pytorch.core.lightning.tao_lightning_module import TAOLightningModule
-import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
-from nvidia_tao_pytorch.ssl.nvdinov2.model.vit import DinoV2VisionTransformer, SwiGLUFused
+from nvidia_tao_pytorch.core.tlt_logging import logging
 from nvidia_tao_pytorch.ssl.nvdinov2.model.head import DinoHead
+from nvidia_tao_pytorch.ssl.nvdinov2.model.loss import DinoV2Loss, KoLeoLoss
+from nvidia_tao_pytorch.ssl.nvdinov2.model.vit import DinoV2VisionTransformer, SwiGLUFused
 from nvidia_tao_pytorch.ssl.nvdinov2.model.warmup_cosine import LambdaWarmUpCosineScheduler
-import nvidia_tao_core.config.nvdinov2.default_config as model_params
 
 torch._dynamo.config.suppress_errors = True
 
@@ -61,7 +63,7 @@ class CustomModelCheckpoint(ModelCheckpoint):
         # Custom checkpoint saving with model conversion
         state_dict = trainer.lightning_module.state_dict()
 
-        if trainer.lightning_module.model_config.distill:
+        if trainer.lightning_module.model_config.distill.enable:
             student_state_dict = {}
             student_ema_state_dict = {}
             for k, v in list(state_dict.items()):
@@ -369,9 +371,11 @@ class DinoV2PlModel(TAOLightningModule):
                 weights_not_loaded.append(key)
         if weights_not_loaded:
             for item in weights_not_loaded:
-                print(f"Weights not loaded for {item}")
+                if get_global_rank() == 0:
+                    logging.info(f"Weights not loaded for {item}")
         if unexpected_keys:
-            print('Unexpected keys:', unexpected_keys)
+            if get_global_rank() == 0:
+                logging.info(f"Unexpected keys: {unexpected_keys}")
 
         self.student.backbone.load_state_dict(cur_student_backbone_weights)
         if not self.model_config.distill.enable:
@@ -909,7 +913,8 @@ class DinoV2PlModel(TAOLightningModule):
             # check if fsdp
             if getattr(self.student.dino_head, "_streams", None) is not None:
                 self.log("Synchronizing streams")
-                print("Synchronizing streams")
+                if get_global_rank() == 0:
+                    logging.info("Synchronizing streams")
                 self.student.dino_head._streams = (
                     self.teacher.dino_head._streams
                 ) = self.student.backbone._streams = self.teacher.backbone._streams
