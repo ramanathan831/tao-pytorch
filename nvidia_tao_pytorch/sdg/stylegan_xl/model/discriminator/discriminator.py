@@ -22,9 +22,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision.transforms import Normalize
 
-from nvidia_tao_pytorch.core.tlt_logging import logging
 from nvidia_tao_pytorch.sdg.stylegan_xl.model.discriminator.diffaug import diff_augment
 from nvidia_tao_pytorch.sdg.stylegan_xl.model.generator.networks_stylegan2 import FullyConnectedLayer
+from nvidia_tao_pytorch.sdg.stylegan_xl.model.generator.networks_styleganxl import load_pretrained_embedding_for_embed_layers
 from nvidia_tao_pytorch.sdg.stylegan_xl.model.discriminator.blocks import conv2d, DownBlock, DownBlockPatch
 from nvidia_tao_pytorch.sdg.stylegan_xl.model.discriminator.projector import F_RandomProj
 from nvidia_tao_pytorch.sdg.stylegan_xl.model.feature_networks.constants import VITS
@@ -156,14 +156,7 @@ class SingleDiscCond(nn.Module):
         self.cls = conv2d(nfc[end_sz], self.cmap_dim, 4, 1, 0, bias=False)
 
         # Pretrained Embeddings
-        # embed_path = '/tao-pt/tf_efficientnet_lite0_embed.pth'
-        self.embed = torch.nn.Embedding(num_embeddings=1000, embedding_dim=320)
-        if rand_embedding or embed_path is None:
-            self.embed.__init__(num_embeddings=self.embed.num_embeddings, embedding_dim=self.embed.embedding_dim)
-            logging.warning('initialized input embeddings with random weights')
-        else:
-            self.embed.load_state_dict(torch.load(embed_path, map_location=torch.device('cpu')))
-            logging.info(f'loaded imagenet input embeddings from {embed_path}: {self.embed}')
+        self.embed = torch.nn.Embedding(num_embeddings=1000, embedding_dim=320)  # This embed layer will be loaded with a pretrained embed if needed. Find "load_pretrained_embedding".
 
         # Construct layers.
         self.embed_proj = FullyConnectedLayer(self.embed.embedding_dim, self.cmap_dim, activation='lrelu')
@@ -335,3 +328,8 @@ class ProjectedDiscriminator(torch.nn.Module):
             logits += self.discriminators[bb_name](features, c)
 
         return logits
+
+    def load_pretrained_embedding(self, embedding_checkpoint):
+        """Find embedding layers and load the pretrained embedding checkpoint for each layers"""
+        # Example: Find all ".embed" layers in the discriminator
+        load_pretrained_embedding_for_embed_layers(self, embedding_checkpoint)

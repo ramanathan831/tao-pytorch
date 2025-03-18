@@ -22,6 +22,7 @@ import tempfile
 
 from nvidia_tao_core.cloud_handlers import utils
 from pytorch_lightning.utilities.rank_zero import rank_zero_only
+from nvidia_tao_pytorch.core.distributed.comm import synchronize
 
 
 def traverse_up(path, n_levels=0):
@@ -40,6 +41,7 @@ def traverse_up(path, n_levels=0):
     return path
 
 
+@synchronize
 @rank_zero_only
 def download_and_convert_pretrained_modules():
     """Download and convert pretrained modules for StyleGAN-XL.

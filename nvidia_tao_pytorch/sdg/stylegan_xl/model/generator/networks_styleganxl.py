@@ -19,6 +19,7 @@ Generator architecture from the paper
 "StyleGAN-XL: Scaling StyleGAN to Large Diverse Datasets".
 """
 
+import re
 import numpy as np
 import scipy.signal
 import scipy.optimize
@@ -147,6 +148,28 @@ def modulated_conv2d_export(
     return x
 
 
+def find_all_embed_layers(model, target_name=".embed"):
+    """Function to find all layers that contain ".embed" but NOT "embed_proj"""
+    embed_layers = {}
+    for name, module in model.named_modules():
+        if re.search(r"\.embed$", name):  # Match only names ending with ".embed"
+            embed_layers[name] = module
+    return embed_layers
+
+
+def load_pretrained_embedding_for_embed_layers(model, embedding_checkpoint):
+    """Function to load pretrained embed for all layers of discriminator/generator that contain ".embed" but NOT "embed_proj"""
+    embed_layers = find_all_embed_layers(model)
+    if embed_layers:
+        pretrained_embed = torch.load(embedding_checkpoint, map_location=torch.device('cpu'))
+        logging.info(f'Found and load the pretrained embedding for following {len(embed_layers)} embed layers:')
+        for name in embed_layers:
+            embed_layers[name].load_state_dict(pretrained_embed)
+            logging.info(f" - {name}")
+    else:
+        raise AssertionError("No '.embed' layers found.")
+
+
 class FullyConnectedLayer(torch.nn.Module):
     """Fully Connected Layer."""
 
@@ -247,15 +270,8 @@ class MappingNetwork(torch.nn.Module):
         self.num_layers = num_layers
         self.w_avg_beta = w_avg_beta
 
-        # additions
-        # embed_path = '/tao-pt/tf_efficientnet_lite0_embed.pth'
-        self.embed = torch.nn.Embedding(num_embeddings=1000, embedding_dim=320)
-        if rand_embedding or embed_path is None:
-            self.embed.__init__(num_embeddings=self.embed.num_embeddings, embedding_dim=self.embed.embedding_dim)
-            logging.warning('initialized input embeddings with random weights')
-        else:
-            self.embed.load_state_dict(torch.load(embed_path, map_location=torch.device('cpu')))
-            logging.info(f'loaded imagenet input embeddings from {embed_path}: {self.embed}')
+        # Additions
+        self.embed = torch.nn.Embedding(num_embeddings=1000, embedding_dim=320)  # This embed layer will be loaded with a pretrained embed if needed. Find "load_pretrained_embedding".
 
         # Construct layers.
         self.embed_proj = FullyConnectedLayer(self.embed.embedding_dim, self.z_dim, activation='lrelu') if self.c_dim > 0 else None
@@ -913,6 +929,11 @@ class Generator(torch.nn.Module):
 
         return images
 
+    def load_pretrained_embedding(self, embedding_checkpoint):
+        """Find embedding layers and load the pretrained embedding checkpoint for each layers"""
+        # Example: Find all ".embed" layers in the discriminator
+        load_pretrained_embedding_for_embed_layers(self, embedding_checkpoint)
+
 
 class SuperresGenerator(torch.nn.Module):
     """Super-resolution Generator Network."""
@@ -1100,3 +1121,8 @@ class SuperresGenerator(torch.nn.Module):
         images = self.synthesis(w)
 
         return images
+
+    def load_pretrained_embedding(self, embedding_checkpoint):
+        """Find embedding layers and load the pretrained embedding checkpoint for each layers"""
+        # Example: Find all ".embed" layers in the discriminator
+        load_pretrained_embedding_for_embed_layers(self, embedding_checkpoint)
