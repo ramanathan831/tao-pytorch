@@ -39,21 +39,20 @@ class IntermediateInception(torch.nn.Module):
         """
         super().__init__()
         self.inception = InceptionV3()
-        self.inception_checkpoint = inception_checkpoint  # TODO
-        # self.inception_checkpoint = '/tao-pt/nvidia_tao_pytorch/sdg/stylegan_xl/model/metrics/pt_inception-2015-12-05-6726825d.pth'
-        if (self.inception_checkpoint is not None):
-            self._load_pretrained_model()
-        else:
-            logging.warning("The pretrained InceptionNet checkpoint for calculating FID metrics is missing !!!")
+
         for _, param in self.inception.named_parameters():
             param.requires_grad = False
 
-    def _load_pretrained_model(self):
+    def load_pretrained_model(self, inception_checkpoint):
         """Internal function for loading pretrained weights of InceptionNet."""
-        model_path = self.inception_checkpoint
-        self.inception.load_state_dict(
-            torch.load(model_path, map_location=torch.device('cpu'))  # avoid GPU memory leak and not released
-        )
+        model_path = inception_checkpoint
+        # self.inception_checkpoint = '/tao-pt/nvidia_tao_pytorch/sdg/stylegan_xl/pretrained_modules/InceptionV3.pth'
+        if (model_path is not None):
+            self.inception.load_state_dict(
+                torch.load(model_path, map_location=torch.device('cpu'))  # avoid GPU memory leak and not released
+            )
+        else:
+            logging.warning("The pretrained InceptionNet checkpoint for calculating FID metrics is missing !!!")
 
     def forward(self, x):
         """
@@ -288,9 +287,7 @@ def build_inception(experiment_config):
         inception: itermediate inception which can output intermediate features with forward function
 
     """
-    model_config = experiment_config.model
-
-    inception = IntermediateInception(inception_checkpoint=model_config['stylegan']['metrics']['inception_fid_path']).eval()
+    inception = IntermediateInception().eval()
 
     return inception
 

@@ -17,7 +17,6 @@
 import os
 import torch
 import torch.nn.functional as F
-import torch.distributed as dist
 import numpy as np
 import PIL
 import onnxruntime
@@ -32,7 +31,6 @@ from nvidia_tao_pytorch.sdg.stylegan_xl.model.sx_pl_model import StyleganPlModel
 from nvidia_tao_pytorch.sdg.stylegan_xl.model.bg_pl_model import BigdatasetganPlModel
 from nvidia_tao_pytorch.sdg.stylegan_xl.dataloader.pl_sx_data_module import SXDataModule
 from nvidia_tao_pytorch.sdg.stylegan_xl.dataloader.pl_bg_data_module import BGDataModule
-from nvidia_tao_pytorch.sdg.stylegan_xl.utils.startup import download_and_convert_pretrained_modules
 
 
 spec_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -108,11 +106,6 @@ def run_export(experiment_config):
     output_root = os.path.dirname(os.path.realpath(output_file))
     if not os.path.exists(output_root):
         os.makedirs(output_root)
-
-    # Download required pretrained modules from NGC and Github
-    dist.barrier()
-    download_and_convert_pretrained_modules()
-    dist.barrier()
 
     if experiment_config.task == 'stylegan':
         # build dataloader

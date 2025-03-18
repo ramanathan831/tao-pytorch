@@ -27,12 +27,13 @@ from torchmetrics.image.fid import FrechetInceptionDistance
 from pytorch_lightning.callbacks import Callback
 
 from nvidia_tao_pytorch.core.tlt_logging import logging
-import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
 from nvidia_tao_pytorch.core.lightning.tao_lightning_module import TAOLightningModule
+import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
 from nvidia_tao_pytorch.sdg.stylegan_xl.model.stylegan import build_generator, build_discriminator, build_projectedloss, build_inception, retrieve_generator_checkpoint_from_stylegan_pl_model
 from nvidia_tao_pytorch.sdg.stylegan_xl.utils import dnnlib
 from nvidia_tao_pytorch.sdg.stylegan_xl.utils import misc
 from nvidia_tao_pytorch.sdg.stylegan_xl.utils import gen_utils
+from nvidia_tao_pytorch.sdg.stylegan_xl.utils.startup import download_and_convert_pretrained_modules
 
 
 # This callback is essential for training a super-resolution StyleGAN-XL when freezing the low-resolution backbone (stem).
@@ -71,6 +72,34 @@ class StemCheckpointLoader(Callback):
                 # will result in different mapping.w_avg in G
                 pl_module.G.reinit_stem(copy.deepcopy(G_stem))
                 pl_module.G_ema.reinit_stem(copy.deepcopy(G_stem))
+
+
+# This callback is essential for loading InceptionNet for FID and class embeddings for discriminator and generator
+class SubmodulesCheckpointLoader(Callback):
+    """ Callback to forcefully load the stem checkpoint for a higher resolution model, even if a pretrained or resumed checkpoint is already loaded."""
+
+    def on_train_start(self, trainer, pl_module):  # Remind that this call will be procecced even after resuming checkpoint is already loaded
+        """Pytorch Lightning built-in function at the start of training."""
+        # Download pretrained modules from public first
+        download_and_convert_pretrained_modules()
+        # Since the class embedding is trainable, the loading should be ignored when resumed or pretrained checkpoints are provided
+        has_pretrained_model = (
+            trainer.ckpt_path is not None or
+            pl_module.experiment_spec['train']['pretrained_model_path'] is not None
+        )
+        if has_pretrained_model:
+            pass
+        else:
+            if pl_module.model_config['stylegan']['metrics']['inception_fid_path'] is not None:
+                pl_module.fid.inception.load_pretrained_model(pl_module.model_config['stylegan']['metrics']['inception_fid_path'])
+            else:
+                logging.warning("The pretrained InceptionNet checkpoint is not provided. FID metrics cannot be correctly calculated.")
+            if pl_module.model_config['input_embeddings_path'] is not None:
+                pl_module.D.load_pretrained_embedding(pl_module.model_config['input_embeddings_path'])
+                pl_module.G.load_pretrained_embedding(pl_module.model_config['input_embeddings_path'])
+                pl_module.G_ema.load_pretrained_embedding(pl_module.model_config['input_embeddings_path'])
+            else:
+                logging.warning("The pretrained embedding checkpoint is not provided. Initialized input embedding for discriminator/generator with random weights.")
 
 
 # The callback means non-essential logic and can be disabled without affect the training
@@ -265,7 +294,6 @@ class StyleganPlModel(TAOLightningModule):
         if stage == 'fit':
             if not self.trainer.ckpt_path:
                 self.cur_nimg = self.cur_nimg * 0
-
         if stage in ('fit', 'predict', 'test', None):
             # IMPORTANT for making different ranks using different random seeds to prevent from generating the same latent vectors cross gpus in training
             random.seed((0 + self.experiment_spec['train']['stylegan']['gan_seed_offset']) * self.trainer.num_nodes + self.trainer.global_rank)
@@ -301,6 +329,7 @@ class StyleganPlModel(TAOLightningModule):
         # Use custom inception net as backend of fid model
         inception = build_inception(experiment_config=self.experiment_spec).eval()
         self.fid = FrechetInceptionDistance(inception).eval()  # Change feature dimension to 2048
+        # self.fid.inception.load_pretrained_model(self.model_config['stylegan']['metrics']['inception_fid_path'])
         # Uncomment the following line to use the default inception model of fid w/o using custom inception model
         # self.fid = FrechetInceptionDistance(2048)
 
@@ -557,6 +586,9 @@ class StyleganPlModel(TAOLightningModule):
         stem_checkpoint_loader = StemCheckpointLoader()
         # Enable exporting sample images during training for monitoring
         sample_images_exporter = SampleImagesExporter()
+        # Load pretrained submodeuls such as InceptionNet for FID and class embeddings for discriminator and generator
+        submodules_checkpoint_loader = SubmodulesCheckpointLoader()
         callbacks.append(stem_checkpoint_loader)
         callbacks.append(sample_images_exporter)
+        callbacks.append(submodules_checkpoint_loader)
         return callbacks
