@@ -115,6 +115,7 @@ def run_export(experiment_config):
         nvds_config = SFNvDSInferConfig()
         nvds_config.property_field.onnx_file = os.path.basename(output_file)
         nvds_config.property_field.output_blob_names = output_names
+        nvds_config.property_field.num_detected_classes = experiment_config.dataset.segment.num_classes
         # To Do: Define how to serialize the labels.txt
         # nvds_config.property_field.labelfile_path="labels.txt"
         nvds_config.property_field.infer_dims = input_shape
