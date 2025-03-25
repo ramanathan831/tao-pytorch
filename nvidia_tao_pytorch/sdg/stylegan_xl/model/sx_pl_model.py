@@ -36,6 +36,36 @@ from nvidia_tao_pytorch.sdg.stylegan_xl.utils import gen_utils
 from nvidia_tao_pytorch.sdg.stylegan_xl.utils.startup import download_and_convert_pretrained_modules
 
 
+# This callback is essential for loading InceptionNet for FID and class embeddings for discriminator and generator
+class SubmodulesCheckpointLoader(Callback):
+    """ Callback to forcefully load the stem checkpoint for a higher resolution model, even if a pretrained or resumed checkpoint is already loaded."""
+
+    def on_train_start(self, trainer, pl_module):  # Remind that this call will be procecced even after resuming checkpoint is already loaded
+        """Pytorch Lightning built-in function at the start of training."""
+        # Download pretrained modules from public first
+        download_and_convert_pretrained_modules()
+        # Since the class embedding is trainable, the loading should be ignored when resumed or pretrained checkpoints are provided
+        has_pretrained_model = (
+            trainer.ckpt_path is not None or
+            pl_module.experiment_spec['train']['pretrained_model_path'] is not None
+        )
+        if has_pretrained_model:
+            pass
+        else:
+            if pl_module.model_config['stylegan']['metrics']['inception_fid_path'] is not None:
+                pl_module.fid.inception.load_pretrained_model(pl_module.model_config['stylegan']['metrics']['inception_fid_path'])
+                logging.warning("The pretrained InceptionNet is loaded.")
+            else:
+                logging.warning("The pretrained InceptionNet checkpoint is not provided. FID metrics cannot be correctly calculated.")
+            if pl_module.model_config['input_embeddings_path'] is not None:
+                pl_module.D.load_pretrained_embedding(pl_module.model_config['input_embeddings_path'])
+                pl_module.G.load_pretrained_embedding(pl_module.model_config['input_embeddings_path'])
+                pl_module.G_ema.load_pretrained_embedding(pl_module.model_config['input_embeddings_path'])
+                logging.warning("The pretrained embedding checkpoint is loaded for discriminator/generator.")
+            else:
+                logging.warning("The pretrained embedding checkpoint is not provided. Initialized input embedding for discriminator/generator with random weights.")
+
+
 # This callback is essential for training a super-resolution StyleGAN-XL when freezing the low-resolution backbone (stem).
 class StemCheckpointLoader(Callback):
     """ Callback to forcefully load the stem checkpoint for a higher resolution model, even if a pretrained or resumed checkpoint is already loaded."""
@@ -72,34 +102,6 @@ class StemCheckpointLoader(Callback):
                 # will result in different mapping.w_avg in G
                 pl_module.G.reinit_stem(copy.deepcopy(G_stem))
                 pl_module.G_ema.reinit_stem(copy.deepcopy(G_stem))
-
-
-# This callback is essential for loading InceptionNet for FID and class embeddings for discriminator and generator
-class SubmodulesCheckpointLoader(Callback):
-    """ Callback to forcefully load the stem checkpoint for a higher resolution model, even if a pretrained or resumed checkpoint is already loaded."""
-
-    def on_train_start(self, trainer, pl_module):  # Remind that this call will be procecced even after resuming checkpoint is already loaded
-        """Pytorch Lightning built-in function at the start of training."""
-        # Download pretrained modules from public first
-        download_and_convert_pretrained_modules()
-        # Since the class embedding is trainable, the loading should be ignored when resumed or pretrained checkpoints are provided
-        has_pretrained_model = (
-            trainer.ckpt_path is not None or
-            pl_module.experiment_spec['train']['pretrained_model_path'] is not None
-        )
-        if has_pretrained_model:
-            pass
-        else:
-            if pl_module.model_config['stylegan']['metrics']['inception_fid_path'] is not None:
-                pl_module.fid.inception.load_pretrained_model(pl_module.model_config['stylegan']['metrics']['inception_fid_path'])
-            else:
-                logging.warning("The pretrained InceptionNet checkpoint is not provided. FID metrics cannot be correctly calculated.")
-            if pl_module.model_config['input_embeddings_path'] is not None:
-                pl_module.D.load_pretrained_embedding(pl_module.model_config['input_embeddings_path'])
-                pl_module.G.load_pretrained_embedding(pl_module.model_config['input_embeddings_path'])
-                pl_module.G_ema.load_pretrained_embedding(pl_module.model_config['input_embeddings_path'])
-            else:
-                logging.warning("The pretrained embedding checkpoint is not provided. Initialized input embedding for discriminator/generator with random weights.")
 
 
 # The callback means non-essential logic and can be disabled without affect the training
@@ -582,13 +584,13 @@ class StyleganPlModel(TAOLightningModule):
     def configure_callbacks(self):
         """Pytorch Lightning built-in function for setting up callbacks."""
         callbacks = super().configure_callbacks()
+        # Load pretrained submodeuls such as InceptionNet for FID and class embeddings for discriminator and generator
+        submodules_checkpoint_loader = SubmodulesCheckpointLoader()
         # Enable stem checkpoint loading for training super-resolution
         stem_checkpoint_loader = StemCheckpointLoader()
         # Enable exporting sample images during training for monitoring
         sample_images_exporter = SampleImagesExporter()
-        # Load pretrained submodeuls such as InceptionNet for FID and class embeddings for discriminator and generator
-        submodules_checkpoint_loader = SubmodulesCheckpointLoader()
+        callbacks.append(submodules_checkpoint_loader)
         callbacks.append(stem_checkpoint_loader)
         callbacks.append(sample_images_exporter)
-        callbacks.append(submodules_checkpoint_loader)
         return callbacks
