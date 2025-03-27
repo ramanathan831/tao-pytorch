@@ -26,7 +26,7 @@ import onnxruntime as ort
 from omegaconf import OmegaConf
 
 from nvidia_tao_pytorch.core.utilities import check_and_create
-from nvidia_tao_core.config.segformer_pl.default_config import ExperimentConfig
+from nvidia_tao_core.config.segformer.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.segformer_pl.model.segformer_pl_model import SegFormerPlModel
 from nvidia_tao_pytorch.cv.segformer_pl.utils.onnx_export import ONNXExporter
 

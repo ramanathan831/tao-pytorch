@@ -18,7 +18,7 @@ SegFormer_pl Model builder Unit Tests
 import pytest
 from omegaconf import OmegaConf
 
-from nvidia_tao_core.config.segformer_pl.default_config import SFModelConfig, SFDatasetConfig, ExperimentConfig
+from nvidia_tao_core.config.segformer.default_config import SFModelConfig, SFDatasetConfig, ExperimentConfig
 from nvidia_tao_pytorch.cv.segformer_pl.model.segformer_pl_model import build_model
 from nvidia_tao_pytorch.cv.segformer_pl.model.segformer import SegFormer
 

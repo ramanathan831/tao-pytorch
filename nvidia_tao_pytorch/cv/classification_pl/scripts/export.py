@@ -17,7 +17,7 @@
 import os
 import torch
 
-from nvidia_tao_core.config.classification_pl.default_config import ExperimentConfig
+from nvidia_tao_core.config.classification_pyt.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.cookbooks.tlt_pytorch_cookbook import TLTPyTorchCookbook
 from nvidia_tao_pytorch.core.tlt_logging import logging
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
