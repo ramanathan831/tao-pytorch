@@ -27,7 +27,7 @@ from omegaconf import OmegaConf
 from pytorch_lightning import Trainer
 
 from nvidia_tao_pytorch.core.utilities import check_and_create
-from nvidia_tao_core.config.classification_pl.default_config import ExperimentConfig
+from nvidia_tao_core.config.classification_pyt.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.classification_pl.dataloader.pl_classification_data_module import CLDataModule
 from nvidia_tao_pytorch.cv.classification_pl.model.classifier_pl_model import ClassifierPlModel
 
