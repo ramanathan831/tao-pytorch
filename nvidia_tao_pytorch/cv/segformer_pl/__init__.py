@@ -12,4 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-""" Init Module for SegFormer_PL. """
+"""SegFormer PyTorch Lightning module for TAO Toolkit."""
