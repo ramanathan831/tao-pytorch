@@ -102,6 +102,10 @@ def load_pretrained_weights(pretrained_path, parser=None):
             # MMLab compatible weight loading
             new_key = key[9:]
             state_dict[new_key] = value
+        elif key.startswith("model."):
+            # MAE compatible weight loading
+            new_key = key[len("model."):]
+            state_dict[new_key] = value
         elif key.startswith("ema_"):
             # Do not include ema params from MMLab
             continue

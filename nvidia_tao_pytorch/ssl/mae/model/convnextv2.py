@@ -69,9 +69,11 @@ class ConvNeXtV2(nn.Module):
 
     def __init__(self, in_chans=3, num_classes=1000,
                  depths=[3, 3, 9, 3], dims=[96, 192, 384, 768],
-                 drop_path_rate=0., head_init_scale=1., **kwargs,
+                 drop_path_rate=0., head_init_scale=1., num_stages=4, **kwargs,
                  ):
         super().__init__()
+        self.num_stages = num_stages
+        self.dims = dims
         self.depths = depths
         self.downsample_layers = nn.ModuleList()  # stem and 3 intermediate downsampling conv layers
         stem = nn.Sequential(
@@ -110,7 +112,7 @@ class ConvNeXtV2(nn.Module):
 
     def forward_features(self, x):
         """Forward features."""
-        for i in range(4):
+        for i in range(self.num_stages):
             x = self.downsample_layers[i](x)
             x = self.stages[i](x)
         return self.norm(x.mean([-2, -1]))  # global average pooling, (N, C, H, W) -> (N, C)
