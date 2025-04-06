@@ -22,6 +22,7 @@ import torch.utils.checkpoint as checkpoint
 from timm.models.layers import trunc_normal_, DropPath
 
 from nvidia_tao_pytorch.cv.deformable_detr.model.backbone import FrozenBatchNorm2d
+from nvidia_tao_pytorch.ssl.mae.model.convnextv2 import ConvNeXtV2
 
 
 class LayerNorm(nn.Module):
@@ -238,6 +239,83 @@ class ConvNeXt(nn.Module):
         return outs
 
 
+class ConvNeXtV2_FPN(ConvNeXtV2):
+    """ ConvNeXt V2
+
+    Args:
+        in_chans (int): Number of input image channels. Default: 3
+        num_classes (int): Number of classes for classification head. Default: 1000
+        depths (tuple(int)): Number of blocks at each stage. Default: [3, 3, 9, 3]
+        dims (int): Feature dimension at each stage. Default: [96, 192, 384, 768]
+        activation_checkpoint (bool): Whether to use activation checkpointing. Default: False
+        freeze_at (int): Number of stages to freeze. Default: 0
+        freeze_norm (bool): Whether to freeze normalization. Default: True
+        return_idx (list): List of block indices to return as feature. Default: [1, 2, 3]
+        out_channels (list): List of output channels. Default: [512, 1024, 2048]
+    """
+
+    def __init__(self, freeze_at=0, freeze_norm=True,
+                 return_idx=[1, 2, 3],
+                 out_channels=[512, 1024, 2048],
+                 activation_checkpoint=False, **kwargs):
+        super().__init__(**kwargs)
+        self.return_idx = return_idx
+        self.out_channels = out_channels
+        self.activation_checkpoint = activation_checkpoint
+        assert len(self.return_idx) == 3, f"ConvNext only supports num_feature_levels == 3, Got {len(self.return_idx)}"
+        self.conv_512 = nn.Conv2d(self.dims[self.return_idx[0]], 512, kernel_size=3, stride=1, padding=1)
+        self.conv_1024 = nn.Conv2d(self.dims[self.return_idx[1]], 1024, kernel_size=3, stride=1, padding=1)
+        self.conv_2048 = nn.Conv2d(self.dims[self.return_idx[2]], 2048, kernel_size=3, stride=1, padding=1)
+
+        self.conv_upsample = []
+        self.conv_upsample.append(self.conv_512)
+        self.conv_upsample.append(self.conv_1024)
+        self.conv_upsample.append(self.conv_2048)
+        self.apply(self._init_weights)
+
+        if freeze_at >= 0:
+            self._freeze_parameters(self.downsample_layers[0])
+            for i in range(min(freeze_at, self.num_stages)):
+                self._freeze_parameters(self.stages[i])
+
+        if freeze_norm:
+            self._freeze_norm(self)
+
+    def _freeze_parameters(self, m: nn.Module):
+        """freeze parameters."""
+        for p in m.parameters():
+            p.requires_grad = False
+
+    def _freeze_norm(self, m: nn.Module):
+        """freeze normalization."""
+        if isinstance(m, nn.BatchNorm2d):
+            m = FrozenBatchNorm2d(m.num_features)
+        else:
+            for name, child in m.named_children():
+                _child = self._freeze_norm(child)
+                if _child is not child:
+                    setattr(m, name, _child)
+        return m
+
+    def forward(self, x):
+        """Forward function."""
+        outs = []
+
+        for idx in range(self.num_stages):
+            x = self.downsample_layers[idx](x)
+            # Disable activation checkpointing during ONNX export
+            if torch.onnx.is_in_onnx_export() or not self.activation_checkpoint:
+                x = self.stages[idx](x)
+            else:
+                x = checkpoint.checkpoint(self.stages[idx], x)
+
+            if idx in self.return_idx:
+                yUp = self.conv_upsample[idx - 1](x)
+                outs.append(yUp)
+
+        return outs
+
+
 def convnext_tiny(out_indices=[1, 2, 3], **kwargs):
     """ ConvNext-Tiny model.
 
@@ -288,10 +366,70 @@ def convnext_xlarge(out_indices=[1, 2, 3], **kwargs):
                     return_idx=out_indices, **kwargs)
 
 
+def convnextv2_nano(out_indices=[1, 2, 3], **kwargs):
+    """ ConvNextv2-Nano model.
+
+    Args:
+        out_indices (list): List of block indices to return as feature
+    """
+    return ConvNeXtV2_FPN(
+        depths=[2, 2, 8, 2], dims=[80, 160, 320, 640],
+        return_idx=out_indices, **kwargs)
+
+
+def convnextv2_tiny(out_indices=[1, 2, 3], **kwargs):
+    """ ConvNextv2-Tiny model.
+
+    Args:
+        out_indices (list): List of block indices to return as feature
+    """
+    return ConvNeXtV2_FPN(
+        depths=[3, 3, 9, 3], dims=[96, 192, 384, 768],
+        return_idx=out_indices, **kwargs)
+
+
+def convnextv2_base(out_indices=[1, 2, 3], **kwargs):
+    """ ConvNextv2-Base model.
+
+    Args:
+        out_indices (list): List of block indices to return as feature
+    """
+    return ConvNeXtV2_FPN(
+        depths=[3, 3, 27, 3], dims=[128, 256, 512, 1024],
+        return_idx=out_indices, **kwargs)
+
+
+def convnextv2_large(out_indices=[1, 2, 3], **kwargs):
+    """ ConvNextv2-Large model.
+
+    Args:
+        out_indices (list): List of block indices to return as feature
+    """
+    return ConvNeXtV2_FPN(
+        depths=[3, 3, 27, 3], dims=[192, 384, 768, 1536],
+        return_idx=out_indices, **kwargs)
+
+
+def convnextv2_huge(out_indices=[1, 2, 3], **kwargs):
+    """ ConvNextv2-Huge model.
+
+    Args:
+        out_indices (list): List of block indices to return as feature
+    """
+    return ConvNeXtV2_FPN(
+        depths=[3, 3, 27, 3], dims=[352, 704, 1408, 2816],
+        return_idx=out_indices, **kwargs)
+
+
 convnext_model_dict = {
     'convnext_tiny': convnext_tiny,
     'convnext_small': convnext_small,
     'convnext_base': convnext_base,
     'convnext_large': convnext_large,
     'convnext_xlarge': convnext_xlarge,
+    'convnextv2_nano': convnextv2_nano,
+    'convnextv2_tiny': convnextv2_tiny,
+    'convnextv2_base': convnextv2_base,
+    'convnextv2_large': convnextv2_large,
+    'convnextv2_huge': convnextv2_huge,
 }
