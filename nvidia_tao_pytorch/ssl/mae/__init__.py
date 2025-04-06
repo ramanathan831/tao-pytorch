@@ -12,4 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Self-Supervised Learning module for TAO Toolkit."""
+"""MAE (Masked Autoencoder) module for self-supervised learning in TAO Toolkit."""
