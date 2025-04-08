@@ -41,6 +41,7 @@ class DinoV2ViT(VisionTransformer):
         init_cfg = kwargs.pop('init_cfg', None)
         self.init_cfg = None
         self._is_init = False
+        self.freeze = False
         if init_cfg is not None:
             self.init_cfg = copy.deepcopy(init_cfg)
         register_tokens = kwargs.pop('register_tokens', 0)
