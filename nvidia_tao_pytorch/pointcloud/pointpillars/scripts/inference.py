@@ -18,6 +18,7 @@ import os
 from pathlib import Path
 
 import torch
+import torch.multiprocessing
 
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
@@ -60,6 +61,7 @@ spec_root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 )
 def main(cfg: ExperimentConfig) -> None:
     """Main function."""
+    torch.multiprocessing.set_start_method('spawn', force=True)
     if cfg.results_dir is None:
         raise OSError("Either provide output_dir in config file or provide output_dir as a CLI argument")
     output_dir = Path(expand_path(cfg.results_dir))

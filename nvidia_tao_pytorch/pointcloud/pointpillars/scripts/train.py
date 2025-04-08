@@ -18,6 +18,7 @@ import os
 from pathlib import Path
 
 import torch
+import torch.multiprocessing
 import torch.nn as nn
 from tensorboardX import SummaryWriter
 
@@ -45,6 +46,7 @@ spec_root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 )
 def main(cfg: ExperimentConfig) -> None:
     """Main function."""
+    torch.multiprocessing.set_start_method('spawn', force=True)
     if cfg.train.num_gpus == 1:
         dist_train = False
         total_gpus = 1
