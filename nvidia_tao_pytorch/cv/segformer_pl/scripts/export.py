@@ -22,12 +22,32 @@ from nvidia_tao_pytorch.core.cookbooks.tlt_pytorch_cookbook import TLTPyTorchCoo
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_pytorch.core.tlt_logging import logging
-from nvidia_tao_pytorch.core.utilities import encrypt_onnx
+from nvidia_tao_pytorch.core.utilities import encrypt_onnx, get_nvdsinfer_yaml, write_classes_file
+from nvidia_tao_pytorch.cv.segformer_pl.dataloader.utils import build_target_class_list
 from nvidia_tao_pytorch.cv.segformer_pl.model.segformer_pl_model import SegFormerPlModel
 from nvidia_tao_pytorch.cv.segformer_pl.types.segformer_nvdsinfer import SFNvDSInferConfig
 from nvidia_tao_pytorch.cv.segformer_pl.utils.onnx_export import ONNXExporter
 
 spec_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def get_class_labels(experiment_config, output_root):
+    """Get the labels file from the experiment spec.
+
+    Args:
+        experiment_config (ExperimentConfig): Config element for the experiment.
+        output_root (str): Path to the results directory.
+
+    Returns:
+        tuple: (str, int) Path to labels file and number of classes.
+    """
+    target_classes = [
+        target_class.name for target_class
+        in build_target_class_list(dataset_config=experiment_config.dataset)
+    ]
+    ds_labels_file = os.path.join(output_root, "labels.txt")
+    num_classes = write_classes_file(ds_labels_file, target_classes)
+    return ds_labels_file, num_classes
 
 
 # Load experiment specification, additially using schema for validation/retrieving the default values.
@@ -57,10 +77,10 @@ def run_export(experiment_config):
     """Wrapper to run export of tlt models.
 
     Args:
-        args (dict): Dictionary of parsed arguments to run export.
+        experiment_config (ExperimentConfig): Configuration for the experiment.
 
     Returns:
-        No explicit returns.
+        None
     """
     gpu_id = experiment_config.export.gpu_id
     torch.cuda.set_device(gpu_id)
@@ -106,21 +126,24 @@ def run_export(experiment_config):
     output_names = ['output']
 
     if serialize_nvdsinfer:
+        ds_labels_file, num_classes = get_class_labels(
+            experiment_config=experiment_config,
+            output_root=output_root
+        )
+        config_str = get_nvdsinfer_yaml(
+            SFNvDSInferConfig,
+            ds_labels_file,
+            num_classes=num_classes,
+            output_file=output_file,
+            input_shape=input_shape,
+            output_names=output_names,
+        )
         nvdsinfer_yaml_file = os.path.join(
             output_root, "nvdsinfer_config.yaml"
         )
-        logging.info("Serializing the deepstream config to {}".format(
-            nvdsinfer_yaml_file
-        ))
-        nvds_config = SFNvDSInferConfig()
-        nvds_config.property_field.onnx_file = os.path.basename(output_file)
-        nvds_config.property_field.output_blob_names = output_names
-        nvds_config.property_field.num_detected_classes = experiment_config.dataset.segment.num_classes
-        # To Do: Define how to serialize the labels.txt
-        # nvds_config.property_field.labelfile_path="labels.txt"
-        nvds_config.property_field.infer_dims = input_shape
-        with open(nvdsinfer_yaml_file, "w") as nvds_file:
-            nvds_file.write(str(nvds_config))
+        logging.info("Serializing the deepstream config to %s", nvdsinfer_yaml_file)
+        with open(nvdsinfer_yaml_file, "w", encoding="utf-8") as nvds_file:
+            nvds_file.write(str(config_str))
 
     # load model
     sf_model = SegFormerPlModel.load_from_checkpoint(
@@ -162,12 +185,14 @@ def run_export(experiment_config):
 
     if output_file.endswith('.etlt') and key:
         # encrypt the onnx if and only if key is provided and output file name ends with .etlt
-        encrypt_onnx(tmp_file_name=tmp_onnx_file,
-                     output_file_name=output_file,
-                     key=key)
+        encrypt_onnx(
+            tmp_file_name=tmp_onnx_file,
+            output_file_name=output_file,
+            key=key
+        )
 
         os.remove(tmp_onnx_file)
-    print(f"ONNX file stored at {output_file}")
+    logging.info("ONNX file stored at %s", output_file)
 
 
 if __name__ == "__main__":

@@ -25,6 +25,8 @@ from nvidia_tao_pytorch.core.types.nvdsinfer import (
 class ClassificationNvDSPropertyConfig(BaseNvDSPropertyConfig):
     """Structured configuration defining the schema for nvdsinfer property element for Classification."""
 
+    classification_threshold: float = 0.5
+
     def validate(self):
         """Validate the NVConfig."""
         super().validate()
@@ -42,12 +44,14 @@ class ClassificationNvDSInferConfig(BaseDSType):
 
     property_field: ClassificationNvDSPropertyConfig = field(default_factory=lambda: ClassificationNvDSPropertyConfig(
         cluster_mode=4,
+        gie_unique_id=1,
         net_scale_factor=0.0173520735728,
         offsets=[123.675, 116.28, 103.53],
         network_type=1,
         network_mode=1,
         output_blob_names=None,
         model_color_format=0,
+        classification_threshold=0.5,
     ))
 
     def validate(self):

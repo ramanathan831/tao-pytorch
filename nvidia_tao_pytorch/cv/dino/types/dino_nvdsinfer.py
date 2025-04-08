@@ -49,7 +49,7 @@ class DINONvDSInferConfig(BaseDSType):
         output_blob_names=["pred_boxes", "pred_logits"],
         model_color_format=0
     ))
-    class_attrs_all: DINONvDSClassAttribute = DINONvDSClassAttribute()
+    class_attrs_all: DINONvDSClassAttribute = field(default_factory=lambda: DINONvDSClassAttribute())
 
     def validate(self):
         """Function to validate the dataclass."""
@@ -57,7 +57,7 @@ class DINONvDSInferConfig(BaseDSType):
 
 
 if __name__ == "__main__":
-    dino_config = DINONvDSPropertyConfig(
+    dino_config = DINONvDSInferConfig(
         cluster_mode=4,
     )
     assert is_dataclass(dino_config), "The instance of base_config is not a dataclass."

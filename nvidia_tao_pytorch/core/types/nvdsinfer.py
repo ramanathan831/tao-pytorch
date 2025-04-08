@@ -142,6 +142,7 @@ class BaseNvDSPropertyConfig(BaseDSType):
                 3: DBSCAN + NMS Hybrid
                 4: No clustering
         workspace_size: int = Size of the workspace for the TensorRT backend.
+        gie_unique_id: int = Unique ID for the GIE instance.
         key: str = The encryption key to the .tlt model.
         network_type: int = Type of the network model. Classification, Detection, Segmentation or Embedding.
             0: Detector
@@ -168,6 +169,7 @@ class BaseNvDSPropertyConfig(BaseDSType):
     onnx_file: str = None
     cluster_mode: int = 2
     workspace_size: int = 1048576
+    gie_unique_id: int = 1
     tlt_model_key: str = None
     network_type: int = 100
     maintain_aspect_ratio: int = 1
