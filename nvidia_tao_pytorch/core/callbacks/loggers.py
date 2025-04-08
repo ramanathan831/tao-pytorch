@@ -88,6 +88,8 @@ class TAOStatusLogger(Callback):
             self.logger = get_status_logger()
         self.keys = None
         # Used for avg timing
+        self._epoch_start_time = -1
+        self._step_start_time = -1
         self.num_steps_in_experiment = 0
         self.avg_time_per_batch = 0
         super(TAOStatusLogger, self).__init__()
@@ -110,6 +112,9 @@ class TAOStatusLogger(Callback):
 
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx):
         """Routines to be run at the beginning of a batch."""
+        if self._epoch_start_time == -1:
+            # Resuming in the middle of an epoch, so on_train_epoch_start() won't be run
+            self._epoch_start_time = time.time()
         self._step_start_time = time.time()
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
