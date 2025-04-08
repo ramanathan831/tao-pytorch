@@ -25,20 +25,13 @@ from nvidia_tao_pytorch.core.types.nvdsinfer import (
 class SFNvDSPropertyConfig(BaseNvDSPropertyConfig):
     """Structured configuration defining the schema for nvdsinfer property element for SegFormer."""
 
-    segmentation_output_order: int = 1
+    parse_segmentation_func_name: str = "NvDsInferParseCustomSegformerTAO2"
+    custom_lib_path: str = "/opt/nvidia/deepstream/deepstream/lib/libnvds_infercustomparser_tao.so"
 
     def validate(self):
         """Validate the NVConfig."""
         super().validate()
-        assert self.segmentation_output_order in [0, 1], (
-            "Segmentation output order should be in 0, 1"
-        )
-        assert self.cluster_mode == 2, (
-            "Cluster mode should be 2 since this is strictly a semantic segmentation model"
-        )
-        assert self.network_type == 100, (
-            "Skip nvinfer post-processing, use pgie_pad_buffer_probe_network_type100() instead."
-        )
+        assert self.network_type == 2, "Network type should be 2 for SegFormer."
 
 
 @dataclass
@@ -46,14 +39,15 @@ class SFNvDSInferConfig(BaseDSType):
     """SFNvDSInfer config element."""
 
     property_field: SFNvDSPropertyConfig = field(default_factory=lambda: SFNvDSPropertyConfig(
-        cluster_mode=2,
+        cluster_mode=None,
         net_scale_factor=0.0173520735728,
         offsets=[123.675, 116.28, 103.53],
-        network_type=100,
+        network_type=2,
         network_mode=2,
+        output_tensor_meta=None,
         output_blob_names=None,
         model_color_format=0,
-        segmentation_output_order=1
+        gie_unique_id=1,
     ))
 
     def validate(self):
@@ -63,5 +57,6 @@ class SFNvDSInferConfig(BaseDSType):
 
 if __name__ == "__main__":
     segformer_config = SFNvDSInferConfig()
+    segformer_config.property_field.onnx_file = "model.onnx"
     assert is_dataclass(segformer_config), "The instance of base_config is not a dataclass."
     print(str(segformer_config))

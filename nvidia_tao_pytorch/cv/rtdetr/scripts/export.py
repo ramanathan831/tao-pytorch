@@ -24,6 +24,9 @@ from nvidia_tao_pytorch.cv.deformable_detr.utils.onnx_export import ONNXExporter
 from nvidia_tao_core.config.rtdetr.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.rtdetr.model.pl_rtdetr_model import RTDETRPlModel
 from nvidia_tao_pytorch.cv.rtdetr.types.rtdetr_nvdsinfer import RTDETRNvDSInferConfig
+from nvidia_tao_pytorch.core.utilities import write_classes_file, get_nvdsinfer_yaml
+from nvidia_tao_pytorch.cv.rtdetr.dataloader.pl_od_data_module import ODDataModule
+from nvidia_tao_pytorch.cv.rtdetr.dataloader.od_dataset import mscoco_category2name, mscoco_label2category
 
 
 spec_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -50,6 +53,44 @@ def main(cfg: ExperimentConfig) -> None:
     torch.backends.cudnn.allow_tf32 = False
     torch.backends.cuda.matmul.allow_tf32 = False
     run_export(cfg)
+
+
+def get_class_info(experiment_config):
+    """Get class information from the validation dataset.
+
+    Args:
+        experiment_config: Experiment configuration containing model info
+
+    Returns:
+        tuple: (num_classes, class_names)
+    """
+    num_classes = experiment_config.dataset.num_classes
+
+    # Initialize the datamodule and setup validation dataset
+    data_module = ODDataModule(experiment_config.dataset)
+    data_module.setup('fit')  # 'fit' setup initializes both train and validation datasets
+
+    if experiment_config.dataset.remap_mscoco_category:
+        # When using MSCOCO remapping, class indices are remapped from original MSCOCO indices
+        # to contiguous indices [0, num_classes-1]
+        class_names = []
+        for label in range(num_classes):
+            # Convert label back to original MSCOCO category ID and get name
+            category_id = mscoco_label2category[label]
+            class_names.append(mscoco_category2name[category_id])
+    else:
+        # For custom datasets, get class names from the validation dataset's label map
+        label_map = data_module.val_dataset.label_map
+
+        # Extract class names in order from label map
+        class_names = [category["name"] for category in sorted(label_map, key=lambda x: x["id"])]
+
+    # Verify num_classes matches configuration
+    if len(class_names) != num_classes:
+        assert num_classes == len(class_names) + 1, "Number of classes in validation dataset label map ({len(class_names)}) "
+        class_names.insert(0, "background")
+
+    return len(class_names), class_names
 
 
 def run_export(experiment_config):
@@ -103,20 +144,28 @@ def run_export(experiment_config):
     output_names = ["pred_logits", "pred_boxes"]
 
     if serialize_nvdsinfer:
-        nvdsinfer_yaml_file = os.path.join(
-            output_root, "nvdsinfer_config.yaml"
+        # Get class information from validation dataset
+        num_classes, class_names = get_class_info(experiment_config)
+
+        # Write classes file
+        classes_file = os.path.join(output_root, "labels.txt")
+        write_classes_file(classes_file, class_names)
+
+        # Generate nvdsinfer yaml
+        nvdsinfer_yaml_file = os.path.join(output_root, "nvdsinfer_config.yaml")
+
+        logging.info("Serializing the deepstream config to {}".format(nvdsinfer_yaml_file))
+        nvds_config_str = get_nvdsinfer_yaml(
+            RTDETRNvDSInferConfig,
+            classes_file,
+            num_classes,
+            output_file,
+            input_shape,
+            output_names
         )
-        logging.info("Serializing the deepstream config to {}".format(
-            nvdsinfer_yaml_file
-        ))
-        nvds_config = RTDETRNvDSInferConfig()
-        nvds_config.property_field.onnx_file = os.path.basename(output_file)
-        nvds_config.property_field.output_blob_names = output_names
-        # To Do: Define how to serialize the labels.txt
-        # nvds_config.property_field.labelfile_path="labels.txt"
-        nvds_config.property_field.infer_dims = input_shape
+
         with open(nvdsinfer_yaml_file, "w") as nvds_file:
-            nvds_file.write(str(nvds_config))
+            nvds_file.write(nvds_config_str)
 
     # load model
     pl_model = RTDETRPlModel.load_from_checkpoint(model_path,

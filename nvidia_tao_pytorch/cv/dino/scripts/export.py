@@ -21,7 +21,7 @@ from nvidia_tao_core.config.dino.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.cookbooks.tlt_pytorch_cookbook import TLTPyTorchCookbook
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
-from nvidia_tao_pytorch.core.utilities import encrypt_onnx
+from nvidia_tao_pytorch.core.utilities import encrypt_onnx, write_classes_file, get_nvdsinfer_yaml
 from nvidia_tao_pytorch.core.tlt_logging import logging
 from nvidia_tao_pytorch.cv.dino.model.pl_dino_model import DINOPlModel
 from nvidia_tao_pytorch.cv.dino.types.dino_nvdsinfer import DINONvDSInferConfig
@@ -54,9 +54,35 @@ def main(cfg: ExperimentConfig) -> None:
     run_export(cfg)
 
 
+def get_model_classes(experiment_config):
+    """Get the number of classes and class names from the dataset configuration.
+
+    Args:
+        experiment_config: Experiment configuration containing dataset information
+
+    Returns:
+        tuple: (num_classes, class_names)
+            - num_classes (int): Number of classes the model was trained on
+            - class_names (list): List of class names in order of their IDs
+    """
+    from nvidia_tao_pytorch.cv.deformable_detr.dataloader.pl_od_data_module import ODDataModule
+
+    dm = ODDataModule(experiment_config.dataset)
+    dm.setup(stage="fit")
+
+    categories = dm.val_dataset.label_map
+    categories = sorted(categories, key=lambda x: x['id'])
+    class_names = [cat['name'] for cat in categories]
+
+    if len(class_names) != experiment_config.dataset.num_classes:
+        assert len(class_names) + 1 == experiment_config.dataset.num_classes, "Number of classes in validation dataset label map ({len(class_names)}) "
+        class_names.insert(0, "background")
+
+    return len(class_names), class_names
+
+
 def run_export(experiment_config):
     """Wrapper to run export of tlt models.
-
     Args:
         args (dict): Dictionary of parsed arguments to run export.
 
@@ -107,19 +133,31 @@ def run_export(experiment_config):
     output_names = ["pred_logits", "pred_boxes"]
 
     if serialize_nvdsinfer:
+        # Get class information
+        num_classes, class_names = get_model_classes(experiment_config)
+        logging.info(f"Model was trained on {num_classes} classes: {class_names}")
+
+        # Write class names to labels file
+        labels_file = os.path.join(output_root, "labels.txt")
+        write_classes_file(labels_file, class_names)
+
         nvdsinfer_yaml_file = os.path.join(
             output_root, "nvdsinfer_config.yaml"
         )
         logging.info("Serializing the deepstream config to {}".format(
             nvdsinfer_yaml_file
         ))
-        nvds_config = DINONvDSInferConfig()
-        nvds_config.property_field.onnx_file = os.path.basename(output_file)
-        nvds_config.property_field.output_blob_names = output_names
-        # To Do: Define how to serialize the labels.txt
-        nvds_config.property_field.infer_dims = input_shape
+        nvdsinfer_config = get_nvdsinfer_yaml(
+            DINONvDSInferConfig,
+            labels_file,
+            num_classes,
+            output_file,
+            input_shape,
+            output_names
+        )
+
         with open(nvdsinfer_yaml_file, "w") as nvds_file:
-            nvds_file.write(str(nvds_config))
+            nvds_file.write(nvdsinfer_config)
 
     # load model
     pl_model = DINOPlModel.load_from_checkpoint(model_path,
