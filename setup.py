@@ -47,7 +47,7 @@ setuptools.setup(
         'License :: OSI Approved :: Apache Software License',
         'Natural Language :: English',
         'Operating System :: POSIX',
-        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.12',
         'Topic :: Scientific/Engineering :: Artificial Intelligence',
     ],
     license=version_locals['__license__'],

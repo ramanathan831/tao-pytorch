@@ -2,9 +2,6 @@ FROM nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:ffebcc9eedd410007a7144a
 
 # Installing the TLT packages.
 WORKDIR /opt/nvidia
-COPY dist/*.whl /opt/nvidia/wheels/
-RUN cd wheels && ls ./*.whl|xargs -I'{}' python -m pip install '{}' \
-    && rm *.whl
 
 # NGC Security scan related fixes.
 # Low-level packages in apt are updated to resolve published security vulnerabilities ASAP
@@ -28,6 +25,10 @@ COPY tao-core tao-core
 RUN cd tao-core && bash release/python/build_wheel.sh && \
     find dist/ -name "nvidia_tao_core*.whl" -type f | xargs -n 1 pip install && \
     rm -rf *
+
+COPY dist/*.whl /opt/nvidia/wheels/
+RUN cd wheels && ls ./*.whl|xargs -I'{}' python -m pip install '{}' \
+    && rm *.whl
 
 # Copying tlt-converter and building it in the docker.
 # ENV TRT_LIB_PATH="/usr/lib/x86_64-linux-gnu"
