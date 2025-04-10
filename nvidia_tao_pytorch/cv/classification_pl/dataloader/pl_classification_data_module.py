@@ -60,7 +60,7 @@ class CLDataModule(pl.LightningDataModule):
                     split="train",
                     img_size=self.img_size,
                     to_tensor=True,
-                    prefix=self.dataset_config["train"]["data_prefix"],
+                    data_path=self.dataset_config["train_dataset"]["images_dir"],
                     nolabel_folder=self.dataset_config["train_nolabel"]["folder_path"],
                 )
                 self.val_dataset = CLDataset(
@@ -69,7 +69,7 @@ class CLDataModule(pl.LightningDataModule):
                     split="val",
                     img_size=self.img_size,
                     to_tensor=True,
-                    prefix=self.dataset_config["val"]["data_prefix"],
+                    data_path=self.dataset_config["val_dataset"]["images_dir"],
                 )
             else:
                 raise NotImplementedError(
@@ -91,7 +91,7 @@ class CLDataModule(pl.LightningDataModule):
                     split="val",
                     img_size=self.img_size,
                     to_tensor=True,
-                    prefix=self.dataset_config["val"]["data_prefix"],
+                    data_path=self.dataset_config["val_dataset"]["images_dir"],
                 )
             else:
                 raise NotImplementedError(
@@ -107,7 +107,7 @@ class CLDataModule(pl.LightningDataModule):
                     split="test",
                     img_size=self.img_size,
                     to_tensor=True,
-                    prefix=self.dataset_config["test"]["data_prefix"],
+                    data_path=self.dataset_config["test_dataset"]["images_dir"],
                 )
             else:
                 raise NotImplementedError(

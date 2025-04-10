@@ -64,9 +64,9 @@ dataset:
       enable: False
     with_random_crop: True
     with_random_blur: False
-  train:
-    data_prefix: train
-  val:
-    data_prefix: val
-  test:
-    data_prefix: test
+  train_dataset:
+    images_dir: /dataset/imagenet2012/train
+  val_dataset:
+    images_dir: /dataset/imagenet2012/train
+  test_dataset:
+    images_dir: /dataset/imagenet2012/test
