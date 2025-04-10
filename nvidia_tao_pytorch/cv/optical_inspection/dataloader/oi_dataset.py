@@ -100,14 +100,14 @@ class SiameseNetworkTRIDataset(Dataset):
 
         img0, img1 = [], []
         if self.lighting:
-            for i, light in enumerate(self.lighting):
+            for _, light in enumerate(self.lighting):
                 img0.append(
                     Image.open(
                         self.get_absolute_image_path(
                             self.get_compare_paths_v1(img_tuple),
                             light
                         )
-                    )
+                    ).convert("RGB")
                 )
                 img1.append(
                     Image.open(
@@ -115,7 +115,7 @@ class SiameseNetworkTRIDataset(Dataset):
                             self.get_golden_paths_v1(img_tuple),
                             light
                         )
-                    )
+                    ).convert("RGB")
                 )
         else:
             img0.append(
@@ -123,20 +123,17 @@ class SiameseNetworkTRIDataset(Dataset):
                     self.get_absolute_image_path(
                         self.get_compare_paths_v1(img_tuple)
                     )
-                )
+                ).convert("RGB")
             )
             img1.append(
                 Image.open(
                     self.get_absolute_image_path(
                         self.get_golden_paths_v1(img_tuple)
                     )
-                )
+                ).convert("RGB")
             )
+
         if self.train:
-            for i in range(len(img0)):
-                img0[i] = img0[i].convert("RGB")
-            for i in range(len(img1)):
-                img1[i] = img1[i].convert("RGB")
             # Apply data augmentation
             if self.augment:
                 img0T, img1T = self.augmentor.transform(img0, img1, to_tensor=True)
@@ -279,10 +276,10 @@ class MultiGoldenDataset(Dataset):
             if lights:
                 for light in lights:
                     img_path = self.get_absolute_image_path(base_path, light)
-                    images.append(Image.open(img_path))
+                    images.append(Image.open(img_path).convert("RGB"))
             else:
                 img_path = self.get_absolute_image_path(base_path)
-                images.append(Image.open(img_path))
+                images.append(Image.open(img_path).convert("RGB"))
             return images
 
         img0 = load_images(compare_path, self.lighting)
@@ -290,10 +287,6 @@ class MultiGoldenDataset(Dataset):
 
         # Flatten the goldens list
         flat_goldens = [img for sublist in goldens for img in sublist]
-
-        # Convert images to RGB
-        img0 = [img.convert("RGB") for img in img0]
-        flat_goldens = [img.convert("RGB") for img in flat_goldens]
 
         # Apply data augmentation if needed
         if self.augment and self.train:
