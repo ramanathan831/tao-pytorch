@@ -63,12 +63,12 @@ augmentation:
         enable: True
     with_random_crop: True
     with_random_blur: False
-train:
-    data_prefix: imagenet/train
-val:
-    data_prefix: imagenet/val
-test:
-    data_prefix: imagenet/val
+train_dataset:
+    images_dir: /tao-pt/mount/data/imagenet2012/imagenet/train
+val_dataset:
+    images_dir: /tao-pt/mount/data/imagenet2012/imagenet/val
+test_dataset:
+    images_dir: /tao-pt/mount/data/imagenet2012/imagenet/val
 """
 
 sample_model_config = """

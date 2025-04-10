@@ -39,7 +39,7 @@ NUM_CLASSES = 10
 
 @pytest.fixture
 def _test_dir():
-    # set this in data_prefix
+    # set this as dataset folder name
     splits = ['train', 'val', 'test']
     img_paths = []
 
@@ -83,9 +83,9 @@ def _test_dir():
 def _test_exp_spec():
     experiment_config = OmegaConf.structured(ExperimentConfig())
     experiment_config["dataset"]["root_dir"] = tmp_top_dir
-    experiment_config["dataset"]["train"]["data_prefix"] = "train"
-    experiment_config["dataset"]["val"]["data_prefix"] = "val"
-    experiment_config["dataset"]["test"]["data_prefix"] = "test"
+    experiment_config["dataset"]["train_dataset"]["images_dir"] = os.path.join(tmp_top_dir, "train")
+    experiment_config["dataset"]["val_dataset"]["images_dir"] = os.path.join(tmp_top_dir, "val")
+    experiment_config["dataset"]["test_dataset"]["images_dir"] = os.path.join(tmp_top_dir, "test")
     experiment_config["dataset"]["dataset"] = DATASET
     experiment_config["dataset"]["img_size"] = OUTPUT_SHAPE
     experiment_config["dataset"]["batch_size"] = BATCH_SIZE

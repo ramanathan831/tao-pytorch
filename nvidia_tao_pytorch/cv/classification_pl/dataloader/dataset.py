@@ -36,7 +36,7 @@ class CLDataset(Dataset):
 
     Args:
         root_dir (str): The root directory of the dataset.
-        prefix (str): The prefix of the image folders.
+        data_path (str): The path of the image folders.
         augmentation (dict): A dictionary containing the augmentation parameters.
         split (str): The split of the dataset (train | val | test).
         nolabel_folder (str): Path to image folder with no labels(unstructured data)
@@ -47,7 +47,7 @@ class CLDataset(Dataset):
     def __init__(
         self,
         root_dir,
-        prefix,
+        data_path,
         augmentation,
         nolabel_folder=None,
         split="train",
@@ -59,7 +59,7 @@ class CLDataset(Dataset):
         self.root_dir = root_dir
         self.img_size = img_size
         self.split = split  # train | val | test
-        self.prefix = prefix
+        self.data_path = data_path
         self.nolabel_folder = nolabel_folder
 
         self.class_names = {}
@@ -71,7 +71,7 @@ class CLDataset(Dataset):
                 for idx, line in enumerate(f):
                     self.class_names[line.strip()] = idx
         else:
-            class_names = sorted(os.listdir(os.path.join(self.root_dir, self.prefix)))
+            class_names = sorted(os.listdir(self.data_path))
             for idx, class_name in enumerate(class_names):
                 self.class_names[class_name] = idx
             # write the class.txt
@@ -164,7 +164,7 @@ class CLDataset(Dataset):
         Get the list of image file names in the dataset.
 
         Args:
-            inference (bool): If True, return the image file names for inference. If inference, then the class folders are ignored (Get every img files under the root/prefix folder).
+            inference (bool): If True, return the image file names for inference. If inference, then the class folders are ignored (Get every img files under the data_path folder).
             suffix (list): A list of image file suffixes.
 
         Returns:
@@ -175,7 +175,7 @@ class CLDataset(Dataset):
             for s in suffix:
                 img_name_list.extend(
                     glob.glob(
-                        os.path.join(self.root_dir, self.prefix, f"**/*.{s}"),
+                        os.path.join(self.data_path, f"**/*.{s}"),
                         recursive=True,
                     )
                 )
@@ -185,7 +185,7 @@ class CLDataset(Dataset):
                     img_name_list.extend(
                         glob.glob(
                             os.path.join(
-                                self.root_dir, self.prefix, class_name, f"*.{s}"
+                                self.data_path, class_name, f"*.{s}"
                             )
                         )
                     )
