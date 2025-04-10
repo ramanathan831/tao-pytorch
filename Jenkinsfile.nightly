@@ -115,48 +115,50 @@ spec:
         sh 'ls -l /home/scratch.metropolis2'
       }
 
-      // stage ('checkmarx-scans') {
-      //   gitlabCommitStatus(name: "checkmarx-scan-test", connection: gitLabConnection('git-lab-master')) {
-      //     withCredentials([usernamePassword(credentialsId: 'checkmarx-ac-account', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]){
-      //       withEnv([
-      //       "CHECKMARX_USERNAME=${USERNAME}",
-      //       "CHECKMARX_PASSWORD=${PASSWORD}",
-      //       "CX_TEAM=CxServer/SP/Company/TLT",
-      //       "CX_PROJECT=TAO-PyTorch",
-      //       "CHECKMARX_BASE_URL=https://checkmarx.nvidia.com",
-      //       "CHECKMARX_VERSION=9.0",
-      //       "CHECKMARX_SETTINGS_OVERRIDE=false",
-      //       "CHECKMARX_CONFIGURATION=Default Configuration",
-      //       "CHECKMARX_SCAN_PRESET=Checkmarx Default",
-      //       "CX_FLOW_BREAK_BUILD=true",
-      //       "CX_FLOW_ZIP_EXCLUDE=.git*,.github,dist\\/.*,allowlist\\/.*,ci\\/.*,docker\\/.*,runner\\/.*,tests\\/.*,release\\/.*,scripts\\/.*,third_party\\/.*,tao-converter\\/.*",
-      //       "CX_PARAMS=''"
-      //       ]){
-      //         docker.withRegistry('https://gitlab-master.nvidia.com:5005', 'jenkins-TLT-pkg') {
-      //           def img = 'pstooling/images/base-images/debian:cxflow-latest-prodsec-stable'
-      //           docker.image(img).inside("--entrypoint=''") {
-      //             sh '/app/check_variables.sh jenkins'
-      //             sh """
-      //             java -jar /app/cx-flow.jar \
-      //             --scan \
-      //             --bug-tracker="Csv" \
-      //             --csv.file-name-format="[TEAM]-[PROJECT]-[TIME].csv" \
-      //             --csv.include-headers="true" \
-      //             --csv.data-folder="checkmarx" \
-      //             --app="${CX_PROJECT}" \
-      //             --cx-team="${CX_TEAM}" \
-      //             --cx-project="${CX_PROJECT}" \
-      //             --spring.profiles.active="sast" \
-      //             --f=. \
-      //             ${CX_PARAMS}
-      //             """
-      //             sh '/app/check_timeout.sh'
-      //           }
-      //         }
-      //       }
-      //     }
-      //   }
-      // }
+      stage ('checkmarx-scans') {
+        catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+          gitlabCommitStatus(name: "checkmarx-scan-test", connection: gitLabConnection('git-lab-master')) {
+            withCredentials([usernamePassword(credentialsId: 'checkmarx-ac-account', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]){
+              withEnv([
+              "CHECKMARX_USERNAME=${USERNAME}",
+              "CHECKMARX_PASSWORD=${PASSWORD}",
+              "CX_TEAM=CxServer/SP/Company/TLT",
+              "CX_PROJECT=TAO-PyTorch",
+              "CHECKMARX_BASE_URL=https://checkmarx.nvidia.com",
+              "CHECKMARX_VERSION=9.0",
+              "CHECKMARX_SETTINGS_OVERRIDE=false",
+              "CHECKMARX_CONFIGURATION=Default Configuration",
+              "CHECKMARX_SCAN_PRESET=Checkmarx Default",
+              "CX_FLOW_BREAK_BUILD=true",
+              "CX_FLOW_ZIP_EXCLUDE=.git*,.github,dist\\/.*,allowlist\\/.*,ci\\/.*,docker\\/.*,runner\\/.*,tests\\/.*,release\\/.*,scripts\\/.*,third_party\\/.*,tao-converter\\/.*,tao-core\\/.*",
+              "CX_PARAMS=''"
+              ]){
+                docker.withRegistry('https://gitlab-master.nvidia.com:5005', 'jenkins-TLT-pkg') {
+                  def img = 'pstooling/images/base-images/debian:cxflow-latest-prodsec-stable'
+                  docker.image(img).inside("--entrypoint=''") {
+                    sh '/app/check_variables.sh jenkins'
+                    sh """
+                    java -jar /app/cx-flow.jar \
+                    --scan \
+                    --bug-tracker="Csv" \
+                    --csv.file-name-format="[TEAM]-[PROJECT]-[TIME].csv" \
+                    --csv.include-headers="true" \
+                    --csv.data-folder="checkmarx" \
+                    --app="${CX_PROJECT}" \
+                    --cx-team="${CX_TEAM}" \
+                    --cx-project="${CX_PROJECT}" \
+                    --spring.profiles.active="sast" \
+                    --f=. \
+                    ${CX_PARAMS}
+                    """
+                    sh '/app/check_timeout.sh'
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
     
     container('base-image') {
@@ -200,22 +202,6 @@ spec:
           sh "${build_env} bash ${WORKSPACE}/release/docker/build_wheel.sh"
           sh "pip install dist/nvidia_tao_pytorch-*.whl"
           // sh "action_recognition --help"
-        }
-      }
-    }
-
-    container("docker"){
-      stage ('obfuscated_wheeltamer_tests') {
-        gitlabCommitStatus(name: "525X_RTX_wheeltamer_tests", connection: gitLabConnection('git-lab-master')) {
-            echo "skipping wheel-taker test . . ."
-        //   docker.withRegistry('https://gitlab-master.nvidia.com:5005', 'jenkins-TLT-pkg') {
-        //     // Pull wheeltamer container and run wheeltamer test
-        //     sh "docker pull gitlab-master.nvidia.com:5005/dl/pypi/wheel-ci-cd:wheeltamer"
-        //     sh "docker run --rm -v ${WORKSPACE}/dist:/workspace \
-        //         -e 'EXPECTED_PKG_LICENSE=NVIDIA Proprietary Software' \
-        //         -e 'ALLOWED_NOSEC_COUNT=0' \
-        //         gitlab-master.nvidia.com:5005/dl/pypi/wheel-ci-cd:wheeltamer /bin/bash -c 'wheeltamer'"
-        //   }
         }
       }
     }
@@ -329,7 +315,7 @@ spec:
         }
       }
 
-      // Todo: @schafale to uncomment after issue in the prod-sec code-base has been resolved
+      // Todo: @achafale to uncomment after issue in the prod-sec code-base has been resolved
       // stage ('pulse_oss_scan') {
       //   gitlabCommitStatus(name: "pulse_oss_scan", connection: gitLabConnection('git-lab-master')) {
       //     withEnv(["TAO_VERSION=5.2.0", "IMAGE_NAME=nvcr.io/nvstaging/tao/tao-toolkit-pyt", "CUDA_VERSION=12.2"]) {
