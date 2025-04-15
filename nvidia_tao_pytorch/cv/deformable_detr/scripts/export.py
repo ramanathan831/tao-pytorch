@@ -73,10 +73,13 @@ def get_model_classes(experiment_config):
     categories = dm.val_dataset.label_map
     categories = sorted(categories, key=lambda x: x['id'])
     class_names = [cat['name'] for cat in categories]
+    class_ids = [cat['id'] for cat in categories]
+    class_names = ["unknown"] * (max(class_ids) + 1)
+    for cat in categories:
+        class_names[cat['id']] = cat['name']
 
-    if len(class_names) != experiment_config.dataset.num_classes:
-        assert len(class_names) + 1 == experiment_config.dataset.num_classes, "Number of classes in validation dataset label map ({len(class_names)}) "
-        class_names.insert(0, "background")
+    if min(class_ids) > 0:
+        class_names[0] = "background"
 
     return len(class_names), class_names
 
