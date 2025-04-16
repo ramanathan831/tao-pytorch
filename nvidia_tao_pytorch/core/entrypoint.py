@@ -35,6 +35,7 @@ from nvidia_tao_pytorch.core.distributed.validator import validate_configs
 LIGHTNING_EXCLUDED_NETWORKS = [
     "bevfusion",
     "pointpillars",
+    "rtdetr",
 ]
 
 
