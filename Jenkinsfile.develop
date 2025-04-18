@@ -166,7 +166,7 @@ spec:
         }
         gitlabCommitStatus(name: "functional_tests", connection: gitLabConnection('git-lab-master')) {
           sh "python setup.py develop"
-          sh "pip install tao-core/"
+          sh "CPUCOUNT=1 pip install tao-core/"
           sh "${command_env} python3 ci/run_functional_tests.py"
         }
       }
