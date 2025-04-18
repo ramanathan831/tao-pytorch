@@ -365,7 +365,7 @@ spec:
       // Mark build as failed.
       currentBuild.result = 'FAILURE'
 
-      container('cuda') {
+      container('base-image') {
         stage("Jira Notification on Failure") {
           withCredentials([string(credentialsId: 'TAO-jira-token', variable: 'jira_token')]) {
             sh """
