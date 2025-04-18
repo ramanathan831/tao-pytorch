@@ -43,7 +43,7 @@ def get_class_labels(experiment_config, output_root):
     """
     target_classes = [
         target_class.name for target_class
-        in build_target_class_list(dataset_config=experiment_config.dataset)
+        in build_target_class_list(dataset_config=experiment_config.dataset.segment)
     ]
     ds_labels_file = os.path.join(output_root, "labels.txt")
     num_classes = write_classes_file(ds_labels_file, target_classes)
