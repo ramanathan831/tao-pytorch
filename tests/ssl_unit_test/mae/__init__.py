@@ -12,4 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""SSL NVDINOv2 unit tests."""
+"""SSL MAE unit tests."""
