@@ -49,7 +49,7 @@ class DINONvDSInferConfig(BaseDSType):
         output_blob_names=["pred_boxes", "pred_logits"],
         model_color_format=0
     ))
-    class_attrs_all: DINONvDSClassAttribute = field(default_factory=lambda: DINONvDSClassAttribute())
+    class_attrs_all: DINONvDSClassAttribute = field(default_factory=DINONvDSClassAttribute)
 
     def validate(self):
         """Function to validate the dataclass."""

@@ -14,3 +14,10 @@ libopenblas-dev
 libsox-fmt-mp3
 sox
 zlib1g-dev
+wget
+curl
+unzip
+libsm6
+libxext6
+gnupg
+nginx

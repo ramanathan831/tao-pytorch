@@ -14,7 +14,7 @@
 
 """ RADIO ViT Model Module """
 
-from nvidia_tao_pytorch.cv.classification_pl.model.backbones.radio import (
+from nvidia_tao_pytorch.cv.classification_pyt.model.backbones.radio import (
     CRadioP1VitHugePatch16Mlpnorm,
     CRadioP2VitHugePatch16Mlpnorm,
     CRadioP3VitHugePatch16Mlpnorm,
