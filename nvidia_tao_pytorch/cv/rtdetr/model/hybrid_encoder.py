@@ -13,14 +13,13 @@
 # limitations under the License.
 
 """ RT-DETR Hybrid Encoder. """
-import os
 import copy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from nvidia_tao_pytorch.cv.dino.model.model_utils import _get_activation_fn
-from nvidia_tao_pytorch.cv.rtdetr.utils.misc import radio_model_dict
+from nvidia_tao_pytorch.cv.rtdetr.model.backbone.radio import radio_model_dict
 
 
 class ConvNormLayer(nn.Module):
@@ -232,7 +231,7 @@ class HybridEncoder(nn.Module):
         super().__init__()
         if frozen_fm_cfg and frozen_fm_cfg.enabled:
             if "radio" in frozen_fm_cfg.backbone:
-                encoder_ch = radio_model_dict[os.path.basename(frozen_fm_cfg.checkpoint)][0]
+                encoder_ch = radio_model_dict[frozen_fm_cfg.backbone][1][0]
                 in_channels = in_channels + [encoder_ch]
                 feat_strides = feat_strides + [64]
             else:

@@ -16,8 +16,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from argparse import Namespace
-torch.serialization.add_safe_globals([Namespace])
+import torchvision.transforms.functional as TF
+from nvidia_tao_pytorch.cv.rtdetr.model.backbone.radio import radio_model_dict
 
 
 class RTDETR(nn.Module):
@@ -34,8 +34,13 @@ class RTDETR(nn.Module):
         self.export = export
         if frozen_fm_cfg and frozen_fm_cfg.enabled:
             if "radio" in frozen_fm_cfg.backbone:
-                model_version = frozen_fm_cfg.checkpoint
-                self.frozen_radio = torch.hub.load('NVlabs/RADIO', 'radio_model', version=model_version, progress=True, skip_validation=True)
+                model_name = frozen_fm_cfg.backbone
+
+                self.frozen_radio = radio_model_dict[model_name][0](
+                    resolution=self.encoder.eval_spatial_size,
+                    freeze=True,
+                    init_cfg={"checkpoint": frozen_fm_cfg.checkpoint}
+                )
                 self.frozen_radio.float()
                 self.frozen_radio.eval().cuda()
                 self.maxpool = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
@@ -48,10 +53,13 @@ class RTDETR(nn.Module):
         """Forward function."""
         if self.frozen_fm_cfg and self.frozen_fm_cfg.enabled:
             b, _, h, w = x.shape
-            x_down = F.interpolate(x, size=[h // 2, w // 2])
+            assert h % 32 == 0 and w % 32 == 0, "The height and width of the input must be divisible by 32."
+            x_norm = TF.normalize(x, mean=[0.48145466, 0.4578275, 0.40821073], std=[0.26862954, 0.26130258, 0.27577711])
+            h_down, w_down = h // 2, w // 2
+            x_down = F.interpolate(x_norm, size=[h_down, w_down])
             with torch.no_grad():
                 summary, spatial_features = self.frozen_radio(x_down)
-            spatial_features = spatial_features.view(b, 20, 20, -1).permute(0, 3, 1, 2)
+            spatial_features = spatial_features.view(b, int(h_down // 16), int(w_down // 16), -1).permute(0, 3, 1, 2)
             spatial_features = self.maxpool(spatial_features)
 
         feats = self.backbone(x)
