@@ -88,7 +88,7 @@ if [ $BUILD_DOCKER = "1" ]; then
         fi
         echo "Building source code wheel ..."
         # tao_pt --env 'TORCH_CUDA_ARCH_LIST="5.3 6.0 6.1 7.0 7.5 8.0 8.6 9.0"' -- bash /tao-pt/release/docker/build_wheel.sh
-        tao_pt --env 'TORCH_CUDA_ARCH_LIST="5.3 6.0 6.1 7.0 7.5 8.0 8.6 9.0"' -- python setup.py bdist_wheel
+        tao_pt -- python setup.py bdist_wheel
     else
         echo "Skipping wheel builds ..."
     fi
