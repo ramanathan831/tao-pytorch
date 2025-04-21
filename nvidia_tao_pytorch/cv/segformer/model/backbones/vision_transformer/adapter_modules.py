@@ -42,7 +42,9 @@ def get_reference_points(spatial_shapes, device):
             torch.linspace(
                 0.5, H_ - 0.5, H_, dtype=torch.float32, device=device),
             torch.linspace(
-                0.5, W_ - 0.5, W_, dtype=torch.float32, device=device))
+                0.5, W_ - 0.5, W_, dtype=torch.float32, device=device),
+            # default value of torch.meshgrid indexing, to reduce warning.
+            indexing='ij')
         ref_y = ref_y.reshape(-1)[None] / H_
         ref_x = ref_x.reshape(-1)[None] / W_
         ref = torch.stack((ref_x, ref_y), -1)
