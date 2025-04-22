@@ -44,6 +44,38 @@ INPUT_SHAPE = 600
 OUTPUT_SHAPE = 224
 DATASET = 'CLDataset'
 
+TOPOLOGIES = [
+    ("fan_tiny_8_p4_hybrid"),
+    ("fan_small_12_p4_hybrid"),
+    ("fan_base_16_p4_hybrid"),
+    ("fan_large_16_p4_hybrid"),
+    ("fan_Xlarge_16_p4_hybrid"),
+    ("fan_base_18_p16_224"),
+    ("fan_tiny_12_p16_224"),
+    ("fan_small_12_p16_224_se_attn"),
+    ("fan_small_12_p16_224"),
+    ("fan_large_24_p16_224"),
+    ("vit_large_patch14_dinov2_swiglu"),
+    ("ViT-L-14-SigLIP-CLIPA-336"),
+    ("ViT-L-14-SigLIP-CLIPA-224"),
+    ("c_radio_v2_vit_base_patch16"),
+    ("c_radio_v2_vit_large_patch16"),
+]
+
+LARGE_MODELS = [
+    ("ViT-H-14-SigLIP-CLIPA-224"),
+    ("c_radio_p1_vit_huge_patch16_mlpnorm"),
+    ("c_radio_p2_vit_huge_patch16_mlpnorm"),
+    ("c_radio_p3_vit_huge_patch16_mlpnorm"),
+    ("c_radio_v2_vit_large_patch16"),
+    ("c_radio_v2_vit_huge_patch16"),
+    ("vit_giant_patch14_reg4_dinov2_swiglu"),
+]
+
+if not os.getenv("CI_PROJECT_DIR", None):
+    TOPOLOGIES.extend(LARGE_MODELS)
+
+
 @pytest.fixture
 def _test_dir():
     # set this as dataset folder name
@@ -107,33 +139,9 @@ def _test_experiment_spec():
 
     yield experiment_config
 
-# backbone too big not able to convert to onnx
-# ("vit_giant_patch14_reg4_dinov2_swiglu"),
-# ("ViT-H-14-SigLIP-CLIPA-224"),
-# ("c_radio_p1_vit_huge_patch16_mlpnorm"),
-# ("c_radio_p2_vit_huge_patch16_mlpnorm"),
-# ("c_radio_p3_vit_huge_patch16_mlpnorm"),
-# ("c_radio_v2_vit_base_patch16"),
-# ("c_radio_v2_vit_large_patch16"),
-# ("c_radio_v2_vit_huge_patch16")])
 
 @pytest.mark.cv_unit
-@pytest.mark.parametrize("backbone",
-                         [("fan_tiny_8_p4_hybrid"),
-                          ("fan_small_12_p4_hybrid"),
-                          ("fan_base_16_p4_hybrid"),
-                          ("fan_large_16_p4_hybrid"),
-                          ("fan_Xlarge_16_p4_hybrid"),
-                          ("fan_base_18_p16_224"),
-                          ("fan_tiny_12_p16_224"),
-                          ("fan_small_12_p16_224_se_attn"),
-                          ("fan_small_12_p16_224"),
-                          ("fan_large_24_p16_224"),
-                          ("vit_large_patch14_dinov2_swiglu"),
-                          ("ViT-L-14-SigLIP-CLIPA-336"),
-                          ("ViT-L-14-SigLIP-CLIPA-224"),
-                          ("c_radio_v2_vit_base_patch16"),
-                          ("c_radio_v2_vit_large_patch16")])
+@pytest.mark.parametrize("backbone", TOPOLOGIES)
 @pytest.mark.parametrize("batch_size", [-1])
 @pytest.mark.parametrize("opset_version", [17])
 def test_classifier_onnx_compare_output(_test_dir, _test_experiment_spec, backbone, batch_size, opset_version):
@@ -164,7 +172,8 @@ def test_classifier_onnx_compare_output(_test_dir, _test_experiment_spec, backbo
     print(torch_output[0].dtype)
     print("input shape",dummy_input.shape)
     print("output shape",torch_output.shape)
-    onnx_path = os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}.onnx")
+    check_and_create(os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}"))
+    onnx_path = os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}", f"{backbone}_opset{opset_version}.onnx")
     print("==========================", input_batch_size, batch_size)
     onnx_export = ONNXExporter()
     onnx_export.export_model(
@@ -184,8 +193,7 @@ def test_classifier_onnx_compare_output(_test_dir, _test_experiment_spec, backbo
 
     # Load ONNX and ONNXRuntime
     ort.set_seed(47)
-    onnx_model = onnx.load(onnx_path)
-    onnx.checker.check_model(onnx_model)
+    onnx.checker.check_model(onnx_path)
     sess = ort.InferenceSession(
         onnx_path,
         providers=['CPUExecutionProvider']
@@ -207,22 +215,7 @@ def test_classifier_onnx_compare_output(_test_dir, _test_experiment_spec, backbo
 
 
 @pytest.mark.cv_unit
-@pytest.mark.parametrize("backbone",
-                         [("fan_tiny_8_p4_hybrid"),
-                          ("fan_small_12_p4_hybrid"),
-                          ("fan_base_16_p4_hybrid"),
-                          ("fan_large_16_p4_hybrid"),
-                          ("fan_Xlarge_16_p4_hybrid"),
-                          ("fan_base_18_p16_224"),
-                          ("fan_tiny_12_p16_224"),
-                          ("fan_small_12_p16_224_se_attn"),
-                          ("fan_small_12_p16_224"),
-                          ("fan_large_24_p16_224"),
-                          ("vit_large_patch14_dinov2_swiglu"),
-                          ("ViT-L-14-SigLIP-CLIPA-336"),
-                          ("ViT-L-14-SigLIP-CLIPA-224"),
-                          ("c_radio_v2_vit_base_patch16"),
-                          ("c_radio_v2_vit_large_patch16")])
+@pytest.mark.parametrize("backbone", TOPOLOGIES)
 @pytest.mark.parametrize("batch_size", [-1])
 @pytest.mark.parametrize("opset_version", [17])
 def test_classifier_onnx_export(_test_dir, _test_experiment_spec, backbone, batch_size, opset_version):
@@ -249,8 +242,8 @@ def test_classifier_onnx_export(_test_dir, _test_experiment_spec, backbone, batc
 
     dummy_input = torch.ones(input_batch_size, input_channel, input_height, input_width, device='cuda')
 
-
-    onnx_path = os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}.onnx")
+    check_and_create(os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}"))
+    onnx_path = os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}", f"{backbone}_opset{opset_version}.onnx")
 
     onnx_export = ONNXExporter()
     onnx_export.export_model(
@@ -271,27 +264,13 @@ def test_classifier_onnx_export(_test_dir, _test_experiment_spec, backbone, batc
 
 @pytest.mark.cv_unit
 @pytest.mark.parametrize("batch_size", [1])
-@pytest.mark.parametrize("backbone",
-                         [("fan_tiny_8_p4_hybrid"),
-                          ("fan_small_12_p4_hybrid"),
-                          ("fan_base_16_p4_hybrid"),
-                          ("fan_large_16_p4_hybrid"),
-                          ("fan_Xlarge_16_p4_hybrid"),
-                          ("fan_base_18_p16_224"),
-                          ("fan_tiny_12_p16_224"),
-                          ("fan_small_12_p16_224_se_attn"),
-                          ("fan_small_12_p16_224"),
-                          ("fan_large_24_p16_224"),
-                          ("vit_large_patch14_dinov2_swiglu"),
-                          ("ViT-L-14-SigLIP-CLIPA-336"),
-                          ("ViT-L-14-SigLIP-CLIPA-224"),
-                          ("c_radio_v2_vit_base_patch16"),
-                          ("c_radio_v2_vit_large_patch16")])
+@pytest.mark.parametrize("backbone", TOPOLOGIES)
 @pytest.mark.parametrize("opset_version", [17])
 def test_cls_trtexec(_test_dir, _test_experiment_spec, backbone, batch_size, opset_version):
     check_and_create(tmp_top_dir)
 
-    onnx_path = os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}.onnx")
+    check_and_create(os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}"))
+    onnx_path = os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}", f"{backbone}_opset{opset_version}.onnx")
 
     input_height, input_width = OUTPUT_SHAPE, OUTPUT_SHAPE
     # Test TensorRT engine generation for dynamic batch size ONNX
