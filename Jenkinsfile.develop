@@ -1,18 +1,26 @@
 def getPulseToken() {
     def token
-    echo "getting token !!"
+    echo "Getting Pulse token..."
+
     sh "apk update"
     sh "apk add curl jq wget python3 py3-pip"
-    token = sh(script: """
-        curl --location --request POST 'https://x9thwm-cootr2q1jdv5p7b8iw4fs4ob3x6nqqsoznyk.ssa.nvidia.com/token' \
-            --user 'nvssa-prd-4tRcjNpunCJVFgVq7o1iYtC9pWIX-RxopTGdLecMinQ:ssap-q829TuK8H09ehhjV7Yx' \
-            --header 'Content-Type: application/x-www-form-urlencoded' \
-            --data-urlencode 'grant_type=client_credentials' \
-            --data-urlencode 'scope=nspect.verify scan.anchore' | jq -r '.access_token'
-    """, returnStdout: true).trim()
+
+    withCredentials([usernamePassword(credentialsId: 'pulse-client-credentials',
+                                      usernameVariable: 'CLIENT_ID',
+                                      passwordVariable: 'CLIENT_SECRET')]) {
+        token = sh(script: """
+            curl --location --request POST 'https://x9thwm-cootr2q1jdv5p7b8iw4fs4ob3x6nqqsoznyk.ssa.nvidia.com/token' \
+                --user "$CLIENT_ID:$CLIENT_SECRET" \
+                --header 'Content-Type: application/x-www-form-urlencoded' \
+                --data-urlencode 'grant_type=client_credentials' \
+                --data-urlencode 'scope=nspect.verify scan.anchore' | jq -r '.access_token'
+        """, returnStdout: true).trim()
+    }
+
     echo "${token}"
     return token
 }
+
 
 podTemplate (cloud:'sc-ipp-blossom-prod', yaml : """
 apiVersion: v1
