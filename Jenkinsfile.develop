@@ -217,11 +217,20 @@ spec:
       // }
 
       stage ('release_docker_build') {
-        gitlabCommitStatus(name: "release_docker_build", connection: gitLabConnection('git-lab-master')) {
-          withEnv(["TAO_VERSION=5.2.0", "IMAGE_NAME=nvcr.io/nvstaging/tao/tao-toolkit-pyt", "CUDA_VERSION=12.8"]){
-            docker.withRegistry('https://nvcr.io', 'NGC_API_KEY'){
-              sh "docker build -t ${IMAGE_NAME}:v${TAO_VERSION}-${BUILD_NUMBER}-dev-cuda${CUDA_VERSION} --network=host -f ${WORKSPACE}/release/docker/Dockerfile ${WORKSPACE}"
-              sh "docker push ${IMAGE_NAME}:v${TAO_VERSION}-${BUILD_NUMBER}-dev-cuda${CUDA_VERSION}"
+        retry(count: 3) {
+          // on retries, wait 5 min before re-running
+          script {
+            if (currentBuild.getPreviousBuild()?.getResult() == 'FAILURE') {
+              echo "Previous attempt failed, sleeping 5 minutes before retry..."
+              sleep time: 5, unit: 'MINUTES'
+            }
+          }
+          gitlabCommitStatus(name: "release_docker_build", connection: gitLabConnection('git-lab-master')) {
+            withEnv(["TAO_VERSION=5.2.0", "IMAGE_NAME=nvcr.io/nvstaging/tao/tao-toolkit-pyt", "CUDA_VERSION=12.8"]){
+              docker.withRegistry('https://nvcr.io', 'NGC_API_KEY'){
+                sh "docker build -t ${IMAGE_NAME}:v${TAO_VERSION}-${BUILD_NUMBER}-dev-cuda${CUDA_VERSION} --network=host -f ${WORKSPACE}/release/docker/Dockerfile ${WORKSPACE}"
+                sh "docker push ${IMAGE_NAME}:v${TAO_VERSION}-${BUILD_NUMBER}-dev-cuda${CUDA_VERSION}"
+              }
             }
           }
         }
