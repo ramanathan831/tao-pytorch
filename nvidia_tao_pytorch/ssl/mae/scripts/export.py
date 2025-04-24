@@ -41,7 +41,8 @@ def create_onnx_model(
     input_names: list[str],
     output_names: list[str],
     opset_version: int = 17,
-    on_cpu: bool = False
+    on_cpu: bool = False,
+    dynamic_axis: bool = False
 ) -> None:
     """Create and export a PyTorch model to ONNX format.
 
@@ -65,6 +66,8 @@ def create_onnx_model(
         output_names (list[str]): Names for the output tensors in the ONNX model.
             Typically ['output'] for single output models.
         opset_version (int, optional): ONNX opset version to use for export. Defaults to 17.
+        on_cpu (bool, optional): Whether to export the model on CPU. Defaults to False.
+        dynamic_axis (bool, optional): Whether to use dynamic axes for the ONNX model. Defaults to False.
 
     Raises:
         AssertionError: If the ONNX model verification fails.
@@ -89,6 +92,7 @@ def create_onnx_model(
     model.eval()
     if not on_cpu:
         model.cuda()
+    model.float()
 
     if input_shape[0] not in [1, 3]:
         raise ValueError(
@@ -103,16 +107,20 @@ def create_onnx_model(
 
     # Create dummy input
     if on_cpu:
-        dummy_input = torch.ones(input_batch_size, *input_shape, device='cpu')
+        dummy_input = torch.ones(input_batch_size, *input_shape, device='cpu').float()
     else:
-        dummy_input = torch.ones(input_batch_size, *input_shape, device='cuda')
+        dummy_input = torch.ones(input_batch_size, *input_shape, device='cuda').float()
 
     # Create dynamic axes
-    dynamic_axes = {}
-    for input_name in input_names:
-        dynamic_axes[input_name] = {0: 'batch_size'}
-    for output_name in output_names:
-        dynamic_axes[output_name] = {0: 'batch_size'}
+    if dynamic_axis:
+        print("Using dynamic axes")
+        dynamic_axes = {}
+        for input_name in input_names:
+            dynamic_axes[input_name] = {0: 'batch_size'}
+        for output_name in output_names:
+            dynamic_axes[output_name] = {0: 'batch_size'}
+    else:
+        dynamic_axes = None
 
     # Export to ONNX
     torch.onnx.export(
@@ -128,14 +136,18 @@ def create_onnx_model(
     )
 
     # Verify ONNX model
+    logging.info("Verifying ONNX model")
     onnx_model = onnx.load(output_path)
     onnx.checker.check_model(onnx_model)
 
     # Test ONNX model with ONNX Runtime
     if VALIDATE_ONNX:
+        logging.info("Validating ONNX model with ONNX Runtime")
         ort_session = onnxruntime.InferenceSession(output_path)
-        ort_inputs = {ort_session.get_inputs()[0].name: dummy_input.numpy()}
-        ort_session.run(None, ort_inputs)
+        ort_inputs = {ort_session.get_inputs()[0].name: dummy_input.cpu().numpy()}
+        outputs = ort_session.run(None, ort_inputs)
+        logging.info("ONNX model outputs: {num_tensors}".format(num_tensors=len(outputs)))
+        logging.info("ONNX model output shapes: {shapes}".format(shapes=[output.shape for output in outputs]))
 
 
 # Load experiment specification, additially using schema for validation/retrieving the default values.
@@ -220,6 +232,7 @@ def run_export(experiment_config: ExperimentConfig) -> None:
     TLTPyTorchCookbook.set_passphrase(key)
 
     output_file = experiment_config.export.onnx_file
+    training_stage = experiment_config.train.stage
     input_channel = experiment_config.export.input_channel
     input_width = experiment_config.export.input_width
     input_height = experiment_config.export.input_height
@@ -247,13 +260,26 @@ def run_export(experiment_config: ExperimentConfig) -> None:
     output_names = ['output']
 
     # Load model
-    mae_model = MAEPlModule.load_from_checkpoint(
-        experiment_config.train.pretrained_model_path,
-        cfg=experiment_config,
-        map_location='cpu'
-    )
+    if training_stage == "pretrain":
+        # WAR to construct the backbone from finetune stage
+        # and load weights from the checkpoint file.
+        experiment_config.train.pretrained_model_path = model_path
+        mae_model = MAEPlModule(cfg=experiment_config, export=True)
+    else:
+        # During finetune stage, the model.forward() already accounts for the head, which is a single tensor
+        # so we load the full model from the model checkpoint.
+        mae_model = MAEPlModule.load_from_checkpoint(
+            model_path,
+            cfg=experiment_config,
+            export=True,  # to remove all intermediate layers and get the backbone during pre-train stage.
+            map_location='cpu'
+        )
+
     model = mae_model.model
     try:
+        dynamic_axis = False
+        if batch_size == -1:
+            dynamic_axis = True
         create_onnx_model(
             model,
             input_shape,
@@ -262,6 +288,7 @@ def run_export(experiment_config: ExperimentConfig) -> None:
             input_names,
             output_names,
             on_cpu=on_cpu,
+            dynamic_axis=dynamic_axis,
             opset_version=opset_version,
         )
         logging.info("ONNX model saved to {output_file}".format(output_file=output_file))

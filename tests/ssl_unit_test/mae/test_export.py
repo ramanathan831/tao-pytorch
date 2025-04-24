@@ -56,7 +56,8 @@ def mock_model(base_config):
             - Output conv layer (64->3 channels)
     """
     model = MAEPlModule(
-        cfg=base_config
+        cfg=base_config,
+        export=True
     )
     return model.model
 
@@ -88,7 +89,8 @@ def test_successful_export(mock_model, base_config, tmp_path):
         input_batch_size=1,
         output_path=output_path,
         input_names=input_names,
-        output_names=output_names
+        output_names=output_names,
+        dynamic_axis=True
     )
     
     # Verify ONNX file exists and is valid
@@ -133,7 +135,8 @@ def test_export_with_different_batch_sizes(mock_model, base_config, tmp_path):
         input_batch_size=1,
         output_path=output_path,
         input_names=input_names,
-        output_names=output_names
+        output_names=output_names,
+        dynamic_axis=True
     )
     
     # Test with different batch sizes
@@ -181,7 +184,8 @@ def test_export_with_cpu_device(mock_model, base_config, tmp_path):
         input_batch_size=1,
         output_path=output_path,
         input_names=input_names,
-        output_names=output_names
+        output_names=output_names,
+        dynamic_axis=True
     )
     
     # Verify ONNX file
@@ -222,7 +226,8 @@ def test_export_with_existing_output(mock_model, base_config, tmp_path):
             input_batch_size=1,
             output_path=output_path,
             input_names=input_names,
-            output_names=output_names
+            output_names=output_names,
+            dynamic_axis=True
         )
 
 
@@ -253,5 +258,6 @@ def test_export_with_invalid_input_shape(mock_model, base_config, tmp_path):
             input_batch_size=1,
             output_path=output_path,
             input_names=input_names,
-            output_names=output_names
+            output_names=output_names,
+            dynamic_axis=True
         )

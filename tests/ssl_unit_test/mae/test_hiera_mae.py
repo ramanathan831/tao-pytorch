@@ -49,11 +49,10 @@ def test_forward_loss(model, input_data):
 def test_forward(model, input_data):
     mask_ratio = 0.6
     output = model(input_data, mask_ratio)
-    assert len(output) == 4
-    loss, pred, label, mask = output
+    assert len(output) == 3  # refactoring output to 3 since the forward function was edited.
+    loss, pred, mask = output
     assert loss.shape == ()
     assert pred.shape[1:] == (768,)
-    assert label.shape[1:] == (768,)
     assert mask.shape[1:] == (49,)
 
 @pytest.mark.parametrize("model_func", [mae_hiera_tiny_224, mae_hiera_small_224, mae_hiera_base_224, mae_hiera_large_224, mae_hiera_huge_224])
@@ -61,5 +60,5 @@ def test_pretrained_models(model_func):
     model = model_func()
     input_data = torch.randn(4, 3, 224, 224)
     output = model(input_data)
-    assert len(output) == 4
-    loss, pred, label, mask = output
+    assert len(output) == 3
+    loss, pred, mask = output
