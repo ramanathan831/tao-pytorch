@@ -62,17 +62,19 @@ class MaskedAutoencoderHiera(Hiera):
         decoder_depth: int = 8,
         decoder_num_heads: int = 16,
         norm_layer: nn.Module = partial(nn.LayerNorm, eps=1e-6),
-        **kwdargs,
+        export: bool = False,
+        **kwargs,
     ):
         super().__init__(
             in_chans=in_chans,
             patch_stride=patch_stride,
             mlp_ratio=mlp_ratio,
             norm_layer=norm_layer,
-            **kwdargs,
+            **kwargs,
         )
 
         del self.norm, self.head
+        self.export = export
         encoder_dim_out = self.blocks[-1].dim_out
         self.encoder_norm = norm_layer(encoder_dim_out)
         self.mask_unit_spatial_shape_final = [
@@ -299,12 +301,15 @@ class MaskedAutoencoderHiera(Hiera):
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """Forward pass."""
         latent, mask = self.forward_encoder(x, mask_ratio, mask=mask)
+        if self.export:
+            return latent
         pred, pred_mask = self.forward_decoder(
             latent, mask
         )  # pred_mask is mask at resolution of *prediction*
 
         # Toggle mask, to generate labels for *masked* tokens
-        return *self.forward_loss(x, pred, ~pred_mask), mask
+        loss, pred, _ = self.forward_loss(x, pred, ~pred_mask)
+        return loss, pred, mask
 
 
 def mae_hiera_tiny_224(**kwargs):

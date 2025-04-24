@@ -53,8 +53,19 @@ class GRN(nn.Module):
 
     def __init__(self, dim):
         super().__init__()
+        # Initialize with 4D shape [1, 1, 1, dim]
         self.gamma = nn.Parameter(torch.zeros(1, 1, 1, dim))
         self.beta = nn.Parameter(torch.zeros(1, 1, 1, dim))
+
+    def _reshape_params(self, state_dict):
+        """Reshape parameters from 6D to 4D if needed."""
+        for name in ['gamma', 'beta']:
+            if name in state_dict:
+                param = state_dict[name]
+                if param.dim() == 6:  # If parameter is 6D [1, 1, 1, 1, 1, C]
+                    # Reshape to 4D [1, 1, 1, C]
+                    state_dict[name] = param.squeeze(3).squeeze(3)
+        return state_dict
 
     def forward(self, x):
         """Forward."""

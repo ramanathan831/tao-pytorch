@@ -39,7 +39,7 @@ class MaskedAutoencoderViT(nn.Module):
                  embed_dim=1024, depth=24, num_heads=16,
                  decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
                  mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False,
-                 mask_ratio=0.75):
+                 mask_ratio=0.75, export=False):
         """Init.
         Args:
             img_size: Input image size.
@@ -55,6 +55,7 @@ class MaskedAutoencoderViT(nn.Module):
             norm_layer: Normalization layer.
             norm_pix_loss: Whether to normalize pix_loss
             mask_ratio: Masking ratio.
+            export: Whether to export the model.
         """
         super().__init__()
 
@@ -86,6 +87,7 @@ class MaskedAutoencoderViT(nn.Module):
 
         self.norm_pix_loss = norm_pix_loss
         self.mask_ratio = mask_ratio
+        self.export = export
         self.initialize_weights()
 
     def initialize_weights(self):
@@ -249,6 +251,8 @@ class MaskedAutoencoderViT(nn.Module):
     def forward(self, imgs, mask_ratio=0.75):
         """Forward."""
         latent, mask, ids_restore = self.forward_encoder(imgs, self.mask_ratio)
+        if self.export:
+            return latent
         pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*3]
         loss = self.forward_loss(imgs, pred, mask)
         return loss, pred, mask

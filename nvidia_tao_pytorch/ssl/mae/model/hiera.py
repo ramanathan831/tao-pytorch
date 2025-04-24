@@ -41,6 +41,7 @@ import torch.nn.functional as F
 
 from timm.models.layers import DropPath, Mlp
 
+from nvidia_tao_pytorch.core.tlt_logging import logging
 from nvidia_tao_pytorch.ssl.mae.model.hiera_utils import conv_nd, do_pool, do_masked_conv, Unroll, Reroll
 
 
@@ -250,8 +251,10 @@ class Hiera(nn.Module):
         head_dropout: float = 0.0,
         head_init_scale: float = 0.001,
         sep_pos_embed: bool = False,
-        global_pool: bool = False,
+        backbone: bool = False,
+        **kwargs,
     ):
+        """Initialize the Hiera model."""
         super().__init__()
 
         # Do it this way to ensure that the init args are all PoD (for config usage)
@@ -341,6 +344,7 @@ class Hiera(nn.Module):
             embed_dim = dim_out
             self.blocks.append(block)
 
+        self.backbone = backbone
         self.norm = norm_layer(embed_dim)
         self.head = Head(embed_dim, num_classes, dropout_rate=head_dropout)
 
@@ -450,6 +454,9 @@ class Hiera(nn.Module):
         if mask is None:
             x = x.mean(dim=1)
             x = self.norm(x)
+            if self.backbone:
+                logging.info("Exporting the backbone of the model")
+                return x
             x = self.head(x)
 
         # x may not always be in spatial order here.

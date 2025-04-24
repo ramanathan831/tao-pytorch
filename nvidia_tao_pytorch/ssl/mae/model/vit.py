@@ -29,6 +29,7 @@ import torch
 import torch.nn as nn
 
 import timm.models.vision_transformer
+from nvidia_tao_pytorch.core.tlt_logging import logging
 
 
 class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
@@ -65,9 +66,10 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
             norm_layer: Normalization layer.
             act_layer: MLP activation layer.
             block_fn: Transformer block layer.
+            backbone: Whether to export the backbone of the model. Default: False
         """
         super(VisionTransformer, self).__init__(**kwargs)
-
+        self.backbone = kwargs.get('backbone', False)
         if self.global_pool:
             norm_layer = kwargs['norm_layer']
             embed_dim = kwargs['embed_dim']
@@ -97,6 +99,25 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
             outcome = x[:, 0]
 
         return outcome
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward pass of the VIT class.
+
+        This function returns the intermediate features of the model
+        in backbone mode. The function is overriden from the base class.
+
+        Args:
+            x: Input tensor of shape (B, C, H, W).
+
+        Returns:
+            torch.Tensor: Output tensor of shape (B, C).
+        """
+        x = self.forward_features(x)
+        if self.backbone:
+            logging.info("Exporting the backbone of the model")
+            return x
+        x = self.forward_head(x)
+        return x
 
 
 def vit_base_patch16(**kwargs):
