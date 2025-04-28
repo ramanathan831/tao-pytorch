@@ -169,19 +169,24 @@ def run_export(experiment_config):
     else:
         tmp_onnx_file = output_file
 
-    onnx_export = ONNXExporter()
-    onnx_export.export_model(
-        model, batch_size,
-        tmp_onnx_file,
-        dummy_input,
-        input_names=input_names,
-        opset_version=opset_version,
-        output_names=output_names,
-        do_constant_folding=True,
-        verbose=experiment_config.export.verbose,
-    )
+    try:
+        onnx_export = ONNXExporter()
+        onnx_export.export_model(
+            model, batch_size,
+            tmp_onnx_file,
+            dummy_input,
+            input_names=input_names,
+            opset_version=opset_version,
+            output_names=output_names,
+            do_constant_folding=True,
+            verbose=experiment_config.export.verbose,
+        )
 
-    onnx_export.check_onnx(output_file)
+        onnx_export.check_onnx(output_file)
+
+    except ValueError as e:
+        raise ValueError(
+            f"Onnx export export and check failed due to {str(e)}") from e
 
     if output_file.endswith('.etlt') and key:
         # encrypt the onnx if and only if key is provided and output file name ends with .etlt
