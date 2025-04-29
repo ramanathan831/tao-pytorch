@@ -165,6 +165,8 @@ class MAEPlModule(TAOLightningModule):
                             # Reshape GRN parameters from 6D to 4D if needed
                             if value.dim() == 6:  # If parameter is 6D [1, 1, 1, 1, 1, C]
                                 updated_state_dict[key] = value.squeeze(3).squeeze(3)  # Reshape to 4D [1, 1, 1, C]
+                            elif value.dim() == 2:
+                                updated_state_dict[key] = value.unsqueeze(0).unsqueeze(1)
                 state_dict = self.model.state_dict()
 
                 for k in ['head.weight', 'head.bias']:
