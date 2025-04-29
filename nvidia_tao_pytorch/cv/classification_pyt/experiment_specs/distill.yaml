@@ -30,8 +30,7 @@ evaluate:
   checkpoint: /home/scratch.p3/yuw/tmp/nvdinov2_epoch_10.pth
 model:
   backbone:
-    # type: "vit_large_patch14_dinov2_swiglu"
-    type: faster_vit_anyres_av
+    type: "vit_large_patch14_dinov2_swiglu"
     freeze_backbone: False
   head:
     type: "TAOLinearClsHead"
