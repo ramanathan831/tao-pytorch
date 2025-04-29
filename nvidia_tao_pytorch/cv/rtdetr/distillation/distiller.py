@@ -153,7 +153,7 @@ class RtdetrDistiller(Distiller):
 
                 if "feature_criterion" in k:
                     continue
-                k_ckpt = "model.model." + k
+                k_ckpt = "model." + k
                 v = checkpoint.get(k_ckpt, None)
                 assert v is not None, f"{k_ckpt} doesn't exist in the pretrained teacher model."
                 # Handle PTL format
