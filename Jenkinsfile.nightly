@@ -191,24 +191,34 @@ spec:
             echo "starting functional test . . ."
             sh "pip install pytest-cov"
             sh "python setup.py develop"
-            sh "pip install tao-core/"
-            sh "${command_env} python ci/run_functional_tests.py --cov=nvidia_tao_pytorch --cov-report="
+            sh "CPUCOUNT=1 pip install tao-core/"
+            // Running functional tests with coverage reporting.
+            // Steps run in the following order:
+            // 1. cv_unit
+            // 2. sdg_unit
+            // 3. distributed
+            // 4. ssl_unit_test
+            sh "${command_env} python ci/run_functional_tests.py -m 'cv_unit' --cov=nvidia_tao_pytorch --cov-report="
             sh "cp .coverage /home/scratch.metropolis2/users/release_pipeline_files/coverage_reports/functional_test/.coverage.fn_pyt"
+            sh "${command_env} python ci/run_functional_tests.py -m 'sdg_unit' --cov=nvidia_tao_pytorch --cov-report="
+            sh "cat .coverage >> /home/scratch.metropolis2/users/release_pipeline_files/coverage_reports/functional_test/.coverage.fn_pyt"
+            sh "${command_env} pytest -v --color=yes tests/distributed --cov=nvidia_tao_pytorch --cov-report="
+            sh "cat .coverage >> /home/scratch.metropolis2/users/release_pipeline_files/coverage_reports/functional_test/.coverage.fn_pyt"
+            sh "${command_env} pytest -v --color=yes tests/ssl_unit_test --cov=nvidia_tao_pytorch --cov-report="
+            sh "cat .coverage >> /home/scratch.metropolis2/users/release_pipeline_files/coverage_reports/functional_test/.coverage.fn_pyt"
           }
         }
 
-        stage ('build_obfuscated_wheel') {
-          gitlabCommitStatus(name: "build_obfuscated_wheel", connection: gitLabConnection('git-lab-master')) {
+        stage ('build_wheel') {
+          gitlabCommitStatus(name: "build_wheel", connection: gitLabConnection('git-lab-master')) {
             // Building the wheels for the tao source code.
-            def pytorch_cuda = 'TORCH_CUDA_ARCH_LIST="5.3 6.0 6.1 7.0 7.5 8.0 8.6 9.0"'
             def TAO_WHEEL_VERSION="5.2.0"
             def BUILD_TYPE="dev"
             def VER="${TAO_WHEEL_VERSION}.${BUILD_NUMBER}.${BUILD_TYPE}0"
             sh "echo '${BUILD_NUMBER}-${BUILD_TYPE}' > build.info"
-            build_env = command_env + pytorch_cuda
-            sh "${build_env} bash ${WORKSPACE}/release/docker/build_wheel.sh"
+            build_env = command_env
+            sh "${build_env} python setup.py bdist_wheel"
             sh "pip install dist/nvidia_tao_pytorch-*.whl"
-            // sh "action_recognition --help"
           }
         }
       }
@@ -219,7 +229,7 @@ spec:
         def ci_path_env = 'CI_PROJECT_DIR=' + workspace_path
         command_env = pythonpath_env + ' ' + ci_path_env
 
-        stage ('obfuscated_wheel_publish') {
+        stage ('wheel_publish') {
           gitlabCommitStatus(name: "obfuscated_wheel_publish", connection: gitLabConnection('git-lab-master')) {
             // install jfrog first
             sh "bash ${WORKSPACE}/docker/install_jfrog.sh"
@@ -234,48 +244,6 @@ spec:
             withCredentials([usernamePassword(credentialsId: 'tao-artifactory-tkn', passwordVariable: 'JFROG_PASSWORD', usernameVariable: 'JFROG_USERNAME')]) {
               sh "jfrog rt u --url=https://urm.nvidia.com/artifactory/ --user=${JFROG_USERNAME} --access-token=${JFROG_PASSWORD} --target-props '${PROP}' ${SRC} ${TARGET}"
             }
-          }
-        }
-
-        // Build unobfuscated wheel
-        stage ('build_unobfuscated_wheel') {
-          gitlabCommitStatus(name: "build_unobfuscated_wheel", connection: gitLabConnection('git-lab-master')) {
-            // Cleaning up by-products of previous wheel build
-            sh "rm -rf ${WORKSPACE}/dist"
-            sh "rm -rf ${WORKSPACE}/build"
-            // Building the wheels for the tao source code.
-            def pytorch_cuda = 'TORCH_CUDA_ARCH_LIST="5.3 6.0 6.1 7.0 7.5 8.0 8.6 9.0"'
-            def TAO_WHEEL_VERSION="5.2.0"
-            def BUILD_TYPE="dev"
-            def VER="${TAO_WHEEL_VERSION}.${BUILD_NUMBER}.${BUILD_TYPE}0"
-            def PYTHON_VER="cp312-cp312"
-            def ARCH="linux_x86_64"
-            sh "echo '${BUILD_NUMBER}-${BUILD_TYPE}' > build.info"
-            // build_wheel.sh obfuscates and then builds wheel, we skip obfuscation step
-            build_env = command_env + pytorch_cuda
-            sh "${build_env} python setup.py bdist_wheel"
-            sh "pip install dist/nvidia_tao_pytorch-${VER}-${PYTHON_VER}-${ARCH}.whl"
-            sh "action_recognition --help"
-          }
-        }
-
-        // Publish unobfuscated wheel
-        stage ('unobfuscated_wheel_publish') {
-          gitlabCommitStatus(name: "unobfuscated_wheel_publish", connection: gitLabConnection('git-lab-master')) {
-            // install jfrog first
-            // sh "bash ${WORKSPACE}/docker/install_jfrog.sh"
-            def TAO_WHEEL_VERSION="5.2.0"
-            def BUILD_TYPE="dev"
-            def VER="${TAO_WHEEL_VERSION}.${BUILD_NUMBER}.${BUILD_TYPE}0"
-            def PYTHON_VER="cp312-cp312"
-            def ARCH="linux_x86_64"
-            def SRC="dist/nvidia_tao_pytorch-${VER}-${PYTHON_VER}-${ARCH}.whl"
-            def TARGET="sw-tao-pypi-local/nvidia-tao-pytorch-unobf/${VER}/"
-            def PROP="component_name=nvidia-tao-pytorch;arch=x86_64;os=linux;build_source=None;version=${VER};branch=main;release_approver=vpraveen"
-            // withCredentials([usernamePassword(credentialsId: 'tao-artifactory-tkn', passwordVariable: 'JFROG_PASSWORD', usernameVariable: 'JFROG_USERNAME')]) {
-            //     sh "jfrog rt u --url=https://urm.nvidia.com/artifactory/ --user=${JFROG_USERNAME} --access-token=${JFROG_PASSWORD} --target-props '${PROP}' ${SRC} ${TARGET}"
-            // }
-
             def append_string="pytorch_wheel: nvidia_tao_pytorch-${VER}-${PYTHON_VER}-${ARCH}.whl"
             def config_file_path = "/home/scratch.metropolis2/users/release_pipeline_files/release_items.yml"
             sh "python3 ci/update_release_config.py ${config_file_path} '${append_string}'"
