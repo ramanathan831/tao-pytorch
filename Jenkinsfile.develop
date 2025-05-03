@@ -181,17 +181,14 @@ spec:
 
       stage ('build_wheel') {
         gitlabCommitStatus(name: "build_wheel", connection: gitLabConnection('git-lab-master')) {
-            // Building the wheels for the tao source code.
-            def pytorch_cuda = 'TORCH_CUDA_ARCH_LIST="5.3 6.0 6.1 7.0 7.5 8.0 8.6 9.0"'
-            def BUILD_TYPE="dev"
-            def TAO_WHEEL_VERSION="5.2.0"
-            def VER="${TAO_WHEEL_VERSION}.${BUILD_NUMBER}.${BUILD_TYPE}0"
-            def ARCH="linux_x86_64"
-            sh "echo '${BUILD_NUMBER}-${BUILD_TYPE}' > build.info"
-            build_env = command_env + pytorch_cuda
-            sh "${build_env} bash ${WORKSPACE}/release/docker/build_wheel.sh"
-            sh "python3 -m pip install dist/nvidia_tao_pytorch-*.whl --force-reinstall"
-            sh "action_recognition --help"
+          // Building the wheels for the tao source code.
+          def TAO_WHEEL_VERSION="5.2.0"
+          def BUILD_TYPE="dev"
+          def VER="${TAO_WHEEL_VERSION}.${BUILD_NUMBER}.${BUILD_TYPE}0"
+          sh "echo '${BUILD_NUMBER}-${BUILD_TYPE}' > build.info"
+          build_env = command_env
+          sh "${build_env} python setup.py bdist_wheel"
+          sh "pip install dist/nvidia_tao_pytorch-*.whl"
         }
       }
 

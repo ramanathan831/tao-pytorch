@@ -38,7 +38,7 @@ from nvidia_tao_pytorch.core.utilities import get_latest_checkpoint
 from nvidia_tao_pytorch.core.distillation.distiller import Distiller
 from nvidia_tao_pytorch.core.distillation.losses import LPCriterion, KLDivCriterion
 
-from nvidia_tao_pytorch.cv.classification_pyt.model.classifier import build_model
+from nvidia_tao_pytorch.cv.classification_pyt.model.classifier import build_model, channels_map
 from nvidia_tao_pytorch.cv.classification_pyt.model.backbones import (
     fan_model_dict,
     nvdino_model_dict,
@@ -66,8 +66,13 @@ class ClassDistiller(Distiller):
         )
 
         # Restricting students to only some
-        self.supported_student_arch = list(fan_model_dict.keys()) + list(
-            faster_vit_model_dict.keys()
+        self.supported_student_arch = (
+            list(fan_model_dict.keys()) +
+            list(nvdino_model_dict.keys()) +
+            list(cradio_model_dict.keys()) +
+            list(faster_vit_model_dict.keys()) +
+            list(gc_vit_model_dict.keys()) +
+            list(clip_model_dict.keys())
         )
         # Init local params
         self.experiment_spec = experiment_spec
@@ -83,13 +88,16 @@ class ClassDistiller(Distiller):
         self.lr = self.train_config.optim.lr
         self.optimizer = self.train_config.optim
         self.lr_policy = self.optimizer.policy
+        self.lr_policy_params = self.optimizer.policy_params
         self.max_epochs = self.train_config.num_epochs
         self.monitor_name = self.train_config.optim.monitor_name
 
-        self.n_class = self.dataset_config.num_classes
+        self.num_classes = self.dataset_config.num_classes
         self.binary = self.model_config.head.binary
         self.distill_weight = self.distill_config.loss_lambda
         self.distill_loss = self.distill_config.loss_type
+        if self.distill_loss == "FD" or self.distill_loss == "CS":
+            assert self.num_classes == 0, "Number of classes must be 0 when using `FD` or `CS` as the distillation loss type"
 
         # construct prediction id 2 class name mapping for visualization
         self.id_2_class_names = {}
@@ -113,28 +121,28 @@ class ClassDistiller(Distiller):
 
         train_acc = {}
         val_acc = {}
-        if self.binary:
-            self.sigmoid = torch.nn.Sigmoid()
-            train_acc["train_binary_acc"] = Accuracy(
-                task="binary", ignore_index=NOCLASS_IDX
-            )
-            val_acc["val_binary_acc"] = Accuracy(
-                task="binary", ignore_index=NOCLASS_IDX
-            )
-        else:
-            for topk in self.model_config.head.topk:
-                train_acc[f"train_acc_{topk}"] = Accuracy(
-                    task="multiclass",
-                    num_classes=self.n_class,
-                    top_k=topk,
-                    ignore_index=NOCLASS_IDX,
+        if self.num_classes > 0:
+            if self.binary:
+                train_acc["train_binary_acc"] = Accuracy(
+                    task="binary", ignore_index=NOCLASS_IDX
                 )
-                val_acc[f"val_acc_{topk}"] = Accuracy(
-                    task="multiclass",
-                    num_classes=self.n_class,
-                    top_k=topk,
-                    ignore_index=NOCLASS_IDX,
+                val_acc["val_binary_acc"] = Accuracy(
+                    task="binary", ignore_index=NOCLASS_IDX
                 )
+            else:
+                for topk in self.model_config.head.topk:
+                    train_acc[f"train_acc_{topk}"] = Accuracy(
+                        task="multiclass",
+                        num_classes=self.num_classes,
+                        top_k=topk,
+                        ignore_index=NOCLASS_IDX,
+                    )
+                    val_acc[f"val_acc_{topk}"] = Accuracy(
+                        task="multiclass",
+                        num_classes=self.num_classes,
+                        top_k=topk,
+                        ignore_index=NOCLASS_IDX,
+                    )
         self.train_acc = MetricCollection(train_acc)
         self.valid_acc = MetricCollection(val_acc)
         self.batch_size = self.dataset_config.batch_size
@@ -206,7 +214,8 @@ class ClassDistiller(Distiller):
         # Build the teacher config
         teacher_cfg = copy.deepcopy(self.experiment_spec)
         teacher_cfg.model = self.experiment_spec.distill.teacher
-
+        if 'radio' in teacher_cfg.model.backbone.type:
+            assert self.num_classes == 0, "Number of classes must be 0 when using radio as the teacher"
         # Check if supported teacher arch
         assert (
             teacher_cfg.model.backbone.type in self.supported_teacher_arch
@@ -219,23 +228,31 @@ class ClassDistiller(Distiller):
         ), f"Student arch {self.experiment_spec.model.backbone.type} not supported.\
             Supported archs: {self.supported_student_arch}"
 
+        # build the projection layer
+        t_feat_dim = channels_map[teacher_cfg.model.backbone.type]
+        s_feat_dim = channels_map[self.experiment_spec.model.backbone.type]
+        self.projection_layer = nn.Linear(s_feat_dim, t_feat_dim)
         # Build the teacher model
         self.teacher = build_model(experiment_config=teacher_cfg, export=export)
         # Build the student model
         self.model = build_model(experiment_config=self.experiment_spec, export=export)
-        state_dict = torch.load(self.experiment_spec.distill.pretrained_teacher_model_path)['state_dict']
-        updated_state_dict = {}
-        for k, v in state_dict.items():
-            if k == "head.fc.weight":
-                updated_state_dict["decoder.fc.weight"] = v
-            elif k == "head.fc.bias":
-                updated_state_dict["decoder.fc.bias"] = v
-            else:
-                updated_state_dict[k] = v
         if self.experiment_spec.distill.pretrained_teacher_model_path:
+            state_dict = torch.load(self.experiment_spec.distill.pretrained_teacher_model_path)
+            state_dict = state_dict.get('state_dict', state_dict)
+
+            updated_state_dict = {}
+            for k, v in state_dict.items():
+                if k == "head.fc.weight":
+                    updated_state_dict["decoder.fc.weight"] = v
+                elif k == "head.fc.bias":
+                    updated_state_dict["decoder.fc.bias"] = v
+                elif k.startswith("radio_model."):
+                    updated_state_dict[k.replace("radio_model.", "backbone.radio.radio.")] = v
+                else:
+                    updated_state_dict[k] = v
             self.teacher.load_state_dict(
                 updated_state_dict,
-                strict=True,
+                strict=False,
             )
         self.teacher.eval()
         self.model.train()
@@ -270,6 +287,8 @@ class ClassDistiller(Distiller):
             "L2": LPCriterion(p=2),
             "KL": KLDivCriterion(),
             "CE": Cross_Entropy(soft=True, binary=False, label_smoothing=False),
+            "FD": nn.SmoothL1Loss(beta=2.0),
+            "CS": nn.CosineSimilarity(dim=-1, eps=1e-8),
         }
 
     @staticmethod
@@ -379,17 +398,30 @@ class ClassDistiller(Distiller):
     def training_step(self, batch, batch_idx):
         """Training step"""
         out = self.model(batch["img"])
-        acc = self.train_acc(out, batch["class"].long())
-        self.log_dict(acc)
-        if self.binary:
-            out = self.sigmoid(out.squeeze(1))
-        loss = self.criterion(out, batch["class"].long())
-
         teacher_outputs = self.teacher(batch["img"])
+        if self.num_classes > 0:
+            acc = self.train_acc(out, batch["class"].long())
+            self.log_dict(acc)
+            if self.binary:
+                out = torch.nn.Sigmoid()(out.squeeze(1))
+            loss = self.criterion(out, batch["class"].long())
+        else:
+            loss = torch.tensor(0.0)
+
         # TODO(@yuw): potentially enable BCE/sigmoid for multi-category
         if self.distill_loss == "CE":
             distillation_loss = self.criterions["CE"](
                 out, F.softmax(teacher_outputs, dim=-1)
+            )
+        elif self.distill_loss == "FD" or self.distill_loss == "CS":
+            assert self.num_classes == 0, "Number of classes must be 0 when using `FD` or `CS` as the distillation loss type"
+            # here we assume the teacher and student have the same number of tokens
+            s_feat_dim = out.shape[-1]
+            t_feat_dim = teacher_outputs.shape[-1]
+            if s_feat_dim != t_feat_dim:
+                out = self.projection_layer(out)
+            distillation_loss = self.criterions[self.distill_loss](
+                out, nn.LayerNorm(t_feat_dim, elementwise_affine=False)(teacher_outputs)
             )
         else:
             distillation_loss = self.criterions[self.distill_loss](
@@ -463,7 +495,7 @@ class ClassDistiller(Distiller):
         """Validation step."""
         out = self.model(batch["img"])
         if self.binary:
-            out = self.sigmoid(out.squeeze(1))
+            out = torch.nn.Sigmoid()(out.squeeze(1))
         loss = self.criterion(out, batch["class"].long())
         self.valid_acc.update(out, batch["class"].long())
         self.log(

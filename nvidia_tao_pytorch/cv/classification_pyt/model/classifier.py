@@ -24,6 +24,47 @@ from nvidia_tao_pytorch.cv.deformable_detr.utils.misc import load_pretrained_wei
 from nvidia_tao_pytorch.cv.classification_pyt.model.backbones.nvclip_cfg import map_clip_model_cfg
 
 logger = logging.getLogger(__name__)
+channels_map = {
+    "fan_tiny_8_p4_hybrid": 192,  # FAN
+    "fan_small_12_p4_hybrid": 384,
+    "fan_base_16_p4_hybrid": 448,
+    "fan_large_16_p4_hybrid": 480,
+    "fan_Xlarge_16_p4_hybrid": 768,
+    "fan_base_18_p16_224": 448,
+    "fan_tiny_12_p16_224": 192,
+    "fan_small_12_p16_224_se_attn": 384,
+    "fan_small_12_p16_224": 384,
+    "fan_large_24_p16_224": 480,
+    "gc_vit_xxtiny": 512,  # GCViT
+    "gc_vit_xtiny": 512,
+    "gc_vit_tiny": 512,
+    "gc_vit_small": 768,
+    "gc_vit_base": 1024,
+    "gc_vit_large": 1536,
+    "gc_vit_large_384": 1536,
+    "faster_vit_0_224": 512,  # FasterViT
+    "faster_vit_1_224": 640,
+    "faster_vit_2_224": 768,
+    "faster_vit_3_224": 1024,
+    "faster_vit_4_224": 1568,
+    "faster_vit_5_224": 2560,
+    "faster_vit_6_224": 2560,
+    "faster_vit_4_21k_224": 1568,
+    "faster_vit_4_21k_384": 1568,
+    "faster_vit_4_21k_512": 1568,
+    "faster_vit_4_21k_768": 1568,
+    "vit_large_patch14_dinov2_swiglu": 1024,
+    "vit_giant_patch14_reg4_dinov2_swiglu": 1536,
+    "ViT-H-14-SigLIP-CLIPA-224": 1024,
+    "ViT-L-14-SigLIP-CLIPA-336": 768,
+    "ViT-L-14-SigLIP-CLIPA-224": 768,
+    "c_radio_p1_vit_huge_patch16_mlpnorm": 3840,
+    "c_radio_p2_vit_huge_patch16_mlpnorm": 5120,
+    "c_radio_p3_vit_huge_patch16_mlpnorm": 3840,
+    "c_radio_v2_vit_base_patch16": 2304,
+    "c_radio_v2_vit_large_patch16": 3072,
+    "c_radio_v2_vit_huge_patch16": 3840
+}
 
 
 class Classifier(nn.Module):
@@ -156,49 +197,6 @@ def build_model(experiment_config,
     backbone = model_config.backbone['type']
     freeze_backbone = model_config.backbone['freeze_backbone']
     pretrained_backbone_path = model_config.backbone.pretrained_backbone_path
-
-    # We need these because the multiple select feature from these backbone has fixed feature dimensions
-    channels_map = {
-        "fan_tiny_8_p4_hybrid": 192,  # FAN
-        "fan_small_12_p4_hybrid": 384,
-        "fan_base_16_p4_hybrid": 448,
-        "fan_large_16_p4_hybrid": 480,
-        "fan_Xlarge_16_p4_hybrid": 768,
-        "fan_base_18_p16_224": 448,
-        "fan_tiny_12_p16_224": 192,
-        "fan_small_12_p16_224_se_attn": 384,
-        "fan_small_12_p16_224": 384,
-        "fan_large_24_p16_224": 480,
-        "gc_vit_xxtiny": 512,  # GCViT
-        "gc_vit_xtiny": 512,
-        "gc_vit_tiny": 512,
-        "gc_vit_small": 768,
-        "gc_vit_base": 1024,
-        "gc_vit_large": 1536,
-        "gc_vit_large_384": 1536,
-        "faster_vit_0_224": 512,  # FasterViT
-        "faster_vit_1_224": 640,
-        "faster_vit_2_224": 768,
-        "faster_vit_3_224": 1024,
-        "faster_vit_4_224": 1568,
-        "faster_vit_5_224": 2560,
-        "faster_vit_6_224": 2560,
-        "faster_vit_4_21k_224": 1568,
-        "faster_vit_4_21k_384": 1568,
-        "faster_vit_4_21k_512": 1568,
-        "faster_vit_4_21k_768": 1568,
-        "vit_large_patch14_dinov2_swiglu": 1024,
-        "vit_giant_patch14_reg4_dinov2_swiglu": 1536,
-        "ViT-H-14-SigLIP-CLIPA-224": 1024,
-        "ViT-L-14-SigLIP-CLIPA-336": 768,
-        "ViT-L-14-SigLIP-CLIPA-224": 768,
-        "c_radio_p1_vit_huge_patch16_mlpnorm": 3840,
-        "c_radio_p2_vit_huge_patch16_mlpnorm": 5120,
-        "c_radio_p3_vit_huge_patch16_mlpnorm": 3840,
-        "c_radio_v2_vit_base_patch16": 2304,
-        "c_radio_v2_vit_large_patch16": 3072,
-        "c_radio_v2_vit_huge_patch16": 3840
-    }
 
     # Map input resolution for different backbones
     map_input_resolution = {
