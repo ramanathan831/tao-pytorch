@@ -44,22 +44,22 @@ class TAOLinearClsHead(nn.Module):
         self.head_init_scale = head_init_scale
         self.binary = binary
 
-        if self.num_classes <= 0:
+        if self.num_classes < 0:
             raise ValueError(
-                f'num_classes={num_classes} must be a positive integer')
+                f'num_classes={num_classes} must be non-negative')
 
         if self.num_classes != 2 and self.binary:
             raise ValueError(
                 f'Only support binary head when num_classes == 2, Got num_classes == {self.num_classes}'
             )
 
-        if self.binary:
-            self.fc = nn.Linear(self.in_channels, 1)
+        if self.num_classes == 0:
+            self.fc = nn.Identity()
         else:
-            self.fc = nn.Linear(self.in_channels, self.num_classes)
-        # if head_init_scale:
-        #     self.fc.weight.data.mul_(head_init_scale)
-        #     self.fc.bias.data.mul_(head_init_scale)
+            if self.binary:
+                self.fc = nn.Linear(self.in_channels, 1)
+            else:
+                self.fc = nn.Linear(self.in_channels, self.num_classes)
 
     def forward(self, feats: Tuple[torch.Tensor]) -> torch.Tensor:
         """The forward process."""
