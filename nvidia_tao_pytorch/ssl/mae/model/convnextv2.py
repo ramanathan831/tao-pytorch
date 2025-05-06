@@ -19,7 +19,6 @@ import torch
 import torch.nn as nn
 from timm.models.layers import trunc_normal_, DropPath
 from nvidia_tao_pytorch.ssl.mae.model.utils import LayerNorm, GRN
-from nvidia_tao_pytorch.core.tlt_logging import logging
 
 
 class Block(nn.Module):
@@ -125,7 +124,7 @@ class ConvNeXtV2(nn.Module):
         """Forward."""
         x = self.forward_features(x)
         if self.backbone:
-            logging.info("Exporting the backbone of the model")
+            # logging.info("Exporting the backbone of the model")
             return x
         x = self.head(x)
         return x

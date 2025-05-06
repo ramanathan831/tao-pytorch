@@ -14,6 +14,7 @@
 
 """Distiller module for classification model"""
 import os
+import logging
 import re
 import copy
 from typing import Sequence
@@ -30,6 +31,7 @@ from torchmetrics import MetricCollection
 from pytorch_lightning.callbacks import Callback, ModelCheckpoint
 from transformers.optimization import get_cosine_schedule_with_warmup
 
+from nvidia_tao_pytorch.core.distributed.comm import get_global_rank
 import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
 from nvidia_tao_pytorch.core.callbacks.loggers import TAOStatusLogger
 from nvidia_tao_pytorch.core.callbacks.ema import EMA, EMAModelCheckpoint
@@ -46,9 +48,11 @@ from nvidia_tao_pytorch.cv.classification_pyt.model.backbones import (
     faster_vit_model_dict,
     gc_vit_model_dict,
     clip_model_dict,
+    convnextv2_model_dict
 )
 from nvidia_tao_pytorch.cv.classification_pyt.utils.loss import Cross_Entropy
 from nvidia_tao_pytorch.cv.classification_pyt.dataloader.dataset import NOCLASS_IDX
+logger = logging.getLogger(__name__)
 
 
 class ClassDistiller(Distiller):
@@ -62,7 +66,8 @@ class ClassDistiller(Distiller):
             list(cradio_model_dict.keys()) +
             list(faster_vit_model_dict.keys()) +
             list(gc_vit_model_dict.keys()) +
-            list(clip_model_dict.keys())
+            list(clip_model_dict.keys()) +
+            list(convnextv2_model_dict.keys())
         )
 
         # Restricting students to only some
@@ -72,7 +77,8 @@ class ClassDistiller(Distiller):
             list(cradio_model_dict.keys()) +
             list(faster_vit_model_dict.keys()) +
             list(gc_vit_model_dict.keys()) +
-            list(clip_model_dict.keys())
+            list(clip_model_dict.keys()) +
+            list(convnextv2_model_dict.keys())
         )
         # Init local params
         self.experiment_spec = experiment_spec
@@ -216,6 +222,9 @@ class ClassDistiller(Distiller):
         teacher_cfg.model = self.experiment_spec.distill.teacher
         if 'radio' in teacher_cfg.model.backbone.type:
             assert self.num_classes == 0, "Number of classes must be 0 when using radio as the teacher"
+        if self.num_classes == 0:
+            assert self.distill_loss == "FD" or self.distill_loss == "CS", \
+                "Only FD (`smooth L1`), CS (`cosine similarity`) are supported when the number of classes is 0"
         # Check if supported teacher arch
         assert (
             teacher_cfg.model.backbone.type in self.supported_teacher_arch
@@ -237,7 +246,7 @@ class ClassDistiller(Distiller):
         # Build the student model
         self.model = build_model(experiment_config=self.experiment_spec, export=export)
         if self.experiment_spec.distill.pretrained_teacher_model_path:
-            state_dict = torch.load(self.experiment_spec.distill.pretrained_teacher_model_path)
+            state_dict = torch.load(self.experiment_spec.distill.pretrained_teacher_model_path, weights_only=False)
             state_dict = state_dict.get('state_dict', state_dict)
 
             updated_state_dict = {}
@@ -248,12 +257,19 @@ class ClassDistiller(Distiller):
                     updated_state_dict["decoder.fc.bias"] = v
                 elif k.startswith("radio_model."):
                     updated_state_dict[k.replace("radio_model.", "backbone.radio.radio.")] = v
+                elif k.startswith("model.backbone."):
+                    updated_state_dict[k.replace("model.backbone.", "backbone.")] = v
+                elif k.startswith("model."):
+                    updated_state_dict[k.replace("model.", "backbone.")] = v
                 else:
                     updated_state_dict[k] = v
-            self.teacher.load_state_dict(
+            msg = self.teacher.load_state_dict(
                 updated_state_dict,
                 strict=False,
             )
+            if get_global_rank() == 0:
+                logger.info(f"Loaded pretrained weights from {self.experiment_spec.distill.pretrained_teacher_model_path}")
+                logger.info(f"{msg}")
         self.teacher.eval()
         self.model.train()
 
