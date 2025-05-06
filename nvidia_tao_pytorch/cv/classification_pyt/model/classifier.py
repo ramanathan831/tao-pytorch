@@ -18,13 +18,29 @@ import logging
 
 import torch.nn as nn
 from nvidia_tao_pytorch.core.distributed.comm import get_global_rank
-from nvidia_tao_pytorch.cv.classification_pyt.model.backbones import nvdino_model_dict, fan_model_dict, cradio_model_dict, faster_vit_model_dict, gc_vit_model_dict, clip_model_dict
+from nvidia_tao_pytorch.cv.classification_pyt.model.backbones import (
+    nvdino_model_dict,
+    fan_model_dict,
+    cradio_model_dict,
+    faster_vit_model_dict,
+    gc_vit_model_dict,
+    clip_model_dict,
+    convnextv2_model_dict
+)
 from nvidia_tao_pytorch.cv.classification_pyt.model.decode_heads.tao_linear_head import TAOLinearClsHead
 from nvidia_tao_pytorch.cv.deformable_detr.utils.misc import load_pretrained_weights
 from nvidia_tao_pytorch.cv.classification_pyt.model.backbones.nvclip_cfg import map_clip_model_cfg
 
 logger = logging.getLogger(__name__)
 channels_map = {
+    "convnextv2_atto": 320,
+    "convnextv2_femto": 384,
+    "convnextv2_pico": 512,
+    "convnextv2_nano": 640,
+    "convnextv2_tiny": 768,
+    "convnextv2_base": 1024,
+    "convnextv2_large": 1536,
+    "convnextv2_huge": 2816,
     "fan_tiny_8_p4_hybrid": 192,  # FAN
     "fan_small_12_p4_hybrid": 384,
     "fan_base_16_p4_hybrid": 448,
@@ -139,6 +155,16 @@ class Classifier(nn.Module):
         elif 'CLIP' in self.model_name:
             model_cfg = map_clip_model_cfg[self.model_name]
             self.backbone = clip_model_dict["open_clip"](model_name=self.model_name, model_cfg=model_cfg, freeze=freeze_backbone, init_cfg=init_cfg)
+
+        elif 'convnextv2' in self.model_name:
+            self.backbone = convnextv2_model_dict[self.model_name](backbone=True)
+            pretrained_backbone_ckp = load_pretrained_weights(pretrained_backbone_path) if pretrained_backbone_path else None
+            if pretrained_backbone_ckp is not None:
+                _tmp_st_output = self.backbone.load_state_dict(pretrained_backbone_ckp, strict=False)
+
+                if get_global_rank() == 0:
+                    logger.info(f"Loaded pretrained weights from {pretrained_backbone_path}")
+                    logger.info(f"{_tmp_st_output}")
 
         # nvdinov2
         elif 'vit' in self.model_name:

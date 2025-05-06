@@ -20,6 +20,9 @@ from nvidia_tao_pytorch.cv.classification_pyt.model.backbones.radio import CRadi
 from nvidia_tao_pytorch.cv.classification_pyt.model.backbones.faster_vit import FasterVit0224, FasterVit1224, FasterVit2224, FasterVit3224, FasterVit4224, FasterVit5224, FasterVit6224, FasterVit421k224, FasterVit421k384, FasterVit421k512, FasterVit421k768
 from nvidia_tao_pytorch.cv.classification_pyt.model.backbones.gc_vit import GcVitXxtiny, GcVitXtiny, GcVitTiny, GcVitSmall, GcVitBase, GcVitLarge, GcVitLarge384
 from nvidia_tao_pytorch.cv.classification_pyt.model.backbones.clip import OpenClip
+from nvidia_tao_pytorch.ssl.mae.model.convnextv2 import convnextv2_group
+convnextv2_model_dict = {i.__name__: i for i in convnextv2_group}
+
 
 fan_model_dict = {
     'fan_tiny_12_p16_224': FanTiny12P16224,
