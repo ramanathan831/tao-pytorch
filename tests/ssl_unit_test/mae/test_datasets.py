@@ -20,8 +20,14 @@ class Config:
             std = [0.229, 0.224, 0.225]
             min_scale = 0.1
             max_scale = 2.
+            min_ratio = 3/4
+            max_ratio = 4/3
+            hflip = 0.5
+            re_prob = 0.0
+            interpolation = "random"
             color_jitter = 1
             auto_aug = "rand-m9-mstd0.5-inc1"
+            norm_pix_loss = True
 
 @pytest.fixture
 def image_dir(tmp_path_factory):

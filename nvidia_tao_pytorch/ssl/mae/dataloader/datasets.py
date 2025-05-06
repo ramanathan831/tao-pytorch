@@ -136,17 +136,20 @@ class FinetuneDataset:
             is_training=True,
             color_jitter=self.cfg.dataset.augmentation.color_jitter,
             auto_augment=self.cfg.dataset.augmentation.auto_aug,
-            interpolation='bicubic',
-            re_prob=0.25,
+            interpolation=self.cfg.dataset.augmentation.interpolation,
+            re_prob=self.cfg.dataset.augmentation.re_prob,
             re_mode="pixel",
             re_count=1,
+            scale=(self.cfg.dataset.augmentation.min_scale, self.cfg.dataset.augmentation.max_scale),
+            ratio=(self.cfg.dataset.augmentation.min_ratio, self.cfg.dataset.augmentation.max_ratio),
             mean=self.cfg.dataset.augmentation.mean,
             std=self.cfg.dataset.augmentation.std,
+            hflip=self.cfg.dataset.augmentation.hflip,
         )
         return transform_train
 
     def _get_test_transforms(self):
-        if self.cfg.dataset.augmentation.input_size <= 224:
+        if self.cfg.dataset.augmentation.input_size < 224:
             crop_pct = 224 / 256
         else:
             crop_pct = 1.0
