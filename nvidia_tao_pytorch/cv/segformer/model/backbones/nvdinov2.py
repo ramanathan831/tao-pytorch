@@ -26,7 +26,6 @@ from nvidia_tao_pytorch.cv.segformer.model.backbones.vision_transformer.vit_adap
 import logging
 import torch
 import torch.nn as nn
-from mmseg.registry import MODELS
 from functools import partial
 
 from timm.layers import SwiGLUPacked, PatchEmbed
@@ -35,22 +34,21 @@ from timm.models.vision_transformer import VisionTransformer
 logger = logging.getLogger(__name__)
 
 
-@MODELS.register_module()
 class vit_large_nvdinov2(nn.Module):
     """ViT-Large NV-DINOv2 model."""
 
-    def __init__(self, out_indices=[0, 1, 2, 3], resolution=(1024, 1024), init_cfg=None, **kwargs):
+    def __init__(self, out_indices=[0, 1, 2, 3], resolution=1024, init_cfg=None, **kwargs):
         """ViT-Large NV-DINOv2 model.
 
         Args:
             out_indices (list, optional): List of block indices to return as feature.. Defaults to [0, 1, 2, 3].
-            resolution (tuple, optional): input resolution. Defaults to (1024, 1024).
+            resolution (int, optional): input resolution. Defaults to 1024.
             init_cfg (dict, optional): initial config. Defaults to None.
         """
         super().__init__()
 
         model_kwargs = dict(
-            img_size=resolution[0],
+            img_size=resolution,
             patch_size=16,
             embed_dim=1024,
             depth=24,
@@ -77,7 +75,7 @@ class vit_large_nvdinov2(nn.Module):
                                                cffn_ratio=0.25,
                                                deform_ratio=0.5,
                                                out_indices=out_indices,
-                                               resolution=resolution[0])
+                                               resolution=resolution)
 
         # load pretrained backbone
         if init_cfg and init_cfg["checkpoint"]:
@@ -86,7 +84,7 @@ class vit_large_nvdinov2(nn.Module):
             # do vit interpolation
             pretrained_backbone_ckp = interpolate_vit_checkpoint(checkpoint=pretrained_backbone_ckp,
                                                                  target_patch_size=16,
-                                                                 target_resolution=resolution[0])
+                                                                 target_resolution=resolution)
             _tmp_st_output = self.nvdinov2_vit_adapter.vision_transformer.model.load_state_dict(pretrained_backbone_ckp, strict=False)
 
             logger.info(f"Loaded pretrained backbone weights from {init_cfg['checkpoint']}")
@@ -97,7 +95,6 @@ class vit_large_nvdinov2(nn.Module):
         return self.nvdinov2_vit_adapter(x)
 
 
-@MODELS.register_module()
 class vit_giant_nvdinov2(nn.Module):
     """ViT-Giant NV-DINOv2 model.
 
@@ -109,7 +106,7 @@ class vit_giant_nvdinov2(nn.Module):
         model: ViT model.
     """
 
-    def __init__(self, out_indices=[0, 1, 2, 3], resolution=(1024, 1024), init_cfg=None, **kwargs):
+    def __init__(self, out_indices=[0, 1, 2, 3], resolution=1024, init_cfg=None, **kwargs):
         """_summary_
 
         Args:
@@ -122,7 +119,7 @@ class vit_giant_nvdinov2(nn.Module):
         # ingore reg_tokens for ViT-G because ViTAdapter would only take image patch and ignore
         # everything else, including cls_tokens and reg_tokens
         model_kwargs = dict(
-            img_size=resolution[0],
+            img_size=resolution,
             patch_size=14,
             embed_dim=1536,
             depth=40,
@@ -149,16 +146,16 @@ class vit_giant_nvdinov2(nn.Module):
                                                cffn_ratio=0.25,
                                                deform_ratio=0.5,
                                                out_indices=out_indices,
-                                               resolution=resolution[0])
+                                               resolution=resolution)
 
         # load pretrained backbone
-        if init_cfg and init_cfg["checkpoint"]:
+        if init_cfg and init_cfg["checkpoint"] is not None:
             pretrained_backbone_ckp = torch.load(init_cfg["checkpoint"],
                                                  map_location="cpu")
             # do vit interpolation
             pretrained_backbone_ckp = interpolate_vit_checkpoint(checkpoint=pretrained_backbone_ckp,
                                                                  target_patch_size=14,
-                                                                 target_resolution=resolution[0])
+                                                                 target_resolution=resolution)
             _tmp_st_output = self.nvdinov2_vit_adapter.vision_transformer.model.load_state_dict(pretrained_backbone_ckp, strict=False)
 
             logger.info(f"Loaded pretrained backbone weights from {init_cfg['checkpoint']}")

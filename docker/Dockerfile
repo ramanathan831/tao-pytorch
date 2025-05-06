@@ -9,6 +9,15 @@ RUN apt-get upgrade && apt-get update && \
   rm requirements-apt.txt && \
   rm -rf /var/lib/apt/lists/*
 
+# TAO-CORE microservice dependencies
+WORKDIR /workspace/k8s
+RUN wget https://github.com/kubernetes-client/python/archive/refs/tags/v23.6.0.zip && \
+    unzip v23.6.0.zip && \
+    cd python-23.6.0 && \
+    sed -i "s/PACKAGE_NAME\ \=\ .*/PACKAGE_NAME = \"kubernetes-client\"/" setup.py && \
+    pip install --disable-pip-version-check -r requirements.txt && \
+    python setup.py install
+
 ARG TRT_VERSION_MAJOR=10
 ARG TRT_VERSION_MINOR=8
 ARG TRT_VERSION_PATCH=0
@@ -42,7 +51,6 @@ RUN mkdir trt_oss_src && \
   git submodule update --init --recursive && \
   mkdir -p build && cd build  && \
   cmake .. \
-    -DGPU_ARCHS="53;60;61;70;75;80;86;90" \
     -DTRT_LIB_DIR=/usr/lib/$(uname -p)-linux-gnu \
     -DTRT_OUT_DIR=`pwd`/out \
     -DCUDA_VERSION=$CUDA_VERSION_MAJOR_MINOR \

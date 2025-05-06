@@ -1,4 +1,4 @@
-FROM nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:ffebcc9eedd410007a7144a6514de8424b4d8246d32ba0aba8b7cb5987ca7c84
+FROM nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:9b881451b1137839ea285c141805b4fe9d1ab54cdbfef9417557b286ad07b472
 
 # Installing the TLT packages.
 WORKDIR /opt/nvidia
@@ -21,10 +21,12 @@ RUN apt-get update && \
 RUN rm -rf /opt/nvidia/entrypoint.d/*.txt
 COPY release/docker/entrypoint.d/* /opt/nvidia/entrypoint.d/
 
+# Installing TAO-Core
 COPY tao-core tao-core
 RUN cd tao-core && bash release/python/build_wheel.sh && \
     find dist/ -name "nvidia_tao_core*.whl" -type f | xargs -n 1 pip install && \
-    rm -rf *
+    cp nvidia_tao_core/microservices/nginx.conf /etc/nginx/ && \
+    cd .. && rm -rf tao-core
 
 COPY dist/*.whl /opt/nvidia/wheels/
 RUN cd wheels && ls ./*.whl|xargs -I'{}' python -m pip install '{}' \
@@ -47,8 +49,15 @@ ENV CUBLAS_WORKSPACE_CONFIG=":4096:8"
 # Defining the telemetry URL.
 ENV TAO_TELEMETRY_SERVER="https://api.tao.ngc.nvidia.com"
 
-# Microservices entrypoint
-ENV FLASK_APP=/usr/local/lib/python3.12/dist-packages/nvidia_tao_pytorch/api/app.py 
+EXPOSE 8000
 
-# Include NGC CLI as an entrypoint.
-CMD [ "/bin/bash" ]
+# Microservices entrypoint
+ENV FLASK_APP=nvidia_tao_core.microservices.app
+
+ENV RUN_CLI=0
+
+CMD if [ "$RUN_CLI" = "1" ]; then \
+        /bin/bash; \
+    else \
+        /bin/bash $(get-microservice-script); \
+    fi

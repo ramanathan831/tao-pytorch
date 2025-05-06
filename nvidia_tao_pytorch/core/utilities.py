@@ -216,7 +216,8 @@ def get_nvdsinfer_yaml(
     nvds_config.property_field.onnx_file = os.path.basename(output_file)
     nvds_config.property_field.output_blob_names = output_names
     nvds_config.property_field.num_detected_classes = num_classes
-    nvds_config.property_field.labelfile_path = f"{os.path.basename(labels_file)}"
+    if labels_file is not None:
+        nvds_config.property_field.labelfile_path = f"{os.path.basename(labels_file)}"
     nvds_config.property_field.infer_dims = input_shape
     return str(nvds_config)
 

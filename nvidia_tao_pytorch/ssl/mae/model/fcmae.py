@@ -114,6 +114,7 @@ class FCMAE(nn.Module):
                  decoder_embed_dim=512,
                  patch_size=32,
                  mask_ratio=0.6,
+                 export=False,
                  norm_pix_loss=False):
         """Init.
         Args:
@@ -138,6 +139,7 @@ class FCMAE(nn.Module):
         self.decoder_embed_dim = decoder_embed_dim
         self.decoder_depth = decoder_depth
         self.norm_pix_loss = norm_pix_loss
+        self.export = export
 
         # encoder
         self.encoder = MAEConvNeXtV2(
@@ -282,6 +284,8 @@ class FCMAE(nn.Module):
     def forward(self, imgs, labels=None):
         """Forward."""
         x, mask = self.forward_encoder(imgs, self.mask_ratio)
+        if self.export:
+            return x
         pred = self.forward_decoder(x, mask)
         loss = self.forward_loss(imgs, pred, mask)
         return loss, pred, mask

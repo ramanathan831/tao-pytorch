@@ -13,7 +13,6 @@
 # limitations under the License.
 
 """RT-DETR Decoder."""
-import os
 import copy
 from collections import OrderedDict
 import math
@@ -28,7 +27,7 @@ from nvidia_tao_pytorch.cv.deformable_detr.utils.misc import inverse_sigmoid
 from nvidia_tao_pytorch.cv.dino.model.model_utils import MLP
 
 from nvidia_tao_pytorch.cv.rtdetr.model.denoising import get_contrastive_denoising_training_group
-from nvidia_tao_pytorch.cv.rtdetr.utils.misc import radio_model_dict
+from nvidia_tao_pytorch.cv.rtdetr.model.backbone.radio import radio_model_dict
 
 
 def bias_init_with_prob(prior_prob=0.01):
@@ -129,7 +128,7 @@ class TransformerDecoder(nn.Module):
         self.export = export
         if frozen_fm_cfg and frozen_fm_cfg.enabled:
             if "radio" in frozen_fm_cfg.backbone:
-                self.radio_dim = radio_model_dict[os.path.basename(frozen_fm_cfg.checkpoint)][1]
+                self.radio_dim = radio_model_dict[frozen_fm_cfg.backbone][1][1]
                 self.image_query_proj = nn.ModuleList()
                 self.image_query_norm = nn.ModuleList()
                 for _ in range(num_layers):

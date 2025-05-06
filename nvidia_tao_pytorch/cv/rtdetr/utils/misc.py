@@ -17,18 +17,6 @@
 import torch
 
 
-radio_model_dict = {
-    # encoder_channel, decoder_channel
-    "e-radio_v2": (1536, 1536),
-    "radio_v2.5-b": (768, 2304),
-    "radio_v2.5-l": (1024, 3072),
-    "radio_v2.5-h": (1280, 3840),
-    "c-radio_v2-b.pth.tar": (768, 2304),
-    "c-radio_v2-l.pth.tar": (1024, 3072),
-    "c-radio_v2-h.pth.tar": (1280, 3840),
-}
-
-
 def collate_fn(items):
     """Default collate function for RT-DETR."""
     return torch.cat([x[0][None] for x in items], dim=0), [x[1] for x in items], [x[2] for x in items]

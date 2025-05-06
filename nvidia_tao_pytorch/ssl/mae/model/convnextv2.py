@@ -65,17 +65,20 @@ class ConvNeXtV2(nn.Module):
         dims (int): Feature dimension at each stage. Default: [96, 192, 384, 768]
         drop_path_rate (float): Stochastic depth rate. Default: 0.
         head_init_scale (float): Init scaling value for classifier weights and biases. Default: 1.
+        backbone (bool): Whether to export the backbone of the model. Default: False
     """
 
     def __init__(self, in_chans=3, num_classes=1000,
                  depths=[3, 3, 9, 3], dims=[96, 192, 384, 768],
-                 drop_path_rate=0., head_init_scale=1., num_stages=4, **kwargs,
+                 drop_path_rate=0., head_init_scale=1., num_stages=4,
+                 backbone=False, **kwargs,
                  ):
         super().__init__()
         self.num_stages = num_stages
         self.dims = dims
         self.depths = depths
         self.downsample_layers = nn.ModuleList()  # stem and 3 intermediate downsampling conv layers
+        self.backbone = backbone
         stem = nn.Sequential(
             nn.Conv2d(in_chans, dims[0], kernel_size=4, stride=4),
             LayerNorm(dims[0], eps=1e-6, data_format="channels_first")
@@ -120,6 +123,9 @@ class ConvNeXtV2(nn.Module):
     def forward(self, x):
         """Forward."""
         x = self.forward_features(x)
+        if self.backbone:
+            # logging.info("Exporting the backbone of the model")
+            return x
         x = self.head(x)
         return x
 

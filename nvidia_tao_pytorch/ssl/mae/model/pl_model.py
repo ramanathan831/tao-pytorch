@@ -15,7 +15,6 @@
 """ Main PTL model file for MAE. """
 import os
 import pandas as pd
-import logging
 import functools
 
 import torch
@@ -29,6 +28,7 @@ from transformers.optimization import get_cosine_schedule_with_warmup
 
 from nvidia_tao_pytorch.core.lightning.tao_lightning_module import TAOLightningModule
 import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
+from nvidia_tao_pytorch.core.tlt_logging import logging
 from nvidia_tao_pytorch.ssl.mae.model.mae import mae_vit_group
 from nvidia_tao_pytorch.ssl.mae.model.vit import vit_group
 from nvidia_tao_pytorch.ssl.mae.model.fcmae import fcmae_group
@@ -59,13 +59,15 @@ def rgetattr(obj, attr, *args):
 class MAEPlModule(TAOLightningModule):
     """MAE LightningModule."""
 
-    def __init__(self, cfg) -> None:
+    def __init__(self, cfg, export=False) -> None:
         """Initialize MAE model.
         Args:
             cfg (OmegaConfig): Hydra config
+            export (bool): Whether to export the model.
         """
         super().__init__(cfg)
         self.cfg = cfg
+        self.export = export
         self._build_model()
         self.mixup_fn = None
         if self.cfg.train.stage != 'pretrain':
@@ -112,24 +114,34 @@ class MAEPlModule(TAOLightningModule):
         # TODO(@yuw): enable cfg
         model_arch = self.cfg.model.arch
         self.checkpoint_filename = model_arch
-        if self.cfg.train.stage == "pretrain":
+        # Enable the MAE mask for the pretrain stage and if not exporting the model.
+        if self.cfg.train.stage == "pretrain" and not self.export:
             model_arch = "mae_" + model_arch
             self.model = self.model_mapper[model_arch](
                 norm_pix_loss=self.cfg.train.norm_pix_loss,
                 mask_ratio=self.cfg.train.mask_ratio,
             )
         else:
-            self.model = self.model_mapper[model_arch](
-                num_classes=self.cfg.model.num_classes,
-                drop_path_rate=self.cfg.model.drop_path_rate)
+            # WAR to export the backbone of the model from the pretrain stage.
+            if self.cfg.train.stage == "pretrain":
+                self.model = self.model_mapper[model_arch](
+                    num_classes=self.cfg.model.num_classes,
+                    drop_path_rate=self.cfg.model.drop_path_rate,
+                    backbone=self.export)
+            else:
+                # Adding the head to the model for finetune stage.
+                self.model = self.model_mapper[model_arch](
+                    num_classes=self.cfg.model.num_classes,
+                    drop_path_rate=self.cfg.model.drop_path_rate)
 
+            logger.info(f"Loading pretrained model from {self.cfg.train.pretrained_model_path}")
             if self.cfg.train.pretrained_model_path:
                 # TODO(@yuw): load pretrained weights
                 checkpoint = torch.load(self.cfg.train.pretrained_model_path, map_location='cpu')
                 model_state = checkpoint.get('model', None) or checkpoint.get('model_state', None) or checkpoint.get('state_dict', None)
                 updated_state_dict = {}
                 for key, value in list(model_state.items()):
-                    if 'vit' in model_arch:
+                    if 'vit' in model_arch or 'hiera' in model_arch:
                         # for vit
                         if key.startswith("model."):
                             key = key[len("model."):]
@@ -137,6 +149,8 @@ class MAEPlModule(TAOLightningModule):
                         # for convnextv2
                         if key.startswith("encoder."):
                             key = key[len("encoder."):]
+                        if key.startswith("model.encoder."):
+                            key = key[len("model.encoder."):]
                         # for convnextv2
                         if 'decoder' in key or 'mask_token' in key or 'proj' in key or 'pred' in key:
                             logger.info(f"Skipping key {key} from pretrained checkpoint")
@@ -148,7 +162,11 @@ class MAEPlModule(TAOLightningModule):
                         if key.endswith('bias') and len(value.shape) != 1:
                             updated_state_dict[key] = value.reshape(-1)
                         elif 'grn' in key:
-                            updated_state_dict[key] = value.unsqueeze(0).unsqueeze(1)
+                            # Reshape GRN parameters from 6D to 4D if needed
+                            if value.dim() == 6:  # If parameter is 6D [1, 1, 1, 1, 1, C]
+                                updated_state_dict[key] = value.squeeze(3).squeeze(3)  # Reshape to 4D [1, 1, 1, C]
+                            elif value.dim() == 2:
+                                updated_state_dict[key] = value.unsqueeze(0).unsqueeze(1)
                 state_dict = self.model.state_dict()
 
                 for k in ['head.weight', 'head.bias']:

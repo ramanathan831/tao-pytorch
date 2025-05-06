@@ -8,7 +8,7 @@ import torchvision.models as torch_model
 
 import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
 from nvidia_tao_pytorch.cv.ml_recog.model.dinov2_legacy import vit_large_patch14_dinov2_swiglu_legacy
-from nvidia_tao_pytorch.cv.classification_pl.model.backbones.fan import FanBase16P4Hybrid, FanLarge16P4Hybrid, FanSmall12P4Hybrid, FanTiny8P4Hybrid
+from nvidia_tao_pytorch.cv.classification_pyt.model.backbones.fan import FanBase16P4Hybrid, FanLarge16P4Hybrid, FanSmall12P4Hybrid, FanTiny8P4Hybrid
 
 
 mlrecog_backbone_dict = {

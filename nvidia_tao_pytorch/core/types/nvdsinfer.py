@@ -47,7 +47,7 @@ def replace_key_characters(dictionary: dict, find_char: str = "-", replace_char:
         if find_char in key:
             updated_key = key.replace(find_char, replace_char)
             dictionary[updated_key] = deepcopy(dictionary[key])
-        del dictionary[key]
+            del dictionary[key]
     return dictionary
 
 
@@ -83,7 +83,7 @@ def remove_null_keys(dictionary: dict) -> dict:
     for key, value in zip(keys, values):
         if isinstance(value, dict):
             value = remove_null_keys(value)
-        if not value or key in SKIP_LIST:
+        if value is None or key in SKIP_LIST:
             del dictionary[key]
     return dictionary
 
