@@ -18,6 +18,10 @@ RUN apt-get update && \
     apt --only-upgrade install libcurl4-openssl-dev -y && \
     apt --only-upgrade install openssh-client -y
 
+## Install mongodump and mongorestore
+RUN apt update && wget https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2204-$(uname -m)-100.10.0.deb ## Update this when upgrading from Ubuntu 22.04
+RUN apt install ./mongodb-database-tools-*-100.10.0.deb && rm -f mongodb-database-tools-*.deb
+
 RUN rm -rf /opt/nvidia/entrypoint.d/*.txt
 COPY release/docker/entrypoint.d/* /opt/nvidia/entrypoint.d/
 
