@@ -18,14 +18,14 @@ import torch
 import torch.nn as nn
 import torch.utils.checkpoint as checkpoint
 
-from nvidia_tao_pytorch.cv.backbone_v2.convnext_v2 import ConvNeXtV2 as ConvNeXt
+from nvidia_tao_pytorch.cv.backbone_v2.convnext_v2 import ConvNeXtV2
 
 
-class ConvNeXtFPN(ConvNeXt):
-    """ConvNeXtFPN."""
+class ConvNeXtV2FPN(ConvNeXtV2):
+    """ConvNeXtV2FPN."""
 
     def __init__(self, return_idx=[1, 2, 3], out_channels=[512, 1024, 2048], **kwargs):
-        """Initialize ConvNeXtFPN.
+        """Initialize ConvNeXtV2FPN.
 
         Args:
             in_chans (int): Number of input image channels. Default: `3`.
@@ -38,6 +38,11 @@ class ConvNeXtFPN(ConvNeXt):
             head_init_scale (float): Init scaling value for classifier weights and biases. Default: `1`.
             export_pre_logits (bool): Whether to export the pre_logits features of the model. Default: `False`.
             activation_checkpoint (bool): Whether to use activation checkpointing. Default: `False`.
+            freeze_at (list): List of keys corresponding to the stages or
+                layers to freeze. If `None`, no specific layers are frozen.
+                Defaults to `None`.
+            freeze_norm (bool): If `True`, all normalization layers in the
+                backbone will be frozen. Defaults to `False`.
             return_idx (list): List of block indices to return as feature. Default: `[1, 2, 3]`.
             out_channels (list): List of output channels. Default: `[512, 1024, 2048]`.
         """
@@ -77,90 +82,65 @@ class ConvNeXtFPN(ConvNeXt):
         return outs
 
 
-def convnext_tiny(out_indices=[1, 2, 3], **kwargs):
-    """ConvNext-Tiny model.
+def convnextv2_nano(out_indices=[1, 2, 3], **kwargs):
+    """Constructs a ConvNextV2-Nano model.
 
     Args:
         out_indices (list): List of block indices to return as feature
     """
-    return ConvNeXtFPN(
-        depths=[3, 3, 9, 3],
-        dims=[96, 192, 384, 768],
-        use_grn=False,
-        layer_scale_init_value=1e-6,
-        return_idx=out_indices,
-        **kwargs,
-    )
+    return ConvNeXtV2FPN(depths=(2, 2, 8, 2), dims=(80, 160, 320, 640), return_idx=out_indices, **kwargs)
 
 
-def convnext_small(out_indices=[1, 2, 3], **kwargs):
-    """ConvNext-Small model.
+def convnextv2_tiny(out_indices=[1, 2, 3], **kwargs):
+    """Constructs a ConvNextV2-Nano model.
 
     Args:
         out_indices (list): List of block indices to return as feature
     """
-    return ConvNeXtFPN(
-        depths=[3, 3, 27, 3],
-        dims=[96, 192, 384, 768],
-        use_grn=False,
-        layer_scale_init_value=1e-6,
-        return_idx=out_indices,
-        **kwargs,
-    )
+    return ConvNeXtV2FPN(depths=(3, 3, 9, 3), dims=(96, 192, 384, 768), return_idx=out_indices, **kwargs)
 
 
-def convnext_base(out_indices=[1, 2, 3], **kwargs):
-    """ConvNext-Base model.
+def convnextv2_small(out_indices=[1, 2, 3], **kwargs):
+    """Constructs a ConvNextV2-Small model.
 
     Args:
         out_indices (list): List of block indices to return as feature
     """
-    return ConvNeXtFPN(
-        depths=[3, 3, 27, 3],
-        dims=[128, 256, 512, 1024],
-        use_grn=False,
-        layer_scale_init_value=1e-6,
-        return_idx=out_indices,
-        **kwargs,
-    )
+    return ConvNeXtV2FPN(depths=(3, 3, 27, 3), dims=(96, 192, 384, 768), return_idx=out_indices, **kwargs)
 
 
-def convnext_large(out_indices=[1, 2, 3], **kwargs):
-    """ConvNext-Large model.
+def convnextv2_base(out_indices=[1, 2, 3], **kwargs):
+    """Constructs a ConvNextV2-Base model.
 
     Args:
         out_indices (list): List of block indices to return as feature
     """
-    return ConvNeXtFPN(
-        depths=[3, 3, 27, 3],
-        dims=[192, 384, 768, 1536],
-        use_grn=False,
-        layer_scale_init_value=1e-6,
-        return_idx=out_indices,
-        **kwargs,
-    )
+    return ConvNeXtV2FPN(depths=[3, 3, 27, 3], dims=[128, 256, 512, 1024], return_idx=out_indices, **kwargs)
 
 
-def convnext_xlarge(out_indices=[1, 2, 3], **kwargs):
-    """ConvNext-XLarge model.
+def convnextv2_large(out_indices=[1, 2, 3], **kwargs):
+    """Constructs a ConvNextV2-Large model.
 
     Args:
         out_indices (list): List of block indices to return as feature
     """
-    return ConvNeXtFPN(
-        depths=[3, 3, 27, 3],
-        dims=[256, 512, 1024, 2048],
-        use_grn=False,
-        layer_scale_init_value=1e-6,
-        return_idx=out_indices,
-        **kwargs,
-    )
+    return ConvNeXtV2FPN(depths=[3, 3, 27, 3], dims=[192, 384, 768, 1536], return_idx=out_indices, **kwargs)
 
 
-convnext_model_dict = {
-    "convnext_tiny": convnext_tiny,
-    "convnext_small": convnext_small,
-    "convnext_base": convnext_base,
-    "convnext_large": convnext_large,
-    "convnext_xlarge": convnext_xlarge,
+def convnextv2_huge(out_indices=[1, 2, 3], **kwargs):
+    """Constructs a ConvNextV2-Huge model.
+
+    Args:
+        out_indices (list): List of block indices to return as feature
+    """
+    return ConvNeXtV2FPN(depths=[3, 3, 27, 3], dims=[352, 704, 1408, 2816], return_idx=out_indices, **kwargs)
+
+
+convnextv2_model_dict = {
+    "convnextv2_nano": convnextv2_nano,
+    "convnextv2_tiny": convnextv2_tiny,
+    "convnextv2_small": convnextv2_small,
+    "convnextv2_base": convnextv2_base,
+    "convnextv2_large": convnextv2_large,
+    "convnextv2_huge": convnextv2_huge,
 }

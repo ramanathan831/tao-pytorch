@@ -168,10 +168,18 @@ class Classifier(nn.Module):
 
         # nvdinov2
         elif 'vit' in self.model_name:
-            self.backbone = nvdino_model_dict[self.model_name](
-                init_cfg=init_cfg,
-                freeze=freeze_backbone
-            )
+            self.backbone = nvdino_model_dict[self.model_name](num_classes=0)
+            pretrained_backbone_ckp = load_pretrained_weights(pretrained_backbone_path) if pretrained_backbone_path else None
+            if pretrained_backbone_ckp is not None:
+                _tmp_st_output = self.backbone.load_state_dict(pretrained_backbone_ckp, strict=False)
+                if get_global_rank() == 0:
+                    logger.info(f"Loaded pretrained weights from {pretrained_backbone_path}")
+                    logger.info(f"{_tmp_st_output}")
+            if freeze_backbone:
+                assert pretrained_backbone_ckp is not None, "You shouldn't freeze a model without specifying pretrained"
+                self.backbone.eval()
+                for p in self.backbone.parameters():
+                    p.requires_grad = False
 
         else:
             raise NotImplementedError('Bacbkbone name [%s] is not supported' % self.model_name)
