@@ -22,6 +22,7 @@ from nvidia_tao_pytorch.cv.deformable_detr.utils.misc import load_pretrained_wei
 
 from nvidia_tao_pytorch.cv.rtdetr.model.backbone.resnet import resnet_model_dict
 from nvidia_tao_pytorch.cv.rtdetr.model.backbone.convnext import convnext_model_dict
+from nvidia_tao_pytorch.cv.rtdetr.model.backbone.convnext_v2 import convnextv2_model_dict
 from nvidia_tao_pytorch.cv.rtdetr.model.backbone.fan import fan_model_dict
 from nvidia_tao_pytorch.cv.rtdetr.model.backbone.efficientvit import efficientvit_model_dict
 
@@ -68,19 +69,32 @@ class RTDETRModel(nn.Module):
         """Initialize RT-DETR Model."""
         super().__init__()
         parser = None
+        freeze_at = None
+        freeze_norm = False
         if backbone_name.startswith('resnet'):
+            if pretrained_backbone is not None and train_backbone:
+                freeze_at = [0]
+                freeze_norm = True
             backbone = resnet_model_dict[backbone_name](
-                out_indices,
+                out_indices, freeze_at=freeze_at, freeze_norm=freeze_norm
             )
             for name, parameter in backbone.named_parameters():
                 if not train_backbone or 'layer2' not in name and 'layer3' not in name and 'layer4' not in name:
                     parameter.requires_grad_(False)
             in_channels = backbone.out_channels
         elif backbone_name.startswith('convnext'):
-            backbone = convnext_model_dict[backbone_name](
-                out_indices
-            )
-            for name, parameter in backbone.named_parameters():
+            if pretrained_backbone is not None and train_backbone:
+                freeze_at = [0]
+                freeze_norm = True
+            if backbone_name in convnext_model_dict:
+                backbone = convnext_model_dict[backbone_name](
+                    out_indices, freeze_at=freeze_at, freeze_norm=freeze_norm
+                )
+            else:
+                backbone = convnextv2_model_dict[backbone_name](
+                    out_indices, freeze_at=freeze_at, freeze_norm=freeze_norm
+                )
+            for _, parameter in backbone.named_parameters():
                 if not train_backbone:
                     parameter.requires_grad_(False)
             in_channels = backbone.out_channels
@@ -95,15 +109,18 @@ class RTDETRModel(nn.Module):
             backbone = fan_model_dict[backbone_name](
                 out_indices, activation_checkpoint=activation_checkpoint,
             )
-            for name, parameter in backbone.named_parameters():
+            for _, parameter in backbone.named_parameters():
                 if not train_backbone:
                     parameter.requires_grad_(False)
             in_channels = [o for i, o in enumerate(backbone.out_channels) if i in out_indices]
         elif backbone_name.startswith('efficientvit'):
+            if pretrained_backbone is not None and train_backbone:
+                freeze_at = [0]
+                freeze_norm = True
             backbone = efficientvit_model_dict[backbone_name](
-                out_indices
+                out_indices, freeze_at=freeze_at, freeze_norm=freeze_norm
             )
-            for name, parameter in backbone.named_parameters():
+            for _, parameter in backbone.named_parameters():
                 if not train_backbone:
                     parameter.requires_grad_(False)
             in_channels = backbone.out_channels

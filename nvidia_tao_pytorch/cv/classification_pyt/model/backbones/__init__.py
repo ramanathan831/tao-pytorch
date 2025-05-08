@@ -14,8 +14,8 @@
 
 """Backbone Init Module."""
 
+from nvidia_tao_pytorch.cv.backbone_v2.dino_v2 import vit_large_patch14_dinov2_swiglu, vit_giant_patch14_reg4_dinov2_swiglu
 from nvidia_tao_pytorch.cv.classification_pyt.model.backbones.fan import FanTiny12P16224, FanSmall12P16224SeAttn, FanSmall12P16224, FanBase18P16224, FanLarge24P16224, FanTiny8P4Hybrid, FanSmall12P4Hybrid, FanBase16P4Hybrid, FanLarge16P4Hybrid, FanXlarge16P4Hybrid
-from nvidia_tao_pytorch.cv.classification_pyt.model.backbones.dinov2_vit import VitLargePatch14Dinov2Swiglu, VitGiantPatch14Reg4Dinov2Swiglu
 from nvidia_tao_pytorch.cv.classification_pyt.model.backbones.radio import CRadioP1VitHugePatch16Mlpnorm, CRadioP2VitHugePatch16Mlpnorm, CRadioP3VitHugePatch16Mlpnorm, CRadioV2VitHugePatch16, CRadioV2VitLargePatch16, CRadioV2VitBasePatch16
 from nvidia_tao_pytorch.cv.classification_pyt.model.backbones.faster_vit import FasterVit0224, FasterVit1224, FasterVit2224, FasterVit3224, FasterVit4224, FasterVit5224, FasterVit6224, FasterVit421k224, FasterVit421k384, FasterVit421k512, FasterVit421k768
 from nvidia_tao_pytorch.cv.classification_pyt.model.backbones.gc_vit import GcVitXxtiny, GcVitXtiny, GcVitTiny, GcVitSmall, GcVitBase, GcVitLarge, GcVitLarge384
@@ -38,8 +38,8 @@ fan_model_dict = {
 }
 
 nvdino_model_dict = {
-    'vit_large_patch14_dinov2_swiglu': VitLargePatch14Dinov2Swiglu,
-    'vit_giant_patch14_reg4_dinov2_swiglu': VitGiantPatch14Reg4Dinov2Swiglu
+    'vit_large_patch14_dinov2_swiglu': vit_large_patch14_dinov2_swiglu,
+    'vit_giant_patch14_reg4_dinov2_swiglu': vit_giant_patch14_reg4_dinov2_swiglu
 }
 
 cradio_model_dict = {

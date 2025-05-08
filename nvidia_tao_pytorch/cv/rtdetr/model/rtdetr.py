@@ -17,7 +17,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms.functional as TF
+
+from nvidia_tao_pytorch.cv.rtdetr.model.backbone.convnext import ConvNeXtFPN
+from nvidia_tao_pytorch.cv.rtdetr.model.backbone.convnext_v2 import ConvNeXtV2FPN
+from nvidia_tao_pytorch.cv.rtdetr.model.backbone.efficientvit import EfficientViTFPN, EfficientViTLargeFPN
+from nvidia_tao_pytorch.cv.rtdetr.model.backbone.fan import FANFPN
 from nvidia_tao_pytorch.cv.rtdetr.model.backbone.radio import radio_model_dict
+from nvidia_tao_pytorch.cv.rtdetr.model.backbone.resnet import ResNetFPN
 
 
 class RTDETR(nn.Module):
@@ -62,7 +68,12 @@ class RTDETR(nn.Module):
             spatial_features = spatial_features.view(b, int(h_down // 16), int(w_down // 16), -1).permute(0, 3, 1, 2)
             spatial_features = self.maxpool(spatial_features)
 
-        feats = self.backbone(x)
+        if isinstance(
+            self.backbone, (ConvNeXtFPN, ConvNeXtV2FPN, EfficientViTFPN, EfficientViTLargeFPN, FANFPN, ResNetFPN)
+        ):
+            feats = self.backbone.forward_feature_pyramid(x)
+        else:
+            feats = self.backbone(x)
         if self.frozen_fm_cfg and self.frozen_fm_cfg.enabled:
             feats.append(spatial_features)
             x, proj_feats = self.encoder(feats)
