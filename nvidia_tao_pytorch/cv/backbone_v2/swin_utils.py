@@ -685,9 +685,9 @@ class SwinTransformer(BackboneBase):
         norm_layer=nn.LayerNorm,
         ape=False,
         patch_norm=True,
-        use_checkpoint=False,
         weight_init="",
         mlp_type="Mlp",
+        activation_checkpoint=False,
         freeze_at=None,
         freeze_norm=False,
         **kwargs,
@@ -697,8 +697,8 @@ class SwinTransformer(BackboneBase):
         Args:
             img_size (int | tuple(int)): Input image size. Default 224
             patch_size (int | tuple(int)): Patch size. Default: 4
-            in_chans (int): Number of input image channels. Default: 3
-            num_classes (int): Number of classes for classification head. Default: 1000
+            in_chans (int): Number of input image channels. Default: `3`.
+            num_classes (int): Number of classes for classification head. Default: `1000`.
             embed_dim (int): Patch embedding dimension. Default: 96
             depths (tuple(int)): Depth of each Swin Transformer layer.
             num_heads (tuple(int)): Number of attention heads in different layers.
@@ -711,9 +711,18 @@ class SwinTransformer(BackboneBase):
             norm_layer (nn.Module): Normalization layer. Default: nn.LayerNorm.
             ape (bool): If True, add absolute position embedding to the patch embedding. Default: False
             patch_norm (bool): If True, add normalization after patch embedding. Default: True
-            use_checkpoint (bool): Whether to use checkpointing to save memory. Default: False
+            activation_checkpoint (bool): Whether to use activation checkpointing. Default: `False`.
+            freeze_at (list): List of keys corresponding to the stages or layers to freeze. If `None`, no specific
+                layers are frozen. If `"all"`, the entire model is frozen and set to eval mode. Default: `None`.
+            freeze_norm (bool): If `True`, all normalization layers in the backbone will be frozen. Default: `False`.
         """
-        super().__init__(in_chans=in_chans, num_classes=num_classes, freeze_at=freeze_at, freeze_norm=freeze_norm)
+        super().__init__(
+            in_chans=in_chans,
+            num_classes=num_classes,
+            activation_checkpoint=activation_checkpoint,
+            freeze_at=freeze_at,
+            freeze_norm=freeze_norm,
+        )
 
         self.num_layers = len(depths)
         self.embed_dim = embed_dim
@@ -764,7 +773,7 @@ class SwinTransformer(BackboneBase):
                     drop_path=dpr[sum(depths[:i_layer]): sum(depths[:i_layer + 1])],
                     norm_layer=norm_layer,
                     downsample=PatchMerging if (i_layer < self.num_layers - 1) else None,
-                    use_checkpoint=use_checkpoint,
+                    use_checkpoint=self.activation_checkpoint,
                 )
             ]
         self.layers = nn.Sequential(*layers)
@@ -780,8 +789,6 @@ class SwinTransformer(BackboneBase):
                 init_weights_vit_timm(m, n, head_bias=head_bias, jax_impl=True)  # pylint: disable=E1123
         else:
             self.apply(init_weights_vit_timm)
-
-        self.freeze_backbone()
 
     def get_stage_dict(self):
         """Get the stage dictionary."""

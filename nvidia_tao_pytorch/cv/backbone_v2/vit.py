@@ -40,36 +40,51 @@ class VisionTransformer(TimmVisionTransformer, BackboneBase):
             patch_size (int): Patch size.
             in_chans (int): Number of input channels.
             num_classes (int): Number of classes for classification head.
-            embed_dim (int): Patch embedding dimension.
+            global_pool: Type of global pooling for final sequence (default: 'token').
+            embed_dim (int): Transformer embedding dimension.
             depth (int): Depth of transformer.
             num_heads (int): Number of attention heads.
             mlp_ratio (float): Ratio of mlp hidden dim to embedding dim.
-            qkv_bias (bool): If True, add a learnable bias to query, key, value.
-            qk_scale (float): Override default qk scale of head_dim ** -0.5 if set.
-            drop_rate (float): Dropout rate.
+            qkv_bias (bool): Enable bias for qkv projections if True.
+            init_values (float): Layer-scale init values (layer-scale enabled if not None).
+            class_token (bool): Use class token.
+            no_embed_class (bool): Don't include position embeddings for class (or reg) tokens.
+            reg_tokens (int): Number of register tokens.
+            pre_norm (bool): Enable norm after embeddings, before transformer blocks (standard in CLIP ViT).
+            final_norm (bool): Enable norm after transformer blocks, before head (standard in most ViT).
+            fc_norm (bool): Move final norm after pool (instead of before), if None, enabled when global_pool == 'avg'.
+            drop_rate (float): Head dropout rate.
+            pos_drop_rate (float): Position embedding dropout rate.
             attn_drop_rate (float): Attention dropout rate.
             drop_path_rate (float): Stochastic depth rate.
-            norm_layer: (nn.Module): Normalization layer.
-            frozen_stages (int): Stages to be frozen (-1 means not freezing any parameters).
-            cfg (dict): Additional configuration.
-            freeze_at (list): List of keys corresponding to the stages or
-                layers to freeze. If `None`, no specific layers are frozen.
-                Defaults to `None`.
-            freeze_norm (bool): If `True`, all normalization layers in the
-                backbone will be frozen. Defaults to `False`.
+            weight_init (str): Weight initialization scheme.
+            fix_init (bool): Apply weight initialization fix (scaling w/ layer index).
+            embed_layer (Callable): Patch embedding layer.
+            embed_norm_layer: Normalization layer to use / override in patch embed module.
+            norm_layer: Normalization layer.
+            act_layer: MLP activation layer.
+            block_fn: Transformer block layer.
+            activation_checkpoint (bool): Whether to use activation checkpointing. Default: `False`.
+            freeze_at (list): List of keys corresponding to the stages or layers to freeze. If `None`, no specific
+                layers are frozen. If `"all"`, the entire model is frozen and set to eval mode. Default: `None`.
+            freeze_norm (bool): If `True`, all normalization layers in the backbone will be frozen. Default: `False`.
         """
         in_chans = kwargs.get("in_chans", 3)
         num_classes = kwargs.get("num_classes", 1000)
+        activation_checkpoint = kwargs.pop("activation_checkpoint", False)
         freeze_at = kwargs.pop("freeze_at", None)
         freeze_norm = kwargs.pop("freeze_norm", False)
 
         super().__init__(*args, **kwargs)  # TimmVisionTransformer initialization.
         self._module_initialized = True  # Avoid re-initializing `nn.Module` in `BackboneBase`.
         BackboneBase.__init__(
-            self, in_chans=in_chans, num_classes=num_classes, freeze_at=freeze_at, freeze_norm=freeze_norm
+            self,
+            in_chans=in_chans,
+            num_classes=num_classes,
+            activation_checkpoint=activation_checkpoint,
+            freeze_at=freeze_at,
+            freeze_norm=freeze_norm,
         )
-
-        self.freeze_backbone()
 
     def get_stage_dict(self):
         """Get the stage dictionary."""

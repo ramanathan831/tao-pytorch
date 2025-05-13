@@ -882,8 +882,13 @@ class FAN(BackboneBase):
         freeze_norm=False,
     ):
         """Initialize the FAN model."""
-        super().__init__(in_chans=in_chans, num_classes=num_classes, freeze_at=freeze_at, freeze_norm=freeze_norm)
-        self.activation_checkpoint = activation_checkpoint
+        super().__init__(
+            in_chans=in_chans,
+            num_classes=num_classes,
+            activation_checkpoint=activation_checkpoint,
+            freeze_at=freeze_at,
+            freeze_norm=freeze_norm,
+        )
 
         img_size = to_2tuple(img_size)
         assert (img_size[0] % patch_size == 0) and (img_size[0] % patch_size == 0), (
@@ -968,8 +973,6 @@ class FAN(BackboneBase):
         # Init weights
         trunc_normal_(self.cls_token, std=0.02)
         self.apply(self._init_weights)
-
-        self.freeze_backbone()
 
     def _init_weights(self, m):
         """Initialize weights"""

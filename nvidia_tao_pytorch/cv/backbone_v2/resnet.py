@@ -84,24 +84,27 @@ class ResNet(TimmResNet, BackboneBase):
             drop_block_rate (float): Drop block rate (default 0.)
             zero_init_last (bool): zero-init the last weight in residual path (usually last BN affine weight)
             block_args (dict): Extra kwargs to pass through to block module
-            freeze_at (list): List of keys corresponding to the stages or
-                layers to freeze. If `None`, no specific layers are frozen.
-                Defaults to `None`.
-            freeze_norm (bool): If `True`, all normalization layers in the
-                backbone will be frozen. Defaults to `False`.
+            activation_checkpoint (bool): Whether to use activation checkpointing. Default: `False`.
+            freeze_at (list): List of keys corresponding to the stages or layers to freeze. If `None`, no specific
+                layers are frozen. If `"all"`, the entire model is frozen and set to eval mode. Default: `None`.
+            freeze_norm (bool): If `True`, all normalization layers in the backbone will be frozen. Default: `False`.
         """
         in_chans = kwargs.get("in_chans", 3)
         num_classes = kwargs.get("num_classes", 1000)
+        activation_checkpoint = kwargs.pop("activation_checkpoint", False)
         freeze_at = kwargs.pop("freeze_at", None)
         freeze_norm = kwargs.pop("freeze_norm", False)
 
         super().__init__(*args, **kwargs)  # TimmResNet initialization.
         self._module_initialized = True  # # Avoid re-initializing `nn.Module` in `BackboneBase`.
         BackboneBase.__init__(
-            self, in_chans=in_chans, num_classes=num_classes, freeze_at=freeze_at, freeze_norm=freeze_norm
+            self,
+            in_chans=in_chans,
+            num_classes=num_classes,
+            activation_checkpoint=activation_checkpoint,
+            freeze_at=freeze_at,
+            freeze_norm=freeze_norm,
         )
-
-        self.freeze_backbone()
 
     def get_stage_dict(self):
         """Get the stage dictionary."""

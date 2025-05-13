@@ -115,13 +115,17 @@ class ConvNeXtV2(BackboneBase):
             head_init_scale (float): Init scaling value for classifier weights and biases. Default: `1`.
             export_pre_logits (bool): Whether to export the pre_logits features of the model. Default: `False`.
             activation_checkpoint (bool): Whether to use activation checkpointing. Default: `False`.
-            freeze_at (list): List of keys corresponding to the stages or
-                layers to freeze. If `None`, no specific layers are frozen.
-                Defaults to `None`.
-            freeze_norm (bool): If `True`, all normalization layers in the
-                backbone will be frozen. Defaults to `False`.
+            freeze_at (list): List of keys corresponding to the stages or layers to freeze. If `None`, no specific
+                layers are frozen. If `"all"`, the entire model is frozen and set to eval mode. Default: `None`.
+            freeze_norm (bool): If `True`, all normalization layers in the backbone will be frozen. Default: `False`.
         """
-        super().__init__(in_chans=in_chans, num_classes=num_classes, freeze_at=freeze_at, freeze_norm=freeze_norm)
+        super().__init__(
+            in_chans=in_chans,
+            num_classes=num_classes,
+            activation_checkpoint=activation_checkpoint,
+            freeze_at=freeze_at,
+            freeze_norm=freeze_norm,
+        )
         self.depths = depths
         self.dims = dims
         self.use_grn = use_grn
@@ -129,7 +133,6 @@ class ConvNeXtV2(BackboneBase):
         self.drop_path_rate = drop_path_rate
         self.head_init_scale = head_init_scale
         self.export_pre_logits = export_pre_logits
-        self.activation_checkpoint = activation_checkpoint
 
         self.num_features = dims[-1]
         self.num_stages = len(depths)
@@ -174,8 +177,6 @@ class ConvNeXtV2(BackboneBase):
             self.head = nn.Identity()
 
         self.apply(self._init_weights)
-
-        self.freeze_backbone()
 
     def get_stage_dict(self):
         """Get the stage dictionary."""
