@@ -26,7 +26,17 @@ from nvidia_tao_pytorch.core.tlt_logging import logging
 from nvidia_tao_pytorch.cv.backbone_v2.nn.norm import FrozenBatchNorm2d
 
 
-class BackboneBase(nn.Module, abc.ABC):
+class BackboneMeta(abc.ABCMeta, type):
+    """Metaclass for BackboneBase."""
+
+    def __call__(cls, *args, **kwargs):
+        """Called when you call `BackboneBase()`"""
+        obj = type.__call__(cls, *args, **kwargs)
+        obj._post_init()  # Call `_post_init` after the object is created.
+        return obj
+
+
+class BackboneBase(nn.Module, metaclass=BackboneMeta):
     """Abstract base class for backbone models.
 
     This class defines the common interface and functionality for all backbone models.
@@ -60,6 +70,7 @@ class BackboneBase(nn.Module, abc.ABC):
         self,
         in_chans: int = 3,
         num_classes: int = 1000,
+        activation_checkpoint: bool = False,
         freeze_at: Optional[List[Union[int, str]]] = None,
         freeze_norm: bool = False,
     ):
@@ -67,27 +78,41 @@ class BackboneBase(nn.Module, abc.ABC):
 
         Args:
             in_chans (int): Number of input image channels. Default: `3`.
-            num_classes (int): Number of classes for classification head.
-                Default: `1000`.
-            freeze_at (list): List of keys corresponding to the stages or
-                layers to freeze. If `None`, no specific layers are frozen.
-                Default: `None`.
-            freeze_norm (bool): If `True`, all normalization layers in the
-                backbone will be frozen. Default: `False`.
+            num_classes (int): Number of classes for classification head. Default: `1000`.
+            activation_checkpoint (bool): Whether to use activation checkpointing. Default: `False`.
+            freeze_at (list): List of keys corresponding to the stages or layers to freeze. If `None`, no specific
+                layers are frozen. If `"all"`, the entire model is frozen and set to eval mode. Default: `None`.
+            freeze_norm (bool): If `True`, all normalization layers in the backbone will be frozen. Default: `False`.
         """
         if not self._module_initialized:
             nn.Module.__init__(self)
 
         freeze_at = freeze_at or []
-        if not isinstance(freeze_at, list):
-            freeze_at = list(freeze_at)
-        if not all(isinstance(i, (int, str)) for i in freeze_at):
-            raise ValueError(f"Invalid freeze_at value: {freeze_at}. It should be a list of integers or strings.")
+        if isinstance(freeze_at, str):
+            if freeze_at != "all":
+                raise ValueError(f"If freeze_at is a string, it should be 'all'. Received: {freeze_at}.")
+        else:
+            if not isinstance(freeze_at, list):
+                freeze_at = list(freeze_at)
+            if not all(isinstance(i, (int, str)) for i in freeze_at):
+                raise ValueError(f"Invalid freeze_at value: {freeze_at}. It should be a list of integers or strings.")
 
         self.in_chans = int(in_chans)
         self.num_classes = int(num_classes)
+        self.activation_checkpoint = bool(activation_checkpoint)
         self.freeze_norm = bool(freeze_norm)
         self.freeze_at = freeze_at
+
+        if hasattr(self, "set_grad_checkpointing"):  # For Timm models.
+            if self.activation_checkpoint:
+                self.set_grad_checkpointing(True)
+
+    def _post_init(self):
+        """Post-initialization method.
+
+        This method is called after the module is initialized.
+        """
+        self.freeze_backbone()
 
     def _init_weights(self, m):
         """initialize weights."""
@@ -148,6 +173,7 @@ class BackboneBase(nn.Module, abc.ABC):
         """Freeze the given module."""
         for p in m.parameters():
             p.requires_grad = False
+        m.eval()
 
     def _freeze_bn_norm(self, m: nn.Module):
         """Recursively freeze the batch normalization layers in the given module."""
@@ -169,7 +195,16 @@ class BackboneBase(nn.Module, abc.ABC):
         The `get_stage_dict` method must be implemented in the subclass to
         provide the mapping of stage keys to modules.
         """
-        if len(self.freeze_at) != 0:
+        if self.freeze_norm:
+            self._freeze_bn_norm(self)
+            if get_global_rank() == 0:
+                logging.warning("All batch normalization layers are frozen.")
+
+        if self.freeze_at == "all":
+            self._freeze_module(self)
+            if get_global_rank() == 0:
+                logging.warning("The backbone is frozen.")
+        elif isinstance(self.freeze_at, list) and len(self.freeze_at) != 0:
             stage_dict = self.get_stage_dict()
             for key in self.freeze_at:
                 if key in stage_dict:
@@ -179,11 +214,6 @@ class BackboneBase(nn.Module, abc.ABC):
                 else:
                     if get_global_rank() == 0:
                         logging.warning(f"Stage {key} not found. Freezing options: {stage_dict.keys()}")
-
-        if self.freeze_norm:
-            self._freeze_bn_norm(self)
-            if get_global_rank() == 0:
-                logging.warning("All batch normalization layers are frozen.")
 
     @abc.abstractmethod
     def forward_pre_logits(self, x: torch.Tensor) -> torch.Tensor:

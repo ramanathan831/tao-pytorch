@@ -17,19 +17,20 @@
 import logging
 
 import torch.nn as nn
+
 from nvidia_tao_pytorch.core.distributed.comm import get_global_rank
 from nvidia_tao_pytorch.cv.classification_pyt.model.backbones import (
-    nvdino_model_dict,
-    fan_model_dict,
+    clip_model_dict,
+    convnextv2_model_dict,
     cradio_model_dict,
+    fan_model_dict,
     faster_vit_model_dict,
     gc_vit_model_dict,
-    clip_model_dict,
-    convnextv2_model_dict
+    nvdino_model_dict,
 )
 from nvidia_tao_pytorch.cv.classification_pyt.model.decode_heads.tao_linear_head import TAOLinearClsHead
 from nvidia_tao_pytorch.cv.deformable_detr.utils.misc import load_pretrained_weights
-from nvidia_tao_pytorch.cv.classification_pyt.model.backbones.nvclip_cfg import map_clip_model_cfg
+
 
 logger = logging.getLogger(__name__)
 channels_map = {
@@ -146,15 +147,26 @@ class Classifier(nn.Module):
             self.backbone = faster_vit_model_dict[self.model_name](init_cfg=init_cfg)
 
         elif 'radio' in self.model_name:
+            freeze_at = "all" if freeze_backbone else None
             self.backbone = cradio_model_dict[self.model_name](
-                init_cfg=init_cfg,
-                freeze=freeze_backbone,
-                resolution=self.resolution
+                num_classes=0, resolution=self.resolution, freeze_at=freeze_at
             )
+            pretrained_backbone_ckp = load_pretrained_weights(pretrained_backbone_path) if pretrained_backbone_path else None
+            if pretrained_backbone_ckp is not None:
+                _tmp_st_output = self.backbone.load_state_dict(pretrained_backbone_ckp)
+                if get_global_rank() == 0:
+                    logger.info(f"Loaded pretrained weights from {pretrained_backbone_path}")
+                    logger.info(f"{_tmp_st_output}")
 
         elif 'CLIP' in self.model_name:
-            model_cfg = map_clip_model_cfg[self.model_name]
-            self.backbone = clip_model_dict["open_clip"](model_name=self.model_name, model_cfg=model_cfg, freeze=freeze_backbone, init_cfg=init_cfg)
+            freeze_at = "all" if freeze_backbone else None
+            self.backbone = clip_model_dict[self.model_name](num_classes=0, freeze_at=freeze_at)
+            pretrained_backbone_ckp = load_pretrained_weights(pretrained_backbone_path) if pretrained_backbone_path else None
+            if pretrained_backbone_ckp is not None:
+                _tmp_st_output = self.backbone.load_state_dict(pretrained_backbone_ckp, strict=False)
+                if get_global_rank() == 0:
+                    logger.info(f"Loaded pretrained weights from {pretrained_backbone_path}")
+                    logger.info(f"{_tmp_st_output}")
 
         elif 'convnextv2' in self.model_name:
             self.backbone = convnextv2_model_dict[self.model_name](backbone=True)
@@ -168,18 +180,14 @@ class Classifier(nn.Module):
 
         # nvdinov2
         elif 'vit' in self.model_name:
-            self.backbone = nvdino_model_dict[self.model_name](num_classes=0)
+            freeze_at = "all" if freeze_backbone else None
+            self.backbone = nvdino_model_dict[self.model_name](num_classes=0, freeze_at=freeze_at)
             pretrained_backbone_ckp = load_pretrained_weights(pretrained_backbone_path) if pretrained_backbone_path else None
             if pretrained_backbone_ckp is not None:
                 _tmp_st_output = self.backbone.load_state_dict(pretrained_backbone_ckp, strict=False)
                 if get_global_rank() == 0:
                     logger.info(f"Loaded pretrained weights from {pretrained_backbone_path}")
                     logger.info(f"{_tmp_st_output}")
-            if freeze_backbone:
-                assert pretrained_backbone_ckp is not None, "You shouldn't freeze a model without specifying pretrained"
-                self.backbone.eval()
-                for p in self.backbone.parameters():
-                    p.requires_grad = False
 
         else:
             raise NotImplementedError('Bacbkbone name [%s] is not supported' % self.model_name)

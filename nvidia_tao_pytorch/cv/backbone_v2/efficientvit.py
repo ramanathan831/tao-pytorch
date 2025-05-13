@@ -646,14 +646,17 @@ class EfficientViT(BackboneBase):
             act_func: Activation layer type.
             num_classes: Number of classes for classification head.
             activation_checkpoint (bool): Whether to use activation checkpointing. Default: `False`.
-            freeze_at (list): List of keys corresponding to the stages or
-                layers to freeze. If `None`, no specific layers are frozen.
-                Defaults to `None`.
-            freeze_norm (bool): If `True`, all normalization layers in the
-                backbone will be frozen. Defaults to `False`.
+            freeze_at (list): List of keys corresponding to the stages or layers to freeze. If `None`, no specific
+                layers are frozen. If `"all"`, the entire model is frozen and set to eval mode. Default: `None`.
+            freeze_norm (bool): If `True`, all normalization layers in the backbone will be frozen. Default: `False`.
         """
-        super().__init__(in_chans=in_chans, num_classes=num_classes, freeze_at=freeze_at, freeze_norm=freeze_norm)
-        self.activation_checkpoint = activation_checkpoint
+        super().__init__(
+            in_chans=in_chans,
+            num_classes=num_classes,
+            activation_checkpoint=activation_checkpoint,
+            freeze_at=freeze_at,
+            freeze_norm=freeze_norm,
+        )
 
         self.width_list = []
         # input stem
@@ -730,8 +733,6 @@ class EfficientViT(BackboneBase):
 
         self.num_features = in_channels
         self.head = nn.Linear(self.num_features, num_classes) if num_classes > 0 else nn.Identity()
-
-        self.freeze_backbone()
 
     @staticmethod
     def build_local_block(
@@ -823,22 +824,25 @@ class EfficientViTLarge(BackboneBase):
         """Initialize the EfficientViTLarge class.
 
         Args:
-            in_chans: Number of input image channels.
+            in_chans (int): Number of input image channels. Default: `3`.
             width_list: Feature dimension at each stage.
             depth_list: Number of blocks at each stage.
             qkv_dim: Dimension of the head.
             norm: Normalization layer type.
             act_func: Activation layer type.
-            num_classes: Number of classes for classification head.
+            num_classes (int): Number of classes for classification head. Default: `1000`.
             activation_checkpoint (bool): Whether to use activation checkpointing. Default: `False`.
-            freeze_at (list): List of keys corresponding to the stages or
-                layers to freeze. If `None`, no specific layers are frozen.
-                Defaults to `None`.
-            freeze_norm (bool): If `True`, all normalization layers in the
-                backbone will be frozen. Defaults to `False`.
+            freeze_at (list): List of keys corresponding to the stages or layers to freeze. If `None`, no specific
+                layers are frozen. If `"all"`, the entire model is frozen and set to eval mode. Default: `None`.
+            freeze_norm (bool): If `True`, all normalization layers in the backbone will be frozen. Default: `False`.
         """
-        super().__init__(in_chans=in_chans, num_classes=num_classes, freeze_at=freeze_at, freeze_norm=freeze_norm)
-        self.activation_checkpoint = activation_checkpoint
+        super().__init__(
+            in_chans=in_chans,
+            num_classes=num_classes,
+            activation_checkpoint=activation_checkpoint,
+            freeze_at=freeze_at,
+            freeze_norm=freeze_norm,
+        )
 
         self.width_list = []
         self.stages = []
@@ -910,8 +914,6 @@ class EfficientViTLarge(BackboneBase):
 
         self.num_features = in_channels
         self.head = nn.Linear(self.num_features, num_classes) if num_classes > 0 else nn.Identity()
-
-        self.freeze_backbone()
 
     @staticmethod
     def build_local_block(

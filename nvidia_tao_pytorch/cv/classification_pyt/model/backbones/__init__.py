@@ -14,12 +14,26 @@
 
 """Backbone Init Module."""
 
-from nvidia_tao_pytorch.cv.backbone_v2.dino_v2 import vit_large_patch14_dinov2_swiglu, vit_giant_patch14_reg4_dinov2_swiglu
+from nvidia_tao_pytorch.cv.backbone_v2.dino_v2 import (
+    vit_large_patch14_dinov2_swiglu,
+    vit_giant_patch14_reg4_dinov2_swiglu,
+)
+from nvidia_tao_pytorch.cv.backbone_v2.open_clip import (
+    vit_l_14_siglip_clipa_224,
+    vit_l_14_siglip_clipa_336,
+    vit_h_14_siglip_clipa_224,
+)
+from nvidia_tao_pytorch.cv.backbone_v2.radio import (
+    c_radio_p1_vit_huge_patch16_mlpnorm,
+    c_radio_p2_vit_huge_patch16_mlpnorm,
+    c_radio_p3_vit_huge_patch16_mlpnorm,
+    c_radio_v2_vit_base_patch16,
+    c_radio_v2_vit_large_patch16,
+    c_radio_v2_vit_huge_patch16,
+)
 from nvidia_tao_pytorch.cv.classification_pyt.model.backbones.fan import FanTiny12P16224, FanSmall12P16224SeAttn, FanSmall12P16224, FanBase18P16224, FanLarge24P16224, FanTiny8P4Hybrid, FanSmall12P4Hybrid, FanBase16P4Hybrid, FanLarge16P4Hybrid, FanXlarge16P4Hybrid
-from nvidia_tao_pytorch.cv.classification_pyt.model.backbones.radio import CRadioP1VitHugePatch16Mlpnorm, CRadioP2VitHugePatch16Mlpnorm, CRadioP3VitHugePatch16Mlpnorm, CRadioV2VitHugePatch16, CRadioV2VitLargePatch16, CRadioV2VitBasePatch16
 from nvidia_tao_pytorch.cv.classification_pyt.model.backbones.faster_vit import FasterVit0224, FasterVit1224, FasterVit2224, FasterVit3224, FasterVit4224, FasterVit5224, FasterVit6224, FasterVit421k224, FasterVit421k384, FasterVit421k512, FasterVit421k768
 from nvidia_tao_pytorch.cv.classification_pyt.model.backbones.gc_vit import GcVitXxtiny, GcVitXtiny, GcVitTiny, GcVitSmall, GcVitBase, GcVitLarge, GcVitLarge384
-from nvidia_tao_pytorch.cv.classification_pyt.model.backbones.clip import OpenClip
 from nvidia_tao_pytorch.ssl.mae.model.convnextv2 import convnextv2_group
 convnextv2_model_dict = {i.__name__: i for i in convnextv2_group}
 
@@ -39,16 +53,16 @@ fan_model_dict = {
 
 nvdino_model_dict = {
     'vit_large_patch14_dinov2_swiglu': vit_large_patch14_dinov2_swiglu,
-    'vit_giant_patch14_reg4_dinov2_swiglu': vit_giant_patch14_reg4_dinov2_swiglu
+    'vit_giant_patch14_reg4_dinov2_swiglu': vit_giant_patch14_reg4_dinov2_swiglu,
 }
 
 cradio_model_dict = {
-    'c_radio_p1_vit_huge_patch16_mlpnorm': CRadioP1VitHugePatch16Mlpnorm,
-    'c_radio_p2_vit_huge_patch16_mlpnorm': CRadioP2VitHugePatch16Mlpnorm,
-    'c_radio_p3_vit_huge_patch16_mlpnorm': CRadioP3VitHugePatch16Mlpnorm,
-    'c_radio_v2_vit_base_patch16': CRadioV2VitBasePatch16,
-    'c_radio_v2_vit_large_patch16': CRadioV2VitLargePatch16,
-    'c_radio_v2_vit_huge_patch16': CRadioV2VitHugePatch16
+    'c_radio_p1_vit_huge_patch16_mlpnorm': c_radio_p1_vit_huge_patch16_mlpnorm,
+    'c_radio_p2_vit_huge_patch16_mlpnorm': c_radio_p2_vit_huge_patch16_mlpnorm,
+    'c_radio_p3_vit_huge_patch16_mlpnorm': c_radio_p3_vit_huge_patch16_mlpnorm,
+    'c_radio_v2_vit_base_patch16': c_radio_v2_vit_base_patch16,
+    'c_radio_v2_vit_large_patch16': c_radio_v2_vit_large_patch16,
+    'c_radio_v2_vit_huge_patch16': c_radio_v2_vit_huge_patch16,
 }
 
 faster_vit_model_dict = {
@@ -76,7 +90,9 @@ gc_vit_model_dict = {
 }
 
 clip_model_dict = {
-    'open_clip': OpenClip
+    "ViT-L-14-SigLIP-CLIPA-224": vit_l_14_siglip_clipa_224,
+    "ViT-L-14-SigLIP-CLIPA-336": vit_l_14_siglip_clipa_336,
+    "ViT-H-14-SigLIP-CLIPA-224": vit_h_14_siglip_clipa_224,
 }
 
 # "fan_tiny_8_p4_hybrid": 192,  # FAN

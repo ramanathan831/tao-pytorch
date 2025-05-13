@@ -787,7 +787,8 @@ class FasterViT(BackboneBase):
         freeze_norm=False,
         **kwargs,
     ):
-        """
+        """Initialize the FasterViT model.
+
         Args:
             dim: feature size dimension.
             in_dim: inner-plane feature size dimension.
@@ -809,12 +810,12 @@ class FasterViT(BackboneBase):
             layer_norm_last: last stage layer norm flag.
             hat: hierarchical attention flag.
             do_propagation: enable carrier token propagation.
-            freeze_at (list): List of keys corresponding to the stages or
-                layers to freeze. If `None`, no specific layers are frozen.
-                Defaults to `None`.
-            freeze_norm (bool): If `True`, all normalization layers in the
-                backbone will be frozen. Defaults to `False`.
+            freeze_at (list): List of keys corresponding to the stages or layers to freeze. If `None`, no specific
+                layers are frozen. If `"all"`, the entire model is frozen and set to eval mode. Default: `None`.
+            freeze_norm (bool): If `True`, all normalization layers in the backbone will be frozen. Default: `False`.
         """
+        if "activation_checkpoint" in kwargs:
+            raise TypeError("activation_checkpoint is not supported in FasterViT.")
         super().__init__(in_chans=in_chans, num_classes=num_classes, freeze_at=freeze_at, freeze_norm=freeze_norm)
 
         self.num_features = int(dim * 2 ** (len(depths) - 1))
@@ -852,8 +853,6 @@ class FasterViT(BackboneBase):
         self.head = nn.Linear(self.num_features, num_classes) if num_classes > 0 else nn.Identity()
 
         self.apply(self._init_weights)
-
-        self.freeze_backbone()
 
     def _init_weights(self, m):
         """Initialize weights"""

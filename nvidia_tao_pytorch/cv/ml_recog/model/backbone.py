@@ -1,5 +1,6 @@
 """Backbone modules for Metric Learning Recognition model."""
 
+from functools import partial
 from typing import Optional
 
 import torch
@@ -7,12 +8,12 @@ from torch import nn
 import torchvision.models as torch_model
 
 import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
-from nvidia_tao_pytorch.cv.ml_recog.model.dinov2_legacy import vit_large_patch14_dinov2_swiglu_legacy
+from nvidia_tao_pytorch.cv.backbone_v2.dino_v2 import vit_large_patch14_dinov2_swiglu_legacy
 from nvidia_tao_pytorch.cv.classification_pyt.model.backbones.fan import FanBase16P4Hybrid, FanLarge16P4Hybrid, FanSmall12P4Hybrid, FanTiny8P4Hybrid
 
 
 mlrecog_backbone_dict = {
-    "nvdinov2_vit_large_legacy": vit_large_patch14_dinov2_swiglu_legacy,
+    "nvdinov2_vit_large_legacy": partial(vit_large_patch14_dinov2_swiglu_legacy, num_classes=0),
     "fan_tiny": FanTiny8P4Hybrid,
     "fan_small": FanSmall12P4Hybrid,
     "fan_base": FanBase16P4Hybrid,  # input size does not matter

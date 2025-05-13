@@ -31,16 +31,20 @@ class Hiera(TimmHiera, BackboneBase):
         """Initialize the Hiera model."""
         in_chans = kwargs.get("in_chans", 3)
         num_classes = kwargs.get("num_classes", 1000)
+        activation_checkpoint = kwargs.pop("activation_checkpoint", False)
         freeze_at = kwargs.pop("freeze_at", None)
         freeze_norm = kwargs.pop("freeze_norm", False)
 
         super().__init__(*args, **kwargs)  # TimmHiera initialization.
         self._module_initialized = True  # Avoid re-initializing `nn.Module` in `BackboneBase`.
         BackboneBase.__init__(
-            self, in_chans=in_chans, num_classes=num_classes, freeze_at=freeze_at, freeze_norm=freeze_norm
+            self,
+            in_chans=in_chans,
+            num_classes=num_classes,
+            activation_checkpoint=activation_checkpoint,
+            freeze_at=freeze_at,
+            freeze_norm=freeze_norm,
         )
-
-        self.freeze_backbone()
 
     def get_stage_dict(self):
         """Get the stage dictionary."""
