@@ -74,6 +74,8 @@ COPY docker/requirements-pip-odise.txt requirements-pip-odise.txt
 RUN pip install --ignore-installed --no-deps -r requirements-pip-odise.txt \
   && rm requirements-pip-odise.txt
 
+  # 25.01 DLFW stack includes 12.0+PTX which throws an error when building our custom CUDA kernels
+ENV TORCH_CUDA_ARCH_LIST="7.5 8.0 8.6 9.0 9.0a 10.0"
 RUN mkdir xformers_src && \
   cd xformers_src && \
   git clone --recursive https://github.com/facebookresearch/xformers.git && \
@@ -84,9 +86,6 @@ RUN mkdir xformers_src && \
   MAX_JOBS=16 pip install . && \
   cd ../../ && \
   rm -rf xformers_src
-
-# 25.01 DLFW stack includes 12.0+PTX which throws an error when building our custom CUDA kernels
-ENV TORCH_CUDA_ARCH_LIST="7.5 8.0 8.6 9.0 10.0"
 
 # Setup user account
 ARG uid=1000

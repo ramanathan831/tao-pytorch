@@ -20,6 +20,7 @@ import setuptools
 from release.python.utils import utils
 from torch.utils.cpp_extension import BuildExtension
 
+
 version_locals = utils.get_version_details()
 PACKAGE_LIST = [
     "nvidia_tao_pytorch",
