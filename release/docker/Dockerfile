@@ -1,4 +1,4 @@
-FROM nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:9b881451b1137839ea285c141805b4fe9d1ab54cdbfef9417557b286ad07b472
+FROM nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:513901ef7ab53488ad6417e02a378190750ad38d74da664227cb7923ce6cd0e9
 
 # Installing the TLT packages.
 WORKDIR /opt/nvidia
@@ -17,6 +17,10 @@ RUN apt-get update && \
     apt --only-upgrade install libcurl4 -y && \
     apt --only-upgrade install libcurl4-openssl-dev -y && \
     apt --only-upgrade install openssh-client -y
+
+## Install mongodump and mongorestore
+RUN apt update && wget https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2204-$(uname -m)-100.10.0.deb ## Update this when upgrading from Ubuntu 22.04
+RUN apt install ./mongodb-database-tools-*-100.10.0.deb && rm -f mongodb-database-tools-*.deb
 
 RUN rm -rf /opt/nvidia/entrypoint.d/*.txt
 COPY release/docker/entrypoint.d/* /opt/nvidia/entrypoint.d/
