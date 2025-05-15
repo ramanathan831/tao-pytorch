@@ -39,9 +39,6 @@ from nvidia_tao_pytorch.ssl.mae.utils import lr_decay as lrd
 from nvidia_tao_pytorch.ssl.mae.utils.pos_embed import interpolate_pos_embed
 
 
-logger = logging.getLogger(__name__)
-
-
 def rgetattr(obj, attr, *args):
     """Get object attribute recursively.
     Args:
@@ -100,14 +97,14 @@ class MAEPlModule(TAOLightningModule):
 
             for k in ['head.weight', 'head.bias']:
                 if k in updated_state_dict and updated_state_dict[k].shape != state_dict[k].shape:
-                    logger.info(f"Removing key {k} from pretrained checkpoint")
+                    logging.info(f"Removing key {k} from pretrained checkpoint")
                     del updated_state_dict[k]
 
             # interpolate position embedding
             interpolate_pos_embed(self.model, updated_state_dict)
             # load pretrained model
             msg = self.model.load_state_dict(updated_state_dict, strict=False)
-            logger.info(msg)
+            logging.info(msg)
 
     def _build_model(self):
         """Internal function to build the model."""
@@ -134,7 +131,7 @@ class MAEPlModule(TAOLightningModule):
                     num_classes=self.cfg.model.num_classes,
                     drop_path_rate=self.cfg.model.drop_path_rate)
 
-            logger.info(f"Loading pretrained model from {self.cfg.train.pretrained_model_path}")
+            logging.info(f"Loading pretrained model from {self.cfg.train.pretrained_model_path}")
             if self.cfg.train.pretrained_model_path:
                 # TODO(@yuw): load pretrained weights
                 checkpoint = torch.load(self.cfg.train.pretrained_model_path, map_location='cpu')
@@ -153,7 +150,7 @@ class MAEPlModule(TAOLightningModule):
                             key = key[len("model.encoder."):]
                         # for convnextv2
                         if 'decoder' in key or 'mask_token' in key or 'proj' in key or 'pred' in key:
-                            logger.info(f"Skipping key {key} from pretrained checkpoint")
+                            logging.info(f"Skipping key {key} from pretrained checkpoint")
                             continue
                     updated_state_dict[key] = value
 
@@ -171,7 +168,7 @@ class MAEPlModule(TAOLightningModule):
 
                 for k in ['head.weight', 'head.bias']:
                     if k in updated_state_dict and updated_state_dict[k].shape != state_dict[k].shape:
-                        logger.info(f"Removing key {k} from pretrained checkpoint")
+                        logging.info(f"Removing key {k} from pretrained checkpoint")
                         del updated_state_dict[k]
 
                 # interpolate position embedding
@@ -181,7 +178,7 @@ class MAEPlModule(TAOLightningModule):
                     interpolate_pos_embed(self.model, updated_state_dict)
                 # load pretrained model
                 msg = self.model.load_state_dict(updated_state_dict, strict=False)
-                logger.info(msg)
+                logging.info(msg)
             # manually initialize fc layer
             if 'hiera' in model_arch:
                 trunc_normal_(self.model.head.projection.weight, std=2e-5)
@@ -213,7 +210,7 @@ class MAEPlModule(TAOLightningModule):
     def _build_mixup(self):
         mixup_active = self.cfg.dataset.augmentation.mixup > 0 or self.cfg.dataset.augmentation.cutmix > 0. or self.cfg.dataset.augmentation.cutmix_minmax is not None
         if mixup_active:
-            logger.info("Mixup is activated!")
+            logging.info("Mixup is activated!")
             self.mixup_fn = Mixup(
                 mixup_alpha=self.cfg.dataset.augmentation.mixup,
                 cutmix_alpha=self.cfg.dataset.augmentation.cutmix,
