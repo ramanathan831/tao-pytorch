@@ -196,7 +196,6 @@ spec:
         sh 'umount /home/scratch.metropolis2'
         sh 'ls -l /home/scratch.metropolis2'
       }
-
     }
 
     container("docker"){
