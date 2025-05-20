@@ -44,36 +44,32 @@ INPUT_SHAPE = 600
 OUTPUT_SHAPE = 224
 DATASET = 'CLDataset'
 
-TOPOLOGIES = [
-    ("fan_tiny_8_p4_hybrid"),
-    ("fan_small_12_p4_hybrid"),
-    ("fan_base_16_p4_hybrid"),
-    ("fan_large_16_p4_hybrid"),
-    ("fan_Xlarge_16_p4_hybrid"),
-    ("fan_base_18_p16_224"),
-    ("fan_tiny_12_p16_224"),
-    ("fan_small_12_p16_224_se_attn"),
-    ("fan_small_12_p16_224"),
-    ("fan_large_24_p16_224"),
+TEST_TOPOLOGIES = [
+    # ConvNeXtV2.
+    ("convnextv2_atto"),
+    # DINOV2.
     ("vit_large_patch14_dinov2_swiglu"),
+    # FAN.
+    ("fan_small_12_p16_224"),
+    ("fan_small_12_p4_hybrid"),
+    ("fan_small_12_p16_224_se_attn"),
+    # FasterViT.
+    ("faster_vit_1_224"),
+    # GCViT.
+    ("gc_vit_xxtiny"),
+    # OpenCLIP.
     ("ViT-L-14-SigLIP-CLIPA-336"),
-    ("ViT-L-14-SigLIP-CLIPA-224"),
+    # RADIO.
     ("c_radio_v2_vit_base_patch16"),
-    ("c_radio_v2_vit_large_patch16"),
 ]
-
-LARGE_MODELS = [
-    ("ViT-H-14-SigLIP-CLIPA-224"),
-    ("c_radio_p1_vit_huge_patch16_mlpnorm"),
-    ("c_radio_p2_vit_huge_patch16_mlpnorm"),
-    ("c_radio_p3_vit_huge_patch16_mlpnorm"),
-    ("c_radio_v2_vit_large_patch16"),
-    ("c_radio_v2_vit_huge_patch16"),
+LARGE_BACKBONE_TOPOLOGIES = [
+    # DINOV2.
     ("vit_giant_patch14_reg4_dinov2_swiglu"),
+    # RADIO.
+    ("c_radio_p3_vit_huge_patch16_mlpnorm"),
 ]
-
 if not os.getenv("CI_PROJECT_DIR", None):
-    TOPOLOGIES.extend(LARGE_MODELS)
+    TEST_TOPOLOGIES.extend(LARGE_BACKBONE_TOPOLOGIES)
 
 
 @pytest.fixture
@@ -141,7 +137,7 @@ def _test_experiment_spec():
 
 
 @pytest.mark.cv_unit
-@pytest.mark.parametrize("backbone", TOPOLOGIES)
+@pytest.mark.parametrize("backbone", TEST_TOPOLOGIES)
 @pytest.mark.parametrize("batch_size", [-1])
 @pytest.mark.parametrize("opset_version", [17])
 def test_classifier_onnx_compare_output(_test_dir, _test_experiment_spec, backbone, batch_size, opset_version):
@@ -215,7 +211,7 @@ def test_classifier_onnx_compare_output(_test_dir, _test_experiment_spec, backbo
 
 
 @pytest.mark.cv_unit
-@pytest.mark.parametrize("backbone", TOPOLOGIES)
+@pytest.mark.parametrize("backbone", TEST_TOPOLOGIES)
 @pytest.mark.parametrize("batch_size", [-1])
 @pytest.mark.parametrize("opset_version", [17])
 def test_classifier_onnx_export(_test_dir, _test_experiment_spec, backbone, batch_size, opset_version):
@@ -264,7 +260,7 @@ def test_classifier_onnx_export(_test_dir, _test_experiment_spec, backbone, batc
 
 @pytest.mark.cv_unit
 @pytest.mark.parametrize("batch_size", [1])
-@pytest.mark.parametrize("backbone", TOPOLOGIES)
+@pytest.mark.parametrize("backbone", TEST_TOPOLOGIES)
 @pytest.mark.parametrize("opset_version", [17])
 def test_cls_trtexec(_test_dir, _test_experiment_spec, backbone, batch_size, opset_version):
     check_and_create(tmp_top_dir)

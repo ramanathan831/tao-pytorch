@@ -168,7 +168,7 @@ class SqueezeExcite(nn.Module):
 
 
 class SEMlp(nn.Module):
-    """SEMlp"""
+    """SE Mlp Model Module"""
 
     def __init__(
         self,
@@ -180,12 +180,11 @@ class SEMlp(nn.Module):
         linear=False,
         use_se=True,
     ):
-        """Initialize SEMlP Class"""
+        """Init Module"""
         super().__init__()
         out_features = out_features or in_features
         hidden_features = hidden_features or in_features
         self.fc1 = nn.Linear(in_features, hidden_features)
-        # self.dwconv = DWConv(hidden_features)
         self.dwconv = DWConv(hidden_features)
         self.gamma = nn.Parameter(torch.ones(hidden_features), requires_grad=True)
         self.act = act_layer()
@@ -198,7 +197,7 @@ class SEMlp(nn.Module):
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
-        """Initialize weights"""
+        """Initialize Weights"""
         if isinstance(m, nn.Linear):
             trunc_normal_(m.weight, std=0.02)
             if isinstance(m, nn.Linear) and m.bias is not None:
@@ -214,7 +213,7 @@ class SEMlp(nn.Module):
                 m.bias.data.zero_()
 
     def forward(self, x, H, W):
-        """Forward function"""
+        """Forward Function"""
         B, N, C = x.shape
         x = self.fc1(x)
         if self.linear:
@@ -227,10 +226,12 @@ class SEMlp(nn.Module):
 
 
 class Mlp(nn.Module):
-    """Mlp class used for FAN"""
+    """MLP Module"""
 
-    def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.0):
-        """Initialize Mlp class"""
+    def __init__(
+        self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.0, linear=False
+    ):
+        """Init Function"""
         super().__init__()
         out_features = out_features or in_features
         hidden_features = hidden_features or in_features
@@ -240,11 +241,13 @@ class Mlp(nn.Module):
         self.act = act_layer()
         self.fc2 = nn.Linear(hidden_features, out_features)
         self.drop = nn.Dropout(drop)
-
+        self.linear = linear
+        if self.linear:
+            self.relu = nn.ReLU(inplace=True)
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
-        """Initialize weights"""
+        """Init Weights"""
         if isinstance(m, nn.Linear):
             trunc_normal_(m.weight, std=0.02)
             if isinstance(m, nn.Linear) and m.bias is not None:
@@ -260,8 +263,10 @@ class Mlp(nn.Module):
                 m.bias.data.zero_()
 
     def forward(self, x, H, W):
-        """Forward function"""
+        """Forward Function"""
         x = self.fc1(x)
+        if self.linear:
+            x = self.relu(x)
         x = self.drop(self.gamma * self.dwconv(x, H, W)) + x
         x = self.fc2(x)
         x = self.drop(x)
@@ -487,9 +492,9 @@ class HybridEmbed(nn.Module):
     """
 
     def __init__(self, backbone, img_size=224, patch_size=2, feature_size=None, in_chans=3, embed_dim=384):
-        """Initialize HybridEmbedding class"""
+        """Init Function"""
         super().__init__()
-        assert isinstance(backbone, nn.Module)
+        assert isinstance(backbone, nn.Module), "backbone must be a nn.Module"
         img_size = to_2tuple(img_size)
         patch_size = to_2tuple(patch_size)
         self.img_size = img_size
@@ -518,24 +523,18 @@ class HybridEmbed(nn.Module):
         self.num_patches = self.grid_size[0] * self.grid_size[1]
         self.proj = nn.Conv2d(feature_dim, embed_dim, kernel_size=patch_size, stride=patch_size)
 
-    def forward(self, x, return_feat=False):
-        """Forward function"""
-        if return_feat:
-            x, out_list = self.backbone.forward_features(x, return_feat=True)
-        else:
-            x = self.backbone.forward_features(x, return_feat=False)
+    def forward(self, x):
+        """Forward Function"""
+        x = self.backbone.forward_features(x)
         if isinstance(x, (list, tuple)):
             x = x[-1]  # last feature if backbone outputs list/tuple of features
         _, _, H, W = x.shape
         x = self.proj(x).flatten(2).transpose(1, 2)
-        if return_feat:
-            return x, (H // self.patch_size[0], W // self.patch_size[1]), out_list
-        else:
-            return x, (H // self.patch_size[0], W // self.patch_size[1])
+        return x, (H // self.patch_size[0], W // self.patch_size[1])
 
 
 class ChannelProcessing(nn.Module):
-    """Channel Processing"""
+    """Channel Processing in FAN Module"""
 
     def __init__(
         self,
@@ -543,6 +542,7 @@ class ChannelProcessing(nn.Module):
         num_heads=8,
         qkv_bias=False,
         attn_drop=0.0,
+        linear=False,
         drop_path=0.0,
         mlp_hidden_dim=None,
         act_layer=nn.GELU,
@@ -551,7 +551,7 @@ class ChannelProcessing(nn.Module):
         cha_sr_ratio=1,
         c_head_num=None,
     ):
-        """Initialize ChannelProcessing class"""
+        """Init Function"""
         super().__init__()
         assert dim % num_heads == 0, f"dim {dim} should be divided by num_heads {num_heads}."
 
@@ -565,7 +565,11 @@ class ChannelProcessing(nn.Module):
         # config of mlp for v processing
         self.drop_path = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
         self.mlp_v = Mlp(
-            in_features=dim // self.cha_sr_ratio, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop
+            in_features=dim // self.cha_sr_ratio,
+            hidden_features=mlp_hidden_dim,
+            act_layer=act_layer,
+            drop=drop,
+            linear=linear,
         )
         self.norm_v = norm_layer(dim // self.cha_sr_ratio)
 
@@ -576,7 +580,7 @@ class ChannelProcessing(nn.Module):
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
-        """Initialize weights"""
+        """Init Weights"""
         if isinstance(m, nn.Linear):
             trunc_normal_(m.weight, std=0.02)
             if isinstance(m, nn.Linear) and m.bias is not None:
@@ -592,7 +596,7 @@ class ChannelProcessing(nn.Module):
                 m.bias.data.zero_()
 
     def _gen_attn(self, q, k):
-        """Returns attention"""
+        """Function to Get Attention"""
         _, _, N, _ = k.shape
         if torch.onnx.is_in_onnx_export():
             # If softmax dim is not the last dimension, then PyTorch decompose the softmax ops into
@@ -607,15 +611,14 @@ class ChannelProcessing(nn.Module):
         else:
             q = q.softmax(-2).transpose(-1, -2)
             k = torch.nn.functional.adaptive_avg_pool2d(k.softmax(-2), (N, 1))
-
         attn = torch.nn.functional.sigmoid(q @ k)
         return attn * self.temperature
 
     def forward(self, x, H, W, atten=None):
-        """Forward functions"""
+        """Forward Function"""
         B, N, C = x.shape
-        v = x.reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
 
+        v = x.reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
         q = self.q(x).reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
         k = x.reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
 
@@ -636,7 +639,7 @@ class ChannelProcessing(nn.Module):
 
     @torch.jit.ignore
     def no_weight_decay(self):
-        """Ignore during weight decay"""
+        """Ignore Weight Decay"""
         return {"temperature"}
 
 
@@ -664,7 +667,7 @@ def adaptive_avg_pool(x, size):
 
 
 class FANBlock_SE(nn.Module):
-    """FAN SE block from https://arxiv.org/abs/2204.12451"""
+    """FAN Block SE"""
 
     def __init__(
         self,
@@ -686,18 +689,22 @@ class FANBlock_SE(nn.Module):
         downsample=None,
         c_head_num=None,
     ):
-        """Initialize FANBlock_SE class"""
+        """Init Module"""
         super().__init__()
         self.norm1 = norm_layer(dim)
         self.attn = TokenMixing(
             dim,
             num_heads=num_heads,
             qkv_bias=qkv_bias,
+            mlp_hidden_dim=int(dim * mlp_ratio),
+            sharpen_attn=sharpen_attn,
             attn_drop=attn_drop,
             proj_drop=drop,
             drop=drop,
             drop_path=drop_path,
             sr_ratio=sr_ratio,
+            linear=linear,
+            emlp=False,
         )
         self.drop_path = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
 
@@ -707,13 +714,14 @@ class FANBlock_SE(nn.Module):
         self.gamma1 = nn.Parameter(eta * torch.ones(dim), requires_grad=True)
         self.gamma2 = nn.Parameter(eta * torch.ones(dim), requires_grad=True)
 
-    def forward(self, x, H: int, W: int, attn=None):
-        """Forward function"""
-        x_new = self.attn(self.norm1(x), H, W)
+    def forward(self, x, attn=None):
+        """Forward Function"""
+        H, W = self.H, self.W
+        x_new, _ = self.attn(self.norm1(x), H, W)
         x = x + self.drop_path(self.gamma1 * x_new)
         x_new, H, W = self.mlp(self.norm2(x), H, W)
         x = x + self.drop_path(self.gamma2 * x_new)
-        return x, H, W
+        return x
 
 
 class FANBlock(nn.Module):
@@ -906,7 +914,6 @@ class FAN(BackboneBase):
             )
         else:
             self.patch_embed = HybridEmbed(backbone=backbone, patch_size=hybrid_patch_size, embed_dim=embed_dim)
-
         self.use_pos_embed = use_pos_embed
         if use_pos_embed:
             self.pos_embed = PositionalEncodingFourier(dim=embed_dim)
@@ -1022,9 +1029,9 @@ class FAN(BackboneBase):
             blk.H, blk.W = H, W
             # Disable activation checkpointing during ONNX export
             if torch.onnx.is_in_onnx_export() or not self.activation_checkpoint:
-                x = checkpoint.checkpoint(blk, x, use_reentrant=True)
-            else:
                 x = blk(x)
+            else:
+                x = checkpoint.checkpoint(blk, x, use_reentrant=True)
             H, W = blk.H, blk.W
 
         cls_tokens = self.cls_token.expand(B, -1, -1)
@@ -1231,7 +1238,7 @@ def fan_large_16_p4_hybrid(**kwargs):
 
 
 @BACKBONE_REGISTRY.register()
-def fan_Xlarge_16_p4_hybrid(**kwargs):
+def fan_xlarge_16_p4_hybrid(**kwargs):
     """FAN Hybrid XLarge"""
     depth = 23
     stage_depth = 20

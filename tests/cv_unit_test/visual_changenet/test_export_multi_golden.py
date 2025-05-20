@@ -39,6 +39,17 @@ IMAGE_WIDTH = 112
 IMAGE_HEIGHT = 112
 NUM_INPUT = 4
 NUM_GOLDEN = 4
+TEST_TOPOLOGIES = [
+    ("vit_large_nvdinov2"),
+    ("c_radio_v2_vit_base_patch16_224"),
+    ("c_radio_v2_vit_large_patch16_224"),
+]
+if not os.getenv("CI_PROJECT_DIR", None):
+    TEST_TOPOLOGIES.extend([
+        ("c_radio_p3_vit_huge_patch16_224_mlpnorm"),
+        ("c_radio_v2_vit_huge_patch16_224"),
+    ])
+
 
 @pytest.fixture
 def _test_experiment_spec():
@@ -67,13 +78,7 @@ def _test_experiment_spec():
 @pytest.mark.parametrize("loss, difference_module",
                          [("ce", "learnable"),
                           ])
-@pytest.mark.parametrize("backbone",
-                          [("vit_large_nvdinov2"),
-                          ("c_radio_p3_vit_huge_patch16_224_mlpnorm"),
-                          ("c_radio_v2_vit_huge_patch16_224"),
-                          ("c_radio_v2_vit_large_patch16_224"),
-                          ("c_radio_v2_vit_base_patch16_224")
-                          ])
+@pytest.mark.parametrize("backbone", TEST_TOPOLOGIES)
 @pytest.mark.parametrize("task", ['classify'])
 @pytest.mark.parametrize("batch_size", [-1])
 @pytest.mark.parametrize("opset_version", [16])
@@ -153,17 +158,10 @@ def test_changenet_compare_onnx_output(_test_experiment_spec, backbone, batch_si
 @pytest.mark.parametrize("loss, difference_module",
                          [("ce", "learnable"),
                           ])
-@pytest.mark.parametrize("backbone",
-                         [("vit_large_nvdinov2"),
-                          ("c_radio_p3_vit_huge_patch16_224_mlpnorm"),
-                          ("c_radio_v2_vit_huge_patch16_224"),
-                          ("c_radio_v2_vit_large_patch16_224"),
-                          ("c_radio_v2_vit_base_patch16_224")
-                          ])
+@pytest.mark.parametrize("backbone", TEST_TOPOLOGIES)
 @pytest.mark.parametrize("task", ['classify'])
 @pytest.mark.parametrize("batch_size", [-1])
 @pytest.mark.parametrize("opset_version", [16])
-
 def test_changenet_onnx_export(_test_experiment_spec, backbone, batch_size, difference_module, task, opset_version, loss):
     """Unit test for ONNX export on ChangeNet model.
     Includes unit test for onnxruntime inference and comparison with torch output
@@ -213,19 +211,6 @@ def test_changenet_onnx_export(_test_experiment_spec, backbone, batch_size, diff
     onnx_export.check_onnx(onnx_path)
 
     assert os.path.exists(onnx_path), "ONNX file was not generated properly!"
-
-
-TEST_TOPOLOGIES = [
-    ("vit_large_nvdinov2"),
-    ("c_radio_v2_vit_base_patch16_224"),
-    ("c_radio_v2_vit_large_patch16_224")
-]
-
-if not os.getenv("CI_PROJECT_DIR", None):
-    TEST_TOPOLOGIES.extend([
-        ("c_radio_p3_vit_huge_patch16_224_mlpnorm")
-        ("c_radio_v2_vit_large_patch16_224")
-    ])
 
 
 @pytest.mark.cv_unit

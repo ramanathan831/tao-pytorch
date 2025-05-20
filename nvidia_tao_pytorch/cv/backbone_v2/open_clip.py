@@ -132,9 +132,6 @@ class OpenCLIP(BackboneBase):
         else:
             raise NotImplementedError(f"Unsupported model type {model_name} for dynamic image size.")
 
-        if self.activation_checkpoint:
-            self.model.set_grad_checkpointing(True)
-
     def _register_nvclip_configs(self):
         """Register NVCLIP model configurations."""
         for model_name, model_cfg in NVCLIP_MODEL_CONFIG.items():
@@ -222,6 +219,11 @@ class OpenCLIP(BackboneBase):
             return pooled
 
         model.forward = types.MethodType(interpolated_forward, model)
+
+    @torch.jit.ignore
+    def set_grad_checkpointing(self, enable=True):
+        """Set the gradient checkpointing for the model."""
+        self.model.set_grad_checkpointing(enable)
 
     def load_state_dict(self, state_dict, **kwargs):
         """Copy parameters and buffers from state_dict into this module and its descendants.

@@ -40,6 +40,34 @@ NUM_CLASSES = 10
 INPUT_SHAPE = 512
 OUTPUT_SHAPE = 224
 DATASET = 'CLDataset'
+TEST_TOPOLOGIES = [
+    # ConvNeXtV2.
+    ("convnextv2_atto"),
+    # DINOV2.
+    ("vit_large_patch14_dinov2_swiglu"),
+    # FAN.
+    ("fan_small_12_p16_224"),
+    ("fan_small_12_p4_hybrid"),
+    ("fan_small_12_p16_224_se_attn"),
+    # FasterViT.
+    ("faster_vit_1_224"),
+    # GCViT.
+    ("gc_vit_xxtiny"),
+    # OpenCLIP.
+    ("ViT-L-14-SigLIP-CLIPA-336"),
+    # RADIO.
+    ("c_radio_v2_vit_base_patch16"),
+]
+LARGE_BACKBONE_TOPOLOGIES = [
+    # DINOV2.
+    ("vit_giant_patch14_reg4_dinov2_swiglu"),
+    # RADIO.
+    ("c_radio_p3_vit_huge_patch16_mlpnorm"),
+]
+if not os.getenv("CI_PROJECT_DIR", None):
+    TEST_TOPOLOGIES.extend(LARGE_BACKBONE_TOPOLOGIES)
+
+
 
 @pytest.fixture
 def _test_dir():
@@ -83,21 +111,6 @@ def _test_dir():
                     im_resized = im.resize((int(INPUT_SHAPE*scale1), int(INPUT_SHAPE*scale2)))
                     im_resized.save(os.path.join(class_dir, str(sample)+'.png'))
 
-# @pytest.fixture
-# def _train_spec():
-#     experiment_config = OmegaConf.structured(ExperimentConfig())
-#     experiment_config.dataset.segment.root_dir = tmp_top_dir
-#     experiment_config.dataset.segment.img_size = OUTPUT_SHAPE
-#     experiment_config.dataset.segment.dataset = DATASET
-#     experiment_config.dataset.segment.batch_size = BATCH_SIZE
-#     experiment_config.dataset.segment.num_classes = NUM_CLASSES
-#     experiment_config.results_dir = tmp_top_dir
-
-#     experiment_config.train.num_epochs = 1
-#     experiment_config.train.num_gpus = 1
-#     experiment_config.train.num_nodes = 1
-
-#     yield experiment_config
 
 @pytest.fixture
 def _train_spec():
@@ -118,33 +131,6 @@ def _train_spec():
     experiment_config.train.num_nodes = 1
 
     yield experiment_config
-
-
-TEST_TOPOLOGIES = [("fan_tiny_8_p4_hybrid"),
-                   ("fan_small_12_p4_hybrid"),
-                   ("fan_base_16_p4_hybrid"),
-                   ("fan_large_16_p4_hybrid"),
-                   ("fan_Xlarge_16_p4_hybrid"),
-                   ("fan_base_18_p16_224"),
-                   ("fan_tiny_12_p16_224"),
-                   ("fan_small_12_p16_224_se_attn"),
-                   ("fan_small_12_p16_224"),
-                   ("fan_large_24_p16_224"),
-                   ("vit_large_patch14_dinov2_swiglu"),
-                   ("ViT-H-14-SigLIP-CLIPA-224"),
-                   ("ViT-L-14-SigLIP-CLIPA-336"),
-                   ("ViT-L-14-SigLIP-CLIPA-224"),
-                   ("c_radio_v2_vit_base_patch16"),
-                   ("c_radio_v2_vit_large_patch16")]
-
-if not os.getenv("CI_PROJECT_DIR", None):
-    TEST_TOPOLOGIES.extend([
-        ("vit_giant_patch14_reg4_dinov2_swiglu"),
-        ("c_radio_p1_vit_huge_patch16_mlpnorm"),
-        ("c_radio_p2_vit_huge_patch16_mlpnorm"),
-        ("c_radio_p3_vit_huge_patch16_mlpnorm"),
-        ("c_radio_v2_vit_huge_patch16")
-    ])
 
 
 @pytest.mark.cv_unit

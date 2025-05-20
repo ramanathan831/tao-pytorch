@@ -37,31 +37,32 @@ def _test_experiment_spec():
 
 
 @pytest.mark.cv_unit
-@pytest.mark.parametrize("backbone",
-                         [("fan_tiny_8_p4_hybrid"),
-                          ("fan_small_12_p4_hybrid"),
-                          ("fan_base_16_p4_hybrid"),
-                          ("fan_large_16_p4_hybrid"),
-                          ("fan_Xlarge_16_p4_hybrid"),
-                          ("fan_base_18_p16_224"),
-                          ("fan_tiny_12_p16_224"),
-                          ("fan_small_12_p16_224_se_attn"),
-                          ("fan_small_12_p16_224"),
-                          ("fan_large_24_p16_224"),
-                          ("vit_large_patch14_dinov2_swiglu"),
-                          ("vit_giant_patch14_reg4_dinov2_swiglu"),
-                          ("ViT-H-14-SigLIP-CLIPA-224"),
-                          ("ViT-L-14-SigLIP-CLIPA-336"),
-                          ("ViT-L-14-SigLIP-CLIPA-224"),
-                          ("c_radio_p1_vit_huge_patch16_mlpnorm"),
-                          ("c_radio_p2_vit_huge_patch16_mlpnorm"),
-                          ("c_radio_p3_vit_huge_patch16_mlpnorm"),
-                          ("c_radio_v2_vit_base_patch16"),
-                          ("c_radio_v2_vit_large_patch16"),
-                          ("c_radio_v2_vit_huge_patch16")])
+@pytest.mark.parametrize(
+    "backbone",
+    [
+        # ConvNeXtV2.
+        ("convnextv2_atto"),
+        # DINOV2.
+        ("vit_large_patch14_dinov2_swiglu"),
+        ("vit_giant_patch14_reg4_dinov2_swiglu"),
+        # FAN.
+        ("fan_small_12_p16_224"),
+        ("fan_small_12_p4_hybrid"),
+        ("fan_small_12_p16_224_se_attn"),
+        # FasterViT.
+        ("faster_vit_1_224"),
+        # GCViT.
+        ("gc_vit_xxtiny"),
+        # OpenCLIP.
+        ("ViT-L-14-SigLIP-CLIPA-336"),
+        # RADIO.
+        ("c_radio_p3_vit_huge_patch16_mlpnorm"),
+        ("c_radio_v2_vit_base_patch16"),
+    ],
+)
 # for classification_pyt, export or not is not affecting anything
 @pytest.mark.parametrize("export", [False, True])
-def test_changenet_model(_test_experiment_spec, backbone, export):
+def test_classifier_model(_test_experiment_spec, backbone, export):
     _test_experiment_spec["model"].backbone['type'] = backbone
     _test_experiment_spec["dataset"]["img_size"] = OUTPUT_SHAPE
 

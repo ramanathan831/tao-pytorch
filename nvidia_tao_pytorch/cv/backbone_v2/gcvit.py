@@ -651,6 +651,7 @@ class GCViT(BackboneBase):
         norm_layer=nn.LayerNorm,
         layer_scale=None,
         use_rel_pos_bias=True,
+        activation_checkpoint=False,
         freeze_at=None,
         freeze_norm=False,
         **kwargs,
@@ -674,13 +675,18 @@ class GCViT(BackboneBase):
             norm_layer: normalization layer.
             layer_scale: layer scaling coefficient.
             use_rel_pos_bias: set bias for relative positional embedding
+            activation_checkpoint (bool): Whether to use activation checkpointing. Default: `False`.
             freeze_at (list): List of keys corresponding to the stages or layers to freeze. If `None`, no specific
                 layers are frozen. If `"all"`, the entire model is frozen and set to eval mode. Default: `None`.
             freeze_norm (bool): If `True`, all normalization layers in the backbone will be frozen. Default: `False`.
         """
-        if "activation_checkpoint" in kwargs:
-            raise TypeError("activation_checkpoint is not supported in GCViT.")
-        super().__init__(in_chans=in_chans, num_classes=num_classes, freeze_at=freeze_at, freeze_norm=freeze_norm)
+        super().__init__(
+            in_chans=in_chans,
+            num_classes=num_classes,
+            activation_checkpoint=activation_checkpoint,
+            freeze_at=freeze_at,
+            freeze_norm=freeze_norm,
+        )
 
         self.num_features = int(dim * 2 ** (len(depths) - 1))  # TODO(@yuw): to verify!
 
@@ -723,6 +729,13 @@ class GCViT(BackboneBase):
         elif isinstance(m, nn.LayerNorm):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
+
+    @torch.jit.ignore
+    def set_grad_checkpointing(self, enable: bool = True) -> None:
+        """Set the gradient (activation) checkpointing for the model."""
+        if enable:
+            raise NotImplementedError("Activation checkpointing is not implemented for GCViT.")
+        self.activation_checkpoint = enable
 
     def get_stage_dict(self):
         """Get the stage dictionary."""

@@ -14,6 +14,16 @@
 
 """Backbone Init Module."""
 
+from nvidia_tao_pytorch.cv.backbone_v2.convnext_v2 import (
+    convnextv2_atto,
+    convnextv2_femto,
+    convnextv2_pico,
+    convnextv2_nano,
+    convnextv2_tiny,
+    convnextv2_base,
+    convnextv2_large,
+    convnextv2_huge,
+)
 from nvidia_tao_pytorch.cv.backbone_v2.dino_v2 import (
     vit_large_patch14_dinov2_swiglu,
     vit_giant_patch14_reg4_dinov2_swiglu,
@@ -31,24 +41,63 @@ from nvidia_tao_pytorch.cv.backbone_v2.radio import (
     c_radio_v2_vit_large_patch16,
     c_radio_v2_vit_huge_patch16,
 )
-from nvidia_tao_pytorch.cv.classification_pyt.model.backbones.fan import FanTiny12P16224, FanSmall12P16224SeAttn, FanSmall12P16224, FanBase18P16224, FanLarge24P16224, FanTiny8P4Hybrid, FanSmall12P4Hybrid, FanBase16P4Hybrid, FanLarge16P4Hybrid, FanXlarge16P4Hybrid
-from nvidia_tao_pytorch.cv.classification_pyt.model.backbones.faster_vit import FasterVit0224, FasterVit1224, FasterVit2224, FasterVit3224, FasterVit4224, FasterVit5224, FasterVit6224, FasterVit421k224, FasterVit421k384, FasterVit421k512, FasterVit421k768
-from nvidia_tao_pytorch.cv.classification_pyt.model.backbones.gc_vit import GcVitXxtiny, GcVitXtiny, GcVitTiny, GcVitSmall, GcVitBase, GcVitLarge, GcVitLarge384
-from nvidia_tao_pytorch.ssl.mae.model.convnextv2 import convnextv2_group
-convnextv2_model_dict = {i.__name__: i for i in convnextv2_group}
+from nvidia_tao_pytorch.cv.backbone_v2.fan import (
+    fan_tiny_12_p16_224,
+    fan_small_12_p16_224_se_attn,
+    fan_small_12_p16_224,
+    fan_base_18_p16_224,
+    fan_large_24_p16_224,
+    fan_tiny_8_p4_hybrid,
+    fan_small_12_p4_hybrid,
+    fan_base_16_p4_hybrid,
+    fan_large_16_p4_hybrid,
+    fan_xlarge_16_p4_hybrid,
+)
+from nvidia_tao_pytorch.cv.backbone_v2.fastervit import (
+    faster_vit_0_224,
+    faster_vit_1_224,
+    faster_vit_2_224,
+    faster_vit_3_224,
+    faster_vit_4_224,
+    faster_vit_5_224,
+    faster_vit_6_224,
+    faster_vit_4_21k_224,
+    faster_vit_4_21k_384,
+    faster_vit_4_21k_512,
+    faster_vit_4_21k_768,
+)
+from nvidia_tao_pytorch.cv.backbone_v2.gcvit import (
+    gc_vit_xxtiny,
+    gc_vit_xtiny,
+    gc_vit_tiny,
+    gc_vit_small,
+    gc_vit_base,
+    gc_vit_large,
+    gc_vit_large_384,
+)
 
 
+convnextv2_model_dict = {
+    'convnextv2_atto': convnextv2_atto,
+    'convnextv2_femto': convnextv2_femto,
+    'convnextv2_pico': convnextv2_pico,
+    'convnextv2_nano': convnextv2_nano,
+    'convnextv2_tiny': convnextv2_tiny,
+    'convnextv2_base': convnextv2_base,
+    'convnextv2_large': convnextv2_large,
+    'convnextv2_huge': convnextv2_huge,
+}
 fan_model_dict = {
-    'fan_tiny_12_p16_224': FanTiny12P16224,
-    'fan_small_12_p16_224_se_attn': FanSmall12P16224SeAttn,
-    'fan_small_12_p16_224': FanSmall12P16224,
-    'fan_base_18_p16_224': FanBase18P16224,
-    'fan_large_24_p16_224': FanLarge24P16224,
-    'fan_tiny_8_p4_hybrid': FanTiny8P4Hybrid,
-    'fan_small_12_p4_hybrid': FanSmall12P4Hybrid,
-    'fan_base_16_p4_hybrid': FanBase16P4Hybrid,
-    'fan_large_16_p4_hybrid': FanLarge16P4Hybrid,
-    'fan_Xlarge_16_p4_hybrid': FanXlarge16P4Hybrid
+    'fan_tiny_12_p16_224': fan_tiny_12_p16_224,
+    'fan_small_12_p16_224_se_attn': fan_small_12_p16_224_se_attn,
+    'fan_small_12_p16_224': fan_small_12_p16_224,
+    'fan_base_18_p16_224': fan_base_18_p16_224,
+    'fan_large_24_p16_224': fan_large_24_p16_224,
+    'fan_tiny_8_p4_hybrid': fan_tiny_8_p4_hybrid,
+    'fan_small_12_p4_hybrid': fan_small_12_p4_hybrid,
+    'fan_base_16_p4_hybrid': fan_base_16_p4_hybrid,
+    'fan_large_16_p4_hybrid': fan_large_16_p4_hybrid,
+    'fan_Xlarge_16_p4_hybrid': fan_xlarge_16_p4_hybrid,
 }
 
 nvdino_model_dict = {
@@ -66,27 +115,27 @@ cradio_model_dict = {
 }
 
 faster_vit_model_dict = {
-    'faster_vit_0_224': FasterVit0224,
-    'faster_vit_1_224': FasterVit1224,
-    'faster_vit_2_224': FasterVit2224,
-    'faster_vit_3_224': FasterVit3224,
-    'faster_vit_4_224': FasterVit4224,
-    'faster_vit_5_224': FasterVit5224,
-    'faster_vit_6_224': FasterVit6224,
-    'faster_vit_4_21k_224': FasterVit421k224,
-    'faster_vit_4_21k_384': FasterVit421k384,
-    'faster_vit_4_21k_512': FasterVit421k512,
-    'faster_vit_4_21k_768': FasterVit421k768,
+    'faster_vit_0_224': faster_vit_0_224,
+    'faster_vit_1_224': faster_vit_1_224,
+    'faster_vit_2_224': faster_vit_2_224,
+    'faster_vit_3_224': faster_vit_3_224,
+    'faster_vit_4_224': faster_vit_4_224,
+    'faster_vit_5_224': faster_vit_5_224,
+    'faster_vit_6_224': faster_vit_6_224,
+    'faster_vit_4_21k_224': faster_vit_4_21k_224,
+    'faster_vit_4_21k_384': faster_vit_4_21k_384,
+    'faster_vit_4_21k_512': faster_vit_4_21k_512,
+    'faster_vit_4_21k_768': faster_vit_4_21k_768,
 }
 
 gc_vit_model_dict = {
-    'gc_vit_xxtiny': GcVitXxtiny,
-    'gc_vit_xtiny': GcVitXtiny,
-    'gc_vit_tiny': GcVitTiny,
-    'gc_vit_small': GcVitSmall,
-    'gc_vit_base': GcVitBase,
-    'gc_vit_large': GcVitLarge,
-    'gc_vit_large_384': GcVitLarge384
+    'gc_vit_xxtiny': gc_vit_xxtiny,
+    'gc_vit_xtiny': gc_vit_xtiny,
+    'gc_vit_tiny': gc_vit_tiny,
+    'gc_vit_small': gc_vit_small,
+    'gc_vit_base': gc_vit_base,
+    'gc_vit_large': gc_vit_large,
+    'gc_vit_large_384': gc_vit_large_384,
 }
 
 clip_model_dict = {

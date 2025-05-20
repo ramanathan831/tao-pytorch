@@ -35,6 +35,17 @@ tmp_top_obj = tempfile.TemporaryDirectory()
 tmp_top_dir = tmp_top_obj.name
 BATCH_SIZE = 2
 OUTPUT_SHAPE = 224
+TEST_TOPOLOGIES = [
+    ("fan_tiny_8_p4_hybrid"),
+    ("vit_large_nvdinov2"),
+    ("c_radio_v2_vit_base_patch16_224"),
+    ("c_radio_v2_vit_large_patch16_224"),
+]
+if not os.getenv("CI_PROJECT_DIR", None):
+    TEST_TOPOLOGIES.extend([
+        ("c_radio_p3_vit_huge_patch16_224_mlpnorm"),
+        ("c_radio_v2_vit_huge_patch16_224"),
+    ])
 
 
 @pytest.fixture
@@ -48,13 +59,7 @@ def _test_experiment_spec():
 
 
 @pytest.mark.cv_unit
-@pytest.mark.parametrize("backbone",
-                         [("fan_tiny_8_p4_hybrid"),
-                          ("vit_large_nvdinov2"),
-                          ("c_radio_p3_vit_huge_patch16_224_mlpnorm"),
-                          ("c_radio_v2_vit_huge_patch16_224"),
-                          ("c_radio_v2_vit_large_patch16_224"),
-                          ("c_radio_v2_vit_base_patch16_224")])
+@pytest.mark.parametrize("backbone", TEST_TOPOLOGIES)
 @pytest.mark.parametrize("task", ['segment'])
 @pytest.mark.parametrize("batch_size", [-1])
 @pytest.mark.parametrize("opset_version", [16])
@@ -126,13 +131,7 @@ def test_changenet_onnx_compare_output(_test_experiment_spec, backbone, batch_si
 
 
 @pytest.mark.cv_unit
-@pytest.mark.parametrize("backbone",
-                         [("fan_tiny_8_p4_hybrid"),
-                          ("vit_large_nvdinov2"),
-                          ("c_radio_p3_vit_huge_patch16_224_mlpnorm"),
-                          ("c_radio_v2_vit_huge_patch16_224"),
-                          ("c_radio_v2_vit_large_patch16_224"),
-                          ("c_radio_v2_vit_base_patch16_224")])
+@pytest.mark.parametrize("backbone", TEST_TOPOLOGIES)
 @pytest.mark.parametrize("task", ['segment'])
 @pytest.mark.parametrize("batch_size", [-1])
 @pytest.mark.parametrize("opset_version", [16])
@@ -182,20 +181,6 @@ def test_changenet_onnx_export(_test_experiment_spec, backbone, batch_size, task
     onnx_export.check_onnx(onnx_path)
 
     assert os.path.exists(onnx_path), "ONNX file was not generated properly!"
-
-
-TEST_TOPOLOGIES = [
-    ("fan_tiny_8_p4_hybrid"),
-    ("vit_large_nvdinov2"),
-    ("c_radio_v2_vit_base_patch16_224"),
-    ("c_radio_v2_vit_large_patch16_224")
-]
-
-if not os.getenv("CI_PROJECT_DIR", None):
-    TEST_TOPOLOGIES.extend([
-        ("c_radio_p3_vit_huge_patch16_224_mlpnorm")
-        ("c_radio_v2_vit_huge_patch16_224")
-    ])
 
 
 @pytest.mark.cv_unit

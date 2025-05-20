@@ -449,7 +449,7 @@ class RADIOBase(nn.Module):
         vit_backbone.head = nn.Identity()
 
         # Enable cropped position embedding.
-        self._enable_cpe(
+        vit_backbone = self._enable_cpe(
             vit_backbone,
             max_img_size=self.cpe_max_size,
             num_cls_tokens=self.num_teacher,
@@ -458,23 +458,18 @@ class RADIOBase(nn.Module):
         self.model = vit_backbone
 
     @property
-    def num_cls_tokens(self):
-        """Number of class tokens."""
-        return int(self.model.patch_generator.num_cls_tokens)
+    def num_summary_tokens(self) -> int:
+        """Number of all extra tokens (class tokens + register tokens)"""
+        return self.model.patch_generator.num_skip
 
     @property
-    def num_summary_tokens(self):
-        """Number of summary tokens (include register tokens and class tokens)."""
-        return int(self.model.patch_generator.num_skip)
+    def patch_size(self) -> int:
+        """Patch size"""
+        return self.model.patch_generator.patch_size
 
     @property
-    def patch_size(self):
-        """Patch size."""
-        return int(self.model.patch_generator.patch_size)
-
-    @property
-    def window_size(self):
-        """Window size for windowed attetion."""
+    def window_size(self) -> int:
+        """Window size for windowed attetion"""
         return self._window_size
 
     def _enable_cpe(
@@ -536,23 +531,20 @@ class RADIOBase(nn.Module):
             return self.norm(x)
 
         model.forward_features = types.MethodType(_forward_cpe, model)
-
-    def forward_pre_logits(self, x):
-        """Forward pass through the backbone, excluding the head."""
-        return self.model.forward_features(x)
+        return model
 
     def forward(self, x: torch.Tensor):
         """Forward."""
         y = self.model.forward_features(x)
-        all_summary = y[:, : self.num_cls_tokens]
+        patch_gen = self.model.patch_generator
+        all_summary = y[:, : patch_gen.num_cls_tokens]
         if self.summary_idxs is not None:
             bb_summary = all_summary[:, self.summary_idxs]
         else:
             bb_summary = all_summary
-        summary = bb_summary.flatten(1).to(torch.float32)
-        features = y[:, self.num_summary_tokens:]
-        features = features.to(torch.float32)
-        return summary, features
+        bb_summary = bb_summary.flatten(1)
+        all_feat = y[:, patch_gen.num_skip:]
+        return bb_summary, all_feat
 
 
 class RADIOWrapper(nn.Module):
@@ -592,6 +584,10 @@ class RADIOWrapper(nn.Module):
                 "The input resolution must be a multiple of `self.min_resolution_step`. "
                 f"Input: {resolution}, Nearest: {self._get_nearest_supported_resolution(resolution[0], resolution[1])}"
             )
+
+    def forward(self, x):
+        """Forward."""
+        return self.radio(x)
 
 
 class RADIO(BackboneBase):
@@ -659,7 +655,7 @@ class RADIO(BackboneBase):
             num_classes=self.num_classes,
             backbone=self.backbone,
             summary_idxs=self.summary_idxs,
-            window_size=self.window_size,
+            window_size=self._window_size,
             num_teacher=self.num_teacher,
             cpe_max_size=self.cpe_max_size,
             register_multiple=self.register_multiple,
@@ -669,29 +665,10 @@ class RADIO(BackboneBase):
         # TODO(@hongyuc): This is actually a redundant wrapper for the RADIO models. We can remove it in the future.
         self.radio = RADIOWrapper(backbone, resolution=self.resolution)
 
-        if self.activation_checkpoint:
-            # `self.radio.radio.model` is the actual VisionTransformer model.
-            self.radio.radio.model.set_grad_checkpointing(True)
-
-    @property
-    def num_cls_tokens(self):
-        """Number of class tokens."""
-        return int(self.radio.radio.model.patch_generator.num_cls_tokens)
-
-    @property
-    def num_summary_tokens(self):
-        """Number of summary tokens (include register tokens and class tokens)."""
-        return int(self.radio.radio.model.patch_generator.num_skip)
-
-    @property
-    def patch_size(self):
-        """Patch size."""
-        return int(self.radio.radio.model.patch_generator.patch_size)
-
-    @property
-    def window_size(self):
-        """Window size for windowed attetion."""
-        return self._window_size
+    @torch.jit.ignore
+    def set_grad_checkpointing(self, enable=True):
+        """Set the gradient checkpointing for the model."""
+        self.radio.radio.model.set_grad_checkpointing(enable)
 
     def load_state_dict(self, state_dict, **kwargs):
         """Copy parameters and buffers from state_dict into this module and its descendants.
@@ -731,17 +708,32 @@ class RADIO(BackboneBase):
         # TODO(@hongyuc): Does CRADIO have a classifier?
         raise NotImplementedError("reset_classifier is not implemented.")
 
-    def forward_pre_logits(self, x):
-        """Forward pass through the backbone, excluding the head."""
-        return self.radio.radio.forward_pre_logits(x)
+    def forward_pre_logits(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Forward pass through the backbone, excluding the head.
+
+        Args:
+            x (Tensor): Input tensor.
+
+        Returns:
+            summary (Tensor): Summary tensor.
+            features (Tensor): Features tensor.
+        """
+        return self.radio(x)
 
     def forward_feature_pyramid(self, *args, **kwargs):
         """Forward pass through the backbone to extract intermediate feature maps."""
         raise NotImplementedError("forward_feature_pyramid is not implemented.")
 
-    def forward(self, x: torch.Tensor):
-        """Forward."""
-        summary, _ = self.radio.radio(x)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward.
+
+        Args:
+            x (Tensor): Input tensor.
+
+        Returns:
+            summary (Tensor): Summary tensor.
+        """
+        summary, _ = self.radio(x)
         return summary
 
 
@@ -752,6 +744,7 @@ def c_radio_p1_vit_huge_patch16_mlpnorm(**kwargs):
         backbone="vit_huge_patch16_224_mlpnorm",
         summary_idxs=[0, 1, 2],
         window_size=None,
+        num_teacher=3,
         cpe_max_size=2048,
         register_multiple=16,
         **kwargs,
@@ -765,6 +758,7 @@ def c_radio_p2_vit_huge_patch16_mlpnorm(**kwargs):
         backbone="vit_huge_patch16_224_mlpnorm",
         summary_idxs=[0, 1, 2, 3],
         window_size=None,
+        num_teacher=4,
         cpe_max_size=2048,
         register_multiple=16,
         **kwargs,
@@ -778,6 +772,7 @@ def c_radio_p3_vit_huge_patch16_mlpnorm(**kwargs):
         backbone="vit_huge_patch16_224_mlpnorm",
         summary_idxs=[0, 1, 2],
         window_size=None,
+        num_teacher=4,
         cpe_max_size=2048,
         register_multiple=16,
         **kwargs,
@@ -791,6 +786,7 @@ def c_radio_v2_vit_base_patch16(**kwargs):
         backbone="vit_base_patch16_224",
         summary_idxs=[0, 1, 2],
         window_size=None,
+        num_teacher=4,
         cpe_max_size=2048,
         register_multiple=8,
         **kwargs,
@@ -804,6 +800,7 @@ def c_radio_v2_vit_large_patch16(**kwargs):
         backbone="vit_large_patch16_224",
         summary_idxs=[0, 1, 2],
         window_size=None,
+        num_teacher=4,
         cpe_max_size=2048,
         register_multiple=8,
         **kwargs,
@@ -817,6 +814,7 @@ def c_radio_v2_vit_huge_patch16(**kwargs):
         backbone="vit_huge_patch16_224",
         summary_idxs=[0, 1, 2],
         window_size=None,
+        num_teacher=4,
         cpe_max_size=2048,
         register_multiple=8,
         **kwargs,

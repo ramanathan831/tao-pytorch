@@ -14,6 +14,9 @@
 
 """Backbone unit tests."""
 
+import gc
+import os
+
 import pytest
 import torch
 
@@ -35,53 +38,168 @@ from nvidia_tao_pytorch.cv.backbone_v2 import (
 from nvidia_tao_pytorch.cv.backbone_v2.backbone_base import BackboneBase
 
 
+TEST_BACKBONE_DIR_CI = "/home/scratch.metropolis2/tao_ci/tao_pytorch/models/backbones/"
+TEST_BACKBONE_DIR_ORD = "/lustre/fsw/portfolios/edgeai/users/hongyuc/workspace/tao_exp/pretrained_model/backbones/"
+if os.path.exists(TEST_BACKBONE_DIR_CI):
+    TEST_BACKBONE_DIR = TEST_BACKBONE_DIR_CI
+elif os.path.exists(TEST_BACKBONE_DIR_ORD):
+    TEST_BACKBONE_DIR = TEST_BACKBONE_DIR_ORD
+else:
+    TEST_BACKBONE_DIR = None
+
+
+TEST_TOPOLOGIES = [
+    # Format: (backbone_class, filename, output_shape, expected_output)
+    # ConvNeXt.
+    pytest.param((convnext.convnext_tiny, None, None, None), id="convnext_tiny"),
+    pytest.param((convnext_v2.convnextv2_atto, None, None, None), id="convnextv2_atto"),
+    # DINOV2.
+    pytest.param(
+        (
+            dino_v2.vit_large_patch14_dinov2_swiglu,
+            "vit_large_patch14_dinov2_swiglu.ckpt",
+            (1, 1024),
+            [0.4775, 0.1357, -0.4266, -0.6113, 1.6212],
+        ),
+        id="vit_large_patch14_dinov2_swiglu",
+    ),
+    # EfficientViT.
+    pytest.param((efficientvit.efficientvit_b0, None, None, None), id="efficientvit_b0"),
+    pytest.param((efficientvit.efficientvit_l0, None, None, None), id="efficientvit_l0"),
+    # FAN.
+    pytest.param((fan.fan_tiny_12_p16_224, None, None, None), id="fan_tiny_12_p16_224"),
+    pytest.param(
+        (
+            fan.fan_small_12_p4_hybrid,
+            "fan_small_hybrid_nvimagenet_noprefix.ckpt",
+            (1, 384),
+            [0.2888, 0.0854, -0.1338, 0.7055, 0.0854],
+        ),
+        id="fan_small_12_p4_hybrid",
+    ),
+    pytest.param((fan.fan_swin_tiny_patch4_window7_224, None, None, None), id="fan_swin_tiny_patch4_window7_224"),
+    # FasterViT.
+    pytest.param(
+        (
+            fastervit.faster_vit_1_224,
+            "fastervit_1_nvimagenet_noprefix.ckpt",
+            (1, 640),
+            [0.0181, 0.0112, 0.0044, -0.0293, -0.0020],
+        ),
+        id="faster_vit_1_224",
+    ),
+    # GCViT.
+    pytest.param(
+        (
+            gcvit.gc_vit_xxtiny,
+            "gcvit_xxtiny_nvimagenet_noprefix.ckpt",
+            (1, 512),
+            [-0.1061, -0.1616, -0.0865, -0.0460, -0.0773],
+        ),
+        id="gc_vit_xxtiny",
+    ),
+    # Hiera.
+    pytest.param(
+        (
+            hiera.hiera_tiny_224,
+            "timm_hiera_tiny_224.ckpt",
+            (1, 49, 768),
+            [0.6876, 0.7165, -0.2894, 0.1502, 1.2678],
+        ),
+        id="hiera_tiny_224",
+    ),
+    # OpenCLIP.
+    # TODO(@hongyuc): Large backbone weights failed to be loaded in CI.
+    pytest.param(
+        (
+            open_clip.vit_l_14_siglip_clipa_336,
+            None,
+            (1, 768),
+            None,  # [-4.3043, -4.1365, -1.7053,  9.6923, -0.4220]
+        ),
+        id="vit_l_14_siglip_clipa_336",
+    ),
+    # RADIO.
+    pytest.param(
+        (
+            radio.c_radio_v2_vit_base_patch16,
+            "c_radio_v2_b.ckpt",
+            (1, 2304),
+            [0.2599, 0.0563, -0.1938, 0.0035, -0.1208],
+        ),
+        id="c_radio_v2_vit_base_patch16",
+    ),
+    # ResNet.
+    pytest.param(
+        (
+            resnet.resnet_18,
+            "timm_resnet18_a1_in1k.ckpt",
+            (1, 512),
+            [0.0, 0.0, 0.0, 0.0, 0.0],
+        ),
+        id="resnet_18",
+    ),
+    pytest.param((resnet.resnet_18d, None, None, None), id="resnet_18d"),
+    # Swin.
+    pytest.param((swin.swin_tiny_patch4_window7_224, None, None, None), id="swin_tiny_patch4_window7_224"),
+    # ViT.
+    pytest.param(
+        (
+            vit.vit_base_patch16,
+            "timm_vit_base_patch16_224.ckpt",
+            (1, 768),
+            [0.0194, -1.0218, 0.0009, -0.4033, -0.7687],
+        ),
+        id="vit_base_patch16",
+    ),
+]
+# TODO(@hongyuc): Large backbone weights failed to be loaded in CI.
+LARGE_BACKBONES = [
+    # DINOV2.
+    pytest.param(
+        (dino_v2.vit_giant_patch14_reg4_dinov2_swiglu, None, None, None), id="vit_giant_patch14_reg4_dinov2_swiglu"
+    ),
+    # RADIO.
+    pytest.param(
+        (
+            radio.c_radio_p3_vit_huge_patch16_mlpnorm,
+            None,
+            (1, 3840),
+            None,  # [-0.1248, -0.0078,  0.0229,  0.2046,  0.8349]
+        ),
+        id="c_radio_p3_vit_huge_patch16_mlpnorm",
+    ),
+]
+if not os.getenv("CI_PROJECT_DIR", None):
+    TEST_TOPOLOGIES.extend(LARGE_BACKBONES)
+
+
 @pytest.mark.cv_unit
-@pytest.mark.parametrize(
-    "backbone_cls",
-    [
-        convnext.convnext_tiny,
-        convnext_v2.convnextv2_atto,
-        dino_v2.vit_large_patch14_dinov2_swiglu,
-        dino_v2.vit_giant_patch14_reg4_dinov2_swiglu,
-        efficientvit.efficientvit_b0,
-        efficientvit.efficientvit_l0,
-        fan.fan_tiny_12_p16_224,
-        fan.fan_tiny_8_p4_hybrid,
-        fan.fan_swin_tiny_patch4_window7_224,
-        fastervit.faster_vit_0_224,
-        gcvit.gc_vit_xxtiny,
-        hiera.hiera_tiny_224,
-        open_clip.vit_l_14_siglip_clipa_336,
-        radio.c_radio_p1_vit_huge_patch16_mlpnorm,
-        radio.c_radio_v2_vit_base_patch16,
-        resnet.resnet_18,
-        resnet.resnet_18d,
-        swin.swin_tiny_patch4_window7_224,
-        vit.vit_base_patch16,
-    ],
-)
-@pytest.mark.parametrize("activation_checkpoint", [False, True])
-@pytest.mark.parametrize("freeze_at", [[1], "all"])
-def test_basic_usage(backbone_cls, activation_checkpoint, freeze_at):
+@pytest.mark.parametrize("backbone_data", TEST_TOPOLOGIES)
+@pytest.mark.parametrize("activation_checkpoint", [False, True], ids=["ac_off", "ac_on"])
+@pytest.mark.parametrize("freeze_at", [[1], "all"], ids=["freeze_at_1", "freeze_all"])
+def test_basic_usage(backbone_data, activation_checkpoint, freeze_at):
     """Test the basic usage of the backbones."""
+    gc.collect()
+    backbone_cls, filename, output_shape, expected_output = backbone_data
+
     # Common parameters.
-    kwargs = {"in_chans": 3, "num_classes": 50, "freeze_at": freeze_at, "freeze_norm": True}
-    if activation_checkpoint:
-        kwargs["activation_checkpoint"] = activation_checkpoint
-    # OpenCLIP and CRADIO require `num_classes` to be 0.
-    if backbone_cls in (
-        open_clip.vit_l_14_siglip_clipa_336,
-        radio.c_radio_p1_vit_huge_patch16_mlpnorm,
-        radio.c_radio_v2_vit_base_patch16,
-    ):
-        kwargs["num_classes"] = 0
+    # Most of the tasks require `in_chans=3` and `num_classes=0`.
+    kwargs = {
+        "in_chans": 3,
+        "num_classes": 0,
+        "activation_checkpoint": activation_checkpoint,
+        "freeze_at": freeze_at,
+        "freeze_norm": True,
+    }
 
     # Test the instantiation.
     try:
         backbone = backbone_cls(**kwargs)
-    except TypeError:
-        # Some backbones don't support activation checkpointing.
-        pytest.skip(f"{backbone_cls.__name__} doesn't support activation checkpointing.")
+    except NotImplementedError as e:
+        if "Activation checkpointing is not implemented" in str(e):
+            pytest.skip(f"{backbone_cls.__name__} doesn't support activation checkpointing.")
+        raise e
     assert isinstance(backbone, BackboneBase), f"Expected BackboneBase, got {type(backbone)}"
 
     # Test the properties.
@@ -91,11 +209,9 @@ def test_basic_usage(backbone_cls, activation_checkpoint, freeze_at):
     assert backbone.num_classes == kwargs["num_classes"], (
         f"Expected num_classes to be {kwargs['num_classes']}, got {backbone.num_classes}"
     )
-    if activation_checkpoint:
-        assert backbone.activation_checkpoint == kwargs["activation_checkpoint"], (
-            f"Expected activation_checkpoint to be {kwargs['activation_checkpoint']}, "
-            f"got {backbone.activation_checkpoint}"
-        )
+    assert backbone.activation_checkpoint == kwargs["activation_checkpoint"], (
+        f"Expected activation_checkpoint to be {kwargs['activation_checkpoint']}, got {backbone.activation_checkpoint}"
+    )
     assert backbone.freeze_at == kwargs["freeze_at"], (
         f"Expected freeze_at to be {kwargs['freeze_at']}, got {backbone.freeze_at}"
     )
@@ -116,9 +232,34 @@ def test_basic_usage(backbone_cls, activation_checkpoint, freeze_at):
                 assert p.requires_grad is False, f"Expected {freeze_key} to be frozen, but it is not."
             assert module.training is False, f"Expected {freeze_key} to be in eval mode, but it is not."
 
+    # Test the loading if backbone weights are available.
+    if TEST_BACKBONE_DIR is not None and filename is not None:
+        backbone.load_pretrained_weights(
+            torch.load(os.path.join(TEST_BACKBONE_DIR, filename), map_location="cpu", weights_only=False)
+        )
+
     # Test the forward.
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     x = torch.ones(1, 3, 224, 224, device=device)
-    backbone.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
-    y = backbone.forward_pre_logits(x)
-    assert isinstance(y, torch.Tensor), f"Expected output to be a tensor, got {type(y)}"
+    backbone.to(device).eval()
+    with torch.inference_mode():
+        y = backbone.forward_pre_logits(x)
+        if isinstance(y, tuple):
+            y = y[0]
+
+    # Test the numerics. We use `atol=1e-2` because of the float precision issues.
+    if output_shape is not None:
+        assert y.shape == output_shape, f"Expected output shape to be {output_shape}, got {y.shape}"
+    if TEST_BACKBONE_DIR is not None and expected_output is not None:
+        if y.dim() == 2:
+            output = y[0, :5]
+        elif y.dim() == 3:  # Hiera
+            output = y[0, 0, :5]
+        else:
+            raise ValueError(f"Unexpected output shape: {y.shape}.")
+        assert torch.allclose(output, torch.tensor(expected_output, device=device), atol=1e-2), (
+            f"Expected output to be {expected_output}, got {output}"
+        )
+
+    # Teardown.
+    del backbone, x, y
