@@ -76,7 +76,6 @@ class VisionTransformer(TimmVisionTransformer, BackboneBase):
         freeze_norm = kwargs.pop("freeze_norm", False)
 
         super().__init__(*args, **kwargs)  # TimmVisionTransformer initialization.
-        self._module_initialized = True  # Avoid re-initializing `nn.Module` in `BackboneBase`.
         BackboneBase.__init__(
             self,
             in_chans=in_chans,
@@ -143,9 +142,7 @@ class VisionTransformer(TimmVisionTransformer, BackboneBase):
             torch.Tensor: Features of shape (B, L, D).
         """
         x = super().forward_features(x)
-        x = self.pool(x)
-        x = self.fc_norm(x)
-        x = self.head_drop(x)
+        x = super().forward_head(x, pre_logits=True)
         return x
 
     def forward_feature_pyramid(self, *args, **kwargs):
@@ -195,6 +192,21 @@ class VisionTransformerMAE(VisionTransformer):
 @BACKBONE_REGISTRY.register()
 def vit_base_patch16(**kwargs):
     """ViT Base model."""
+    return VisionTransformer(
+        patch_size=16,
+        embed_dim=768,
+        depth=12,
+        num_heads=12,
+        mlp_ratio=4,
+        qkv_bias=True,
+        final_norm=True,
+        **kwargs,
+    )
+
+
+@BACKBONE_REGISTRY.register()
+def vit_base_patch16_mae(**kwargs):
+    """ViT Base model."""
     return VisionTransformerMAE(
         patch_size=16,
         embed_dim=768,
@@ -211,6 +223,21 @@ def vit_base_patch16(**kwargs):
 @BACKBONE_REGISTRY.register()
 def vit_large_patch16(**kwargs):
     """ViT Large model."""
+    return VisionTransformer(
+        patch_size=16,
+        embed_dim=1024,
+        depth=24,
+        num_heads=16,
+        mlp_ratio=4,
+        qkv_bias=True,
+        final_norm=True,
+        **kwargs,
+    )
+
+
+@BACKBONE_REGISTRY.register()
+def vit_large_patch16_mae(**kwargs):
+    """ViT Large model."""
     return VisionTransformerMAE(
         patch_size=16,
         embed_dim=1024,
@@ -226,6 +253,21 @@ def vit_large_patch16(**kwargs):
 
 @BACKBONE_REGISTRY.register()
 def vit_huge_patch14(**kwargs):
+    """ViT Huge model."""
+    return VisionTransformer(
+        patch_size=14,
+        embed_dim=1280,
+        depth=32,
+        num_heads=16,
+        mlp_ratio=4,
+        qkv_bias=True,
+        final_norm=True,
+        **kwargs,
+    )
+
+
+@BACKBONE_REGISTRY.register()
+def vit_huge_patch14_mae(**kwargs):
     """ViT Huge model."""
     return VisionTransformerMAE(
         patch_size=14,

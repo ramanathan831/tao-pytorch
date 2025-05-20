@@ -15,14 +15,18 @@
 """Abstract base class for backbone models."""
 
 import abc
-from typing import Dict, List, Optional, Set, Union
+import os
+from typing import Any, Dict, List, Mapping, Optional, Set, Union
 
 import torch
 import torch.nn as nn
 from timm.layers import trunc_normal_
+from torch.serialization import FILE_LIKE
 
+from nvidia_tao_pytorch.core.cookbooks.tlt_pytorch_cookbook import TLTPyTorchCookbook
 from nvidia_tao_pytorch.core.distributed.comm import get_global_rank
 from nvidia_tao_pytorch.core.tlt_logging import logging
+from nvidia_tao_pytorch.core.utilities import patch_decrypt_checkpoint
 from nvidia_tao_pytorch.cv.backbone_v2.nn.norm import FrozenBatchNorm2d
 
 
@@ -42,29 +46,48 @@ class BackboneBase(nn.Module, metaclass=BackboneMeta):
     This class defines the common interface and functionality for all backbone models.
     All backbone models should inherit from this class and implement the required methods:
 
+    - `set_grad_checkpointing` (optional if the model inherits from Timm library)
     - `get_stage_dict`
     - `get_classifier` (optional if the model inherits from Timm library)
     - `reset_classifier` (optional if the model inherits from Timm library)
     - `forward_pre_logits`
-    - `forward_feature_pyramid`
-
-    Note that `_module_initialized` is an internal flag indicating whether the module has been initialized. This is
-    used to avoid re-initialization of `nn.Module`.
+    - `forward_feature_pyramid` (can raise `NotImplementedError` if not needed)
+    - `forward`
 
     Examples:
 
         ```python
-        # When using `TimmModel` as a base class, `nn.Module` should only be initialized once.
+        # When using `TimmModel` as a base class.
         class MyBackbone(TimmModel, BackboneBase):
-            def __init__(self, *args, **kwargs):
+            def __init__(self, ...):
                 ...
-                super().__init__(*args, **kwargs)  # `TimmModel` initialization. `nn.Module` is initialized here.
-                self._module_initialized = True
-                BackboneBase.__init__(self, ...)  # Skip the `nn.Module.__init__()` when initializing `BackboneBase`.
+                super().__init__(...)  # `TimmModel` initialization.
+                BackboneBase.__init__(
+                    self,
+                    in_chans=in_chans,
+                    num_classes=num_classes,
+                    activation_checkpoint=activation_checkpoint,
+                    freeze_at=freeze_at,
+                    freeze_norm=freeze_norm,
+                )
+        ```
+
+        ```python
+        # Not using `TimmModel` as a base class.
+        class MyBackbone(BackboneBase):
+            def __init__(self, ...):
+                super().__init__(
+                    in_chans=in_chans,
+                    num_classes=num_classes,
+                    activation_checkpoint=activation_checkpoint,
+                    freeze_at=freeze_at,
+                    freeze_norm=freeze_norm,
+                )
+                # Define your model architecture here.
+                ...
+
         ```
     """
-
-    _module_initialized: bool = False
 
     def __init__(
         self,
@@ -84,7 +107,7 @@ class BackboneBase(nn.Module, metaclass=BackboneMeta):
                 layers are frozen. If `"all"`, the entire model is frozen and set to eval mode. Default: `None`.
             freeze_norm (bool): If `True`, all normalization layers in the backbone will be frozen. Default: `False`.
         """
-        if not self._module_initialized:
+        if not self._module_is_initialized:
             nn.Module.__init__(self)
 
         freeze_at = freeze_at or []
@@ -103,9 +126,12 @@ class BackboneBase(nn.Module, metaclass=BackboneMeta):
         self.freeze_norm = bool(freeze_norm)
         self.freeze_at = freeze_at
 
-        if hasattr(self, "set_grad_checkpointing"):  # For Timm models.
-            if self.activation_checkpoint:
-                self.set_grad_checkpointing(True)
+    @property
+    def _module_is_initialized(self):
+        """Whether the nn.Module is initialized."""
+        if hasattr(self, "_parameters") or hasattr(self, "_buffers") or hasattr(self, "_modules"):
+            return True
+        return False
 
     def _post_init(self):
         """Post-initialization method.
@@ -113,6 +139,7 @@ class BackboneBase(nn.Module, metaclass=BackboneMeta):
         This method is called after the module is initialized.
         """
         self.freeze_backbone()
+        self.set_grad_checkpointing(self.activation_checkpoint)
 
     def _init_weights(self, m):
         """initialize weights."""
@@ -120,6 +147,94 @@ class BackboneBase(nn.Module, metaclass=BackboneMeta):
             trunc_normal_(m.weight, std=0.02)
             if m.bias is not None:
                 nn.init.zeros_(m.bias)
+
+    @torch.jit.ignore
+    def set_grad_checkpointing(self, enable: bool = True) -> None:
+        """Set the gradient (activation) checkpointing for the model.
+
+        In short, this technique allows you to trade compute for memory. It saves memory by not storing intermediate
+        activations. Please refer to https://pytorch.org/blog/activation-checkpointing-techniques/ for more details.
+
+        Note that some Timm models (such as Hiera, ResNet and ViT) have already implemented this method. You can safely
+        call this method on those models.
+
+        Args:
+            enable (bool): If `True`, enable gradient (activation) checkpointing. Default: `True`.
+        """
+        self.activation_checkpoint = enable
+
+    def load_pretrained_weights(
+        self,
+        path_or_checkpoint: Union[FILE_LIKE, Mapping[str, Any]],
+        map_location="cpu",
+        weights_only=False,
+        parser=None,
+        strict=True,
+        **kwargs,
+    ):
+        """Load the pretrained weights.
+
+        Args:
+            path_or_checkpoint (str or dict): Path to the pretrained weights file or a checkpoint containing the
+                weights.
+            map_location (str): A function, `torch.device`, string or a dict specifying how to remap storage locations.
+                Default: `"cpu"`.
+            weights_only (bool): Indicates whether unpickler should be restricted to loading only tensors, primitive
+                types, dictionaries and any types added via `torch.serialization.add_safe_globals`. Default: `False`.
+            parser (function): function to parse the state dict for a custom model.
+            strict (bool): Whether to strictly enforce that the keys in state_dict match the keys returned by this
+                module's `torch.nn.Module.state_dict` function. Default: `True`.
+            kwargs: Additional arguments passed to the `torch.load` function.
+        """
+        # Get the checkpoint from the path.
+        path = None
+        if not isinstance(path_or_checkpoint, dict) and (
+            isinstance(path_or_checkpoint, (str, os.PathLike)) or hasattr(path_or_checkpoint, "read")
+        ):
+            path = path_or_checkpoint
+            checkpoint = torch.load(path, map_location=map_location, weights_only=weights_only, **kwargs)
+        else:
+            checkpoint = path_or_checkpoint
+
+        # Decrypt the checkpoint if needed.
+        if "state_dict_encrypted" in checkpoint:
+            key = TLTPyTorchCookbook.get_passphrase()
+            if key is None:
+                raise PermissionError("Cannot access model state dict without the encryption key.")
+            checkpoint = patch_decrypt_checkpoint(checkpoint, key)
+
+        if "pytorch-lightning_version" not in checkpoint and parser is not None:
+            checkpoint["state_dict"] = parser(checkpoint)
+
+        # Extract the state dict from the checkpoint.
+        if "state_dict" in checkpoint:
+            state_dict = {}
+            for key, value in list(checkpoint["state_dict"].items()):
+                if "module" in key:
+                    new_key = ".".join(key.split(".")[1:])
+                    state_dict[new_key] = value
+                elif key.startswith("backbone."):
+                    # MMLab compatible weight loading
+                    new_key = key[len("backbone."):]
+                    state_dict[new_key] = value
+                elif key.startswith("model."):
+                    # MAE compatible weight loading
+                    new_key = key[len("model."):]
+                    state_dict[new_key] = value
+                elif key.startswith("ema_"):
+                    # Do not include ema params from MMLab
+                    continue
+                else:
+                    state_dict[key] = value
+        else:
+            state_dict = checkpoint
+
+        # Load the state dict into the module.
+        incompatible_keys = self.load_state_dict(state_dict, strict=strict)
+        if get_global_rank() == 0:
+            if path is not None:
+                logging.info(f"Loaded pretrained weights from {path}")
+            logging.info(f"{incompatible_keys}")
 
     @abc.abstractmethod
     def get_stage_dict(self) -> Dict[Union[int, str], nn.Module]:
@@ -154,6 +269,9 @@ class BackboneBase(nn.Module, metaclass=BackboneMeta):
     def get_classifier(self) -> nn.Module:
         """Get the classifier module.
 
+        Note that some Timm models (such as Hiera, ResNet and ViT) have already implemented this method. You can safely
+        call this method on those models.
+
         Returns:
             nn.Module: The classifier module
         """
@@ -162,6 +280,9 @@ class BackboneBase(nn.Module, metaclass=BackboneMeta):
     @abc.abstractmethod
     def reset_classifier(self, num_classes: int = 0, **kwargs):
         """Reset the classifier head.
+
+        Note that some Timm models (such as Hiera, ResNet and ViT) have already implemented this method. You can safely
+        call this method on those models.
 
         Args:
             num_classes (int): Number of classes for the new classifier. Default: `0`.
@@ -240,5 +361,17 @@ class BackboneBase(nn.Module, metaclass=BackboneMeta):
 
         Returns:
             List[torch.Tensor]: List of intermediate feature maps.
+        """
+        pass
+
+    @abc.abstractmethod
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward pass through the backbone.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape (B, C, H, W)
+
+        Returns:
+            torch.Tensor: Output tensor.
         """
         pass

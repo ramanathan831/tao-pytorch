@@ -18,8 +18,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms.functional as TF
 
-from nvidia_tao_pytorch.core.distributed.comm import get_global_rank
-from nvidia_tao_pytorch.core.tlt_logging import logging
 from nvidia_tao_pytorch.cv.rtdetr.model.backbone.radio import radio_model_dict
 
 
@@ -45,10 +43,7 @@ class RTDETR(nn.Module):
                 for p in self.frozen_radio.parameters():
                     p.requires_grad = False
                 # Load the pretrained weights.
-                load_msg = self.frozen_radio.load_state_dict(torch.load(frozen_fm_cfg.checkpoint, map_location="cpu"))
-                if get_global_rank() == 0:
-                    logging.info(f"Loaded pretrained weights from {frozen_fm_cfg.checkpoint}")
-                    logging.info(f"{load_msg}")
+                self.frozen_radio.load_pretrained_weights(frozen_fm_cfg.checkpoint)
 
                 self.frozen_radio.float()
                 self.frozen_radio.cuda()
@@ -67,7 +62,7 @@ class RTDETR(nn.Module):
             h_down, w_down = h // 2, w // 2
             x_down = F.interpolate(x_norm, size=[h_down, w_down])
             with torch.no_grad():
-                summary, spatial_features = self.frozen_radio(x_down)
+                summary, spatial_features = self.frozen_radio.forward_pre_logits(x_down)
             spatial_features = spatial_features.view(b, int(h_down // 16), int(w_down // 16), -1).permute(0, 3, 1, 2)
             spatial_features = self.maxpool(spatial_features)
 

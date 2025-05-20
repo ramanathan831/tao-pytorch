@@ -92,11 +92,19 @@ class DINOV2(VisionTransformer):
             x = torch.cat((x, self.register_tokens.expand(B, -1, -1)), dim=1)
         return self.pos_drop(x)
 
+    def forward_pre_logits(self, x):
+        """Forward pass through the backbone, excluding the head."""
+        x = super().forward_features(x)
+        x = self.pool(x)
+        x = self.fc_norm(x)
+        x = self.head_drop(x)
+        return x.flatten(1)
+
     def forward(self, x):
-        """Forward function and return the flatten output (cls_token)."""
+        """Forward."""
         x = self.forward_pre_logits(x)
         x = self.head(x)
-        return x.flatten(1)
+        return x
 
 
 @BACKBONE_REGISTRY.register()

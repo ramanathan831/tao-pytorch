@@ -25,25 +25,9 @@ from nvidia_tao_pytorch.cv.backbone_v2.radio import RADIO
 torch.serialization.add_safe_globals([Namespace])
 
 
-class RADIOFPN(RADIO):
-    """RADIOFPN."""
-
-    def forward(self, x) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Forward.
-
-        Args:
-            x (Tensor): Input tensor.
-
-        Returns:
-            summary (Tensor): Summary tensor.
-            features (Tensor): Features tensor.
-        """
-        return self.radio.radio(x)
-
-
 def c_radio_v2_vit_base_patch16(**kwargs):
     """CRADIOV2 ViT Base Patch16 MLPNorm."""
-    return RADIOFPN(
+    return RADIO(
         backbone="vit_base_patch16_224",
         summary_idxs=[0, 1, 2],
         window_size=None,
@@ -55,7 +39,7 @@ def c_radio_v2_vit_base_patch16(**kwargs):
 
 def c_radio_v2_vit_large_patch16(**kwargs):
     """CRADIOV2 ViT Large Patch16 MLPNorm."""
-    return RADIOFPN(
+    return RADIO(
         backbone="vit_large_patch16_224",
         summary_idxs=[0, 1, 2],
         window_size=None,
@@ -67,7 +51,7 @@ def c_radio_v2_vit_large_patch16(**kwargs):
 
 def c_radio_v2_vit_huge_patch16(**kwargs):
     """CRADIOV2 ViT Huge Patch16 MLPNorm."""
-    return RADIOFPN(
+    return RADIO(
         backbone="vit_huge_patch16_224",
         summary_idxs=[0, 1, 2],
         window_size=None,
@@ -77,7 +61,7 @@ def c_radio_v2_vit_huge_patch16(**kwargs):
     )
 
 
-radio_model_dict: Dict[str, Tuple[Type[RADIOFPN], Tuple[int, int]]] = {
+radio_model_dict: Dict[str, Tuple[Type[RADIO], Tuple[int, int]]] = {
     # encoder_channel, decoder_channel
     # "e-radio_v2": (1536, 1536),
     # "radio_v2.5-b": (768, 2304),

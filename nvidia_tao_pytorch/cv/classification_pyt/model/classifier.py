@@ -14,11 +14,11 @@
 
 """Classification model builder"""
 
-import logging
-
 import torch.nn as nn
 
 from nvidia_tao_pytorch.core.distributed.comm import get_global_rank
+from nvidia_tao_pytorch.core.tlt_logging import logging
+from nvidia_tao_pytorch.cv.backbone_v2.radio import RADIO
 from nvidia_tao_pytorch.cv.classification_pyt.model.backbones import (
     clip_model_dict,
     convnextv2_model_dict,
@@ -29,10 +29,8 @@ from nvidia_tao_pytorch.cv.classification_pyt.model.backbones import (
     nvdino_model_dict,
 )
 from nvidia_tao_pytorch.cv.classification_pyt.model.decode_heads.tao_linear_head import TAOLinearClsHead
-from nvidia_tao_pytorch.cv.deformable_detr.utils.misc import load_pretrained_weights
 
 
-logger = logging.getLogger(__name__)
 channels_map = {
     "convnextv2_atto": 320,
     "convnextv2_femto": 384,
@@ -111,7 +109,12 @@ class Classifier(nn.Module):
         """Initialize Classifier class"""
         super(Classifier, self).__init__()
 
-        # Transformer Encoder
+        # Freeze the backbone without the pretrained weights is not allowed.
+        if freeze_backbone and pretrained_backbone_path is None:
+            raise AssertionError(
+                "You shouldn't freeze a model without specifying pretrained_backbone_path."
+            )
+
         self.drop_rate = 0.1
         self.attn_drop = 0.1
         self.drop_path_rate = 0.1
@@ -121,86 +124,51 @@ class Classifier(nn.Module):
         self.num_classes = num_classes
         self.resolution = (img_size, img_size)
 
-        logger.info(f"Number of output classes: {num_classes}")
-        # assert img_size % feature_strides[-1] == 0, f"Input image size must be a multiple of {feature_strides[-1]}"
-        if pretrained_backbone_path is None:
-            init_cfg = None
-        else:
-            init_cfg = {
-                "checkpoint": pretrained_backbone_path
-            }
-        # for fan backbone we load pretrained weights here, while for vit we load in the backbone
+        if get_global_rank() == 0:
+            logging.info(f"Number of output classes: {num_classes}")
+
+        # Initialize the backbone model.
         if 'fan' in self.model_name:
-            self.backbone = fan_model_dict[self.model_name]()
-            pretrained_backbone_ckp = load_pretrained_weights(pretrained_backbone_path) if pretrained_backbone_path else None
-            if pretrained_backbone_ckp is not None:
-                _tmp_st_output = self.backbone.load_state_dict(pretrained_backbone_ckp, strict=False)
-
-                if get_global_rank() == 0:
-                    logger.info(f"Loaded pretrained weights from {pretrained_backbone_path}")
-                    logger.info(f"{_tmp_st_output}")
-
+            freeze_at = "all" if freeze_backbone else None
+            self.backbone = fan_model_dict[self.model_name](num_classes=0, freeze_at=freeze_at)
+            if pretrained_backbone_path is not None:
+                self.backbone.load_pretrained_weights(pretrained_backbone_path, strict=False)
         elif 'gc' in self.model_name:
-            self.backbone = gc_vit_model_dict[self.model_name](init_cfg=init_cfg)
-
+            freeze_at = "all" if freeze_backbone else None
+            self.backbone = gc_vit_model_dict[self.model_name](num_classes=0, freeze_at=freeze_at)
+            if pretrained_backbone_path is not None:
+                self.backbone.load_pretrained_weights(pretrained_backbone_path, strict=False)
         elif 'faster' in self.model_name:
-            self.backbone = faster_vit_model_dict[self.model_name](init_cfg=init_cfg)
-
+            freeze_at = "all" if freeze_backbone else None
+            self.backbone = faster_vit_model_dict[self.model_name](num_classes=0, freeze_at=freeze_at)
+            if pretrained_backbone_path is not None:
+                self.backbone.load_pretrained_weights(pretrained_backbone_path, strict=False)
         elif 'radio' in self.model_name:
             freeze_at = "all" if freeze_backbone else None
             self.backbone = cradio_model_dict[self.model_name](
                 num_classes=0, resolution=self.resolution, freeze_at=freeze_at
             )
-            pretrained_backbone_ckp = load_pretrained_weights(pretrained_backbone_path) if pretrained_backbone_path else None
-            if pretrained_backbone_ckp is not None:
-                _tmp_st_output = self.backbone.load_state_dict(pretrained_backbone_ckp)
-                if get_global_rank() == 0:
-                    logger.info(f"Loaded pretrained weights from {pretrained_backbone_path}")
-                    logger.info(f"{_tmp_st_output}")
-
+            if pretrained_backbone_path is not None:
+                self.backbone.load_pretrained_weights(pretrained_backbone_path, strict=False)
         elif 'CLIP' in self.model_name:
             freeze_at = "all" if freeze_backbone else None
             self.backbone = clip_model_dict[self.model_name](num_classes=0, freeze_at=freeze_at)
-            pretrained_backbone_ckp = load_pretrained_weights(pretrained_backbone_path) if pretrained_backbone_path else None
-            if pretrained_backbone_ckp is not None:
-                _tmp_st_output = self.backbone.load_state_dict(pretrained_backbone_ckp, strict=False)
-                if get_global_rank() == 0:
-                    logger.info(f"Loaded pretrained weights from {pretrained_backbone_path}")
-                    logger.info(f"{_tmp_st_output}")
-
+            if pretrained_backbone_path is not None:
+                self.backbone.load_pretrained_weights(pretrained_backbone_path, strict=False)
         elif 'convnextv2' in self.model_name:
-            self.backbone = convnextv2_model_dict[self.model_name](backbone=True)
-            pretrained_backbone_ckp = load_pretrained_weights(pretrained_backbone_path) if pretrained_backbone_path else None
-            if pretrained_backbone_ckp is not None:
-                _tmp_st_output = self.backbone.load_state_dict(pretrained_backbone_ckp, strict=False)
-
-                if get_global_rank() == 0:
-                    logger.info(f"Loaded pretrained weights from {pretrained_backbone_path}")
-                    logger.info(f"{_tmp_st_output}")
-
-        # nvdinov2
-        elif 'vit' in self.model_name:
+            freeze_at = "all" if freeze_backbone else None
+            self.backbone = convnextv2_model_dict[self.model_name](num_classes=0, freeze_at=freeze_at)
+            if pretrained_backbone_path is not None:
+                self.backbone.load_pretrained_weights(pretrained_backbone_path, strict=False)
+        elif 'vit' in self.model_name:  # NVDINOV2
             freeze_at = "all" if freeze_backbone else None
             self.backbone = nvdino_model_dict[self.model_name](num_classes=0, freeze_at=freeze_at)
-            pretrained_backbone_ckp = load_pretrained_weights(pretrained_backbone_path) if pretrained_backbone_path else None
-            if pretrained_backbone_ckp is not None:
-                _tmp_st_output = self.backbone.load_state_dict(pretrained_backbone_ckp, strict=False)
-                if get_global_rank() == 0:
-                    logger.info(f"Loaded pretrained weights from {pretrained_backbone_path}")
-                    logger.info(f"{_tmp_st_output}")
-
+            if pretrained_backbone_path is not None:
+                self.backbone.load_pretrained_weights(pretrained_backbone_path, strict=False)
         else:
             raise NotImplementedError('Bacbkbone name [%s] is not supported' % self.model_name)
 
-        # Freeze backbone
-        if freeze_backbone:
-            assert pretrained_backbone_path is not None, "You shouldn't freeze a model without specifying pretrained_backbone_path"
-            for _, parameter in self.backbone.named_parameters():
-                parameter.requires_grad_(False)
-            # self.backbone.eval()  # TODO: Check if needed??
-            logger.info("Frozen backbone training")
-
-        # Transformer Decoder
+        # Initialize the classification head.
         self.decoder = TAOLinearClsHead(
             binary=self.binary, num_classes=self.num_classes, in_channels=self.in_channels
         )
@@ -210,15 +178,15 @@ class Classifier(nn.Module):
         Forward pass of the Classifier model.
 
         Args:
-            x1 (torch.Tensor): Input tensor for the first image input.
-            x2 (torch.Tensor): Input tensor for the second image input.
+            x (torch.Tensor): Input tensor for the image input.
 
         Returns:
             torch.Tensor: Output tensor representing the class prediction.
         """
-        f = self.backbone(x)
-        out_decoder = self.decoder(f)
-        return out_decoder
+        features = self.backbone.forward_pre_logits(x)
+        if isinstance(self.backbone, RADIO):
+            features = features[0]
+        return self.decoder(features)
 
 
 def build_model(experiment_config,

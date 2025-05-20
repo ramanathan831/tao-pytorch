@@ -178,6 +178,11 @@ class ConvNeXtV2(BackboneBase):
 
         self.apply(self._init_weights)
 
+    @torch.jit.ignore
+    def set_grad_checkpointing(self, enable=True):
+        """Set the gradient checkpointing for the model."""
+        self.activation_checkpoint = enable
+
     def get_stage_dict(self):
         """Get the stage dictionary."""
         stage_dict = {0: self.downsample_layers[0]}

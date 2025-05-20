@@ -96,7 +96,6 @@ class ResNet(TimmResNet, BackboneBase):
         freeze_norm = kwargs.pop("freeze_norm", False)
 
         super().__init__(*args, **kwargs)  # TimmResNet initialization.
-        self._module_initialized = True  # # Avoid re-initializing `nn.Module` in `BackboneBase`.
         BackboneBase.__init__(
             self,
             in_chans=in_chans,

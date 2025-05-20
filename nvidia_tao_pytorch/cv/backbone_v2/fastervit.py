@@ -783,6 +783,7 @@ class FasterViT(BackboneBase):
         layer_norm_last=False,
         hat=(False, False, True, False),
         do_propagation=False,
+        activation_checkpoint=False,
         freeze_at=None,
         freeze_norm=False,
         **kwargs,
@@ -810,13 +811,18 @@ class FasterViT(BackboneBase):
             layer_norm_last: last stage layer norm flag.
             hat: hierarchical attention flag.
             do_propagation: enable carrier token propagation.
+            activation_checkpoint (bool): Whether to use activation checkpointing. Default: `False`.
             freeze_at (list): List of keys corresponding to the stages or layers to freeze. If `None`, no specific
                 layers are frozen. If `"all"`, the entire model is frozen and set to eval mode. Default: `None`.
             freeze_norm (bool): If `True`, all normalization layers in the backbone will be frozen. Default: `False`.
         """
-        if "activation_checkpoint" in kwargs:
-            raise TypeError("activation_checkpoint is not supported in FasterViT.")
-        super().__init__(in_chans=in_chans, num_classes=num_classes, freeze_at=freeze_at, freeze_norm=freeze_norm)
+        super().__init__(
+            in_chans=in_chans,
+            num_classes=num_classes,
+            activation_checkpoint=activation_checkpoint,
+            freeze_at=freeze_at,
+            freeze_norm=freeze_norm,
+        )
 
         self.num_features = int(dim * 2 ** (len(depths) - 1))
 
@@ -869,6 +875,13 @@ class FasterViT(BackboneBase):
         elif isinstance(m, nn.BatchNorm2d):
             nn.init.ones_(m.weight)
             nn.init.zeros_(m.bias)
+
+    @torch.jit.ignore
+    def set_grad_checkpointing(self, enable: bool = True) -> None:
+        """Set the gradient (activation) checkpointing for the model."""
+        if enable:
+            raise NotImplementedError("Activation checkpointing is not implemented for FasterViT.")
+        self.activation_checkpoint = enable
 
     def get_stage_dict(self):
         """Get the stage dictionary."""
