@@ -216,7 +216,9 @@ def run_export(experiment_config):
     # Step 5: Run inference and save the results
     ort_outs = ort_session.run(None, ort_inputs)
     # Make an output directory if necessary and save the results for different task
-    onnxruntime_root = os.path.join(experiment_config.export.onnxruntime.sample_result_dir)
+    onnxruntime_root = experiment_config.results_dir
+    if not onnxruntime_root:
+        onnxruntime_root = os.path.join(experiment_config.export.onnxruntime.sample_result_dir)
     if experiment_config.task == 'bigdatasetgan':
         os.makedirs(os.path.join(onnxruntime_root, 'masks'), exist_ok=True)
         os.makedirs(os.path.join(onnxruntime_root, 'images'), exist_ok=True)
