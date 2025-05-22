@@ -143,7 +143,7 @@ def get_w_from_seed(G, batch_sz, device, truncation_psi=1.0, seed=None, centroid
     w = G.mapping(z, labels)
 
     # multimodal truncation
-    if centroids_path is not None:
+    if centroids_path:
 
         with dnnlib.util.open_url(centroids_path, verbose=False) as f:
             w_centroids = np.load(f)
