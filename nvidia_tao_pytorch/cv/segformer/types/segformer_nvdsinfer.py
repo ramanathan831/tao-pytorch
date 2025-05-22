@@ -40,8 +40,8 @@ class SFNvDSInferConfig(BaseDSType):
 
     property_field: SFNvDSPropertyConfig = field(default_factory=lambda: SFNvDSPropertyConfig(
         cluster_mode=None,
-        net_scale_factor=0.0173520735728,
-        offsets=[123.675, 116.28, 103.53],
+        net_scale_factor=0.00784313725,
+        offsets=[127.5, 127.5, 127.5],
         network_type=2,
         network_mode=2,
         output_tensor_meta=None,

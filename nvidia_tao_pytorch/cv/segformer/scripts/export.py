@@ -130,6 +130,9 @@ def run_export(experiment_config):
             experiment_config=experiment_config,
             output_root=output_root
         )
+        offsets = [
+            value * 255.0 for value in experiment_config.dataset.segment.augmentation.mean
+        ]
         config_str = get_nvdsinfer_yaml(
             SFNvDSInferConfig,
             ds_labels_file,
@@ -137,6 +140,7 @@ def run_export(experiment_config):
             output_file=output_file,
             input_shape=input_shape,
             output_names=output_names,
+            offsets=offsets
         )
         nvdsinfer_yaml_file = os.path.join(
             output_root, "nvdsinfer_config.yaml"
