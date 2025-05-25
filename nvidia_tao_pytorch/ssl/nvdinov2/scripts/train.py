@@ -42,7 +42,7 @@ def run_experiment(experiment_config, key):
 
     model = DinoV2PlModel(experiment_config)
 
-    if pretrained_path is not None:
+    if pretrained_path:
         model.pretrained_weights = pretrained_path
         model.restore_pretrained_weights()
 
