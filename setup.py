@@ -188,6 +188,17 @@ setuptools.setup(
             include_dirs=['.'],  # Set to the folder containing bias_act.h
             define_macros=[("WITH_CUDA", None)],
             extra_flags={'nvcc': ['--use_fast_math']}
+        ),
+        utils.make_cuda_ext(
+            name='deformable_aggregation_ext',
+            module='nvidia_tao_pytorch.cv.sparse4d.model.ops',
+            sources=[
+                'src/deformable_aggregation.cpp',
+                'src/deformable_aggregation_cuda.cu',
+            ],
+            include_dirs=['src'],
+            define_macros=[("WITH_CUDA", None)],
+            extra_flags = utils.get_extra_compile_args()
         )
     ],
 )

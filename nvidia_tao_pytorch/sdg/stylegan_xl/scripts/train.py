@@ -63,7 +63,7 @@ def run_experiment(experiment_config, key):
         # build dataloader
         dm = SXDataModule(experiment_config.dataset)
         # build model and load from the given checkpoint if provided
-        if pretrained_path is not None:
+        if pretrained_path:
             model = StyleganPlModel.load_from_checkpoint(pretrained_path,
                                                          map_location="cpu",
                                                          experiment_spec=experiment_config,
@@ -77,7 +77,7 @@ def run_experiment(experiment_config, key):
         # build dataloader
         dm = BGDataModule(experiment_config.dataset)
         # build model and load from the given checkpoint if provided
-        if pretrained_path is not None:
+        if pretrained_path:
             model = BigdatasetganPlModel.load_from_checkpoint(pretrained_path,
                                                               map_location="cpu",
                                                               experiment_spec=experiment_config,
