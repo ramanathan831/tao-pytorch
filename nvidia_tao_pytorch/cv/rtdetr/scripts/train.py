@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Train deformable detr model."""
+"""Train RT-DETR model."""
 import os
 
 from pytorch_lightning import Trainer
@@ -23,10 +23,10 @@ from nvidia_tao_pytorch.core.tlt_logging import logging
 from nvidia_tao_pytorch.core.initialize_experiments import initialize_train_experiment
 
 from nvidia_tao_core.config.rtdetr.default_config import ExperimentConfig
-from nvidia_tao_pytorch.cv.deformable_detr.utils.misc import load_pretrained_weights
 
 from nvidia_tao_pytorch.cv.rtdetr.dataloader.pl_od_data_module import ODDataModule
 from nvidia_tao_pytorch.cv.rtdetr.model.pl_rtdetr_model import RTDETRPlModel
+from nvidia_tao_pytorch.cv.rtdetr.utils.misc import load_pretrained_weights
 
 
 def run_experiment(experiment_config, lightning_module=RTDETRPlModel):

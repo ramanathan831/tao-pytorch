@@ -48,8 +48,7 @@ from nvidia_tao_pytorch.core.distillation.losses import WeightedCriterion, LPCri
 from nvidia_tao_pytorch.cv.rtdetr.model.backbone.resnet import resnet_model_dict
 from nvidia_tao_pytorch.cv.rtdetr.model.backbone.convnext import convnext_model_dict
 # from nvidia_tao_pytorch.cv.rtdetr.model.backbone.efficientvit import efficientvit_model_dict
-from nvidia_tao_pytorch.cv.rtdetr.utils.misc import bbox_overlaps
-from nvidia_tao_pytorch.cv.deformable_detr.utils.misc import load_pretrained_weights
+from nvidia_tao_pytorch.cv.rtdetr.utils.misc import bbox_overlaps, load_pretrained_weights
 
 
 class RtdetrDistiller(Distiller):

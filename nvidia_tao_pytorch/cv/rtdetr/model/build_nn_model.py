@@ -16,8 +16,6 @@
 
 import torch.nn as nn
 
-from nvidia_tao_pytorch.cv.deformable_detr.utils.misc import load_pretrained_weights
-
 from nvidia_tao_pytorch.cv.rtdetr.model.backbone.resnet import resnet_model_dict
 from nvidia_tao_pytorch.cv.rtdetr.model.backbone.convnext import convnext_model_dict
 from nvidia_tao_pytorch.cv.rtdetr.model.backbone.convnext_v2 import convnextv2_model_dict
@@ -27,6 +25,7 @@ from nvidia_tao_pytorch.cv.rtdetr.model.backbone.efficientvit import efficientvi
 from nvidia_tao_pytorch.cv.rtdetr.model.hybrid_encoder import HybridEncoder
 from nvidia_tao_pytorch.cv.rtdetr.model.rtdetr_decoder import RTDETRTransformer
 from nvidia_tao_pytorch.cv.rtdetr.model.rtdetr import RTDETR
+from nvidia_tao_pytorch.cv.rtdetr.utils.misc import load_pretrained_weights
 
 
 class RTDETRModel(nn.Module):

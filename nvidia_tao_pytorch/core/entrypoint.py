@@ -220,10 +220,11 @@ def launch(args, unknown_args, subtasks, network=None):
                 train_config["num_gpus"] = num_gpus
             if "gpu_ids" in train_config:
                 train_config["gpu_ids"] = gpu_ids
-            exp_config["train"] = train_config
 
-            with open(args["experiment_spec_file"], "w") as spec:
-                yaml.dump(exp_config, spec, default_flow_style=False)
+            if train_config:
+                exp_config["train"] = train_config
+                with open(args["experiment_spec_file"], "w") as spec:
+                    yaml.dump(exp_config, spec, default_flow_style=False)
 
             multinode = [
                 f"--nnodes={num_nodes}",

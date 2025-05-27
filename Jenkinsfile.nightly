@@ -46,7 +46,7 @@ spec:
       - name: DOCKER_TLS_CERTDIR
         value: ""
   - name: base-image
-    image: nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:d84eb84604766fa7fc37017a19c3c2ec8c7dd00010f6b111bb7b3fe6b14cd6ea
+    image: nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:ea0cc4b28aa348749f0c26be4cbed71d6bfdcdd07aa13b82a9773fee474a8cb4
     securityContext:
       privileged: true
     command:
@@ -359,6 +359,10 @@ spec:
       }
 
       container("docker") {
+        def TAO_VERSION = "5.2.0"
+        def IMAGE_NAME = "nvcr.io/nvstaging/tao/tao-toolkit-pyt"
+        def CUDA_VERSION = "12.8"
+
         stage ('release_docker_build') {
           retry(count: 3) {
             // on retries, wait 5 min before re-running
@@ -369,7 +373,7 @@ spec:
               }
             }
             gitlabCommitStatus(name: "release_docker_build", connection: gitLabConnection('git-lab-master')) {
-              withEnv(["TAO_VERSION=5.2.0", "IMAGE_NAME=nvcr.io/nvstaging/tao/tao-toolkit-pyt", "CUDA_VERSION=12.8"]){
+              withEnv(["TAO_VERSION=${TAO_VERSION}", "IMAGE_NAME=${IMAGE_NAME}", "CUDA_VERSION=${CUDA_VERSION}"]) {
                 docker.withRegistry('https://nvcr.io', 'NGC_API_KEY') {
                   sh "docker build -t ${IMAGE_NAME}:v${TAO_VERSION}-${BUILD_NUMBER}-dev-cuda${CUDA_VERSION} --network=host -f ${WORKSPACE}/release/docker/Dockerfile ${WORKSPACE}"
                   sh "docker push ${IMAGE_NAME}:v${TAO_VERSION}-${BUILD_NUMBER}-dev-cuda${CUDA_VERSION}"
@@ -393,7 +397,7 @@ spec:
                 sleep time: 5, unit: 'MINUTES'
               }
             }
-            withEnv(["TAO_VERSION=5.2.0", "IMAGE_NAME=nvcr.io/nvstaging/tao/tao-toolkit-pyt", "CUDA_VERSION=12.8"]){
+            withEnv(["TAO_VERSION=${TAO_VERSION}", "IMAGE_NAME=${IMAGE_NAME}", "CUDA_VERSION=${CUDA_VERSION}"]) {
               docker.withRegistry('https://nvcr.io', 'NGC_API_KEY') {
                 sh "cat coverage_build.txt >> ${WORKSPACE}/release/docker/Dockerfile"
                 sh "cat ${WORKSPACE}/release/docker/Dockerfile"
@@ -404,6 +408,16 @@ spec:
                 def config_file_path = "/home/scratch.metropolis2/users/release_pipeline_files/coverage_tags.yml"
                 sh "python3 ci/update_release_config.py ${config_file_path} '${append_string}'"
                 sh "cat /home/scratch.metropolis2/users/release_pipeline_files/coverage_tags.yml"
+              }
+            }
+          }
+        }
+
+        stage ('create_manifest') {
+          gitlabCommitStatus(name: "create_manifest", connection: gitLabConnection('git-lab-master')) {
+            withEnv(["TAO_VERSION=${TAO_VERSION}", "IMAGE_NAME=${IMAGE_NAME}", "CUDA_VERSION=${CUDA_VERSION}"]) {
+              docker.withRegistry('https://nvcr.io', 'NGC_API_KEY') {
+                sh "docker buildx imagetools create -t ${IMAGE_NAME}:nightly ${IMAGE_NAME}:v${TAO_VERSION}-${BUILD_NUMBER}-dev-cuda${CUDA_VERSION}"
               }
             }
           }
