@@ -197,7 +197,8 @@ def get_nvdsinfer_yaml(
     num_classes: int,
     output_file: str,
     input_shape: list,
-    output_names: list
+    output_names: list,
+    offsets: list = None
 ):
     """Serialize the deepstream nvinfer config element.
 
@@ -208,7 +209,7 @@ def get_nvdsinfer_yaml(
         output_file (str): Path to the output config file.
         input_shape (list): Input tensor shape in c,h,w order.
         output_names (list): List of the output tensors in the model.
-
+        offsets (list): List of the offsets for the model.
     Returns:
         str: The serialized nvdsinfer configuration.
     """
@@ -216,6 +217,8 @@ def get_nvdsinfer_yaml(
     nvds_config.property_field.onnx_file = os.path.basename(output_file)
     nvds_config.property_field.output_blob_names = output_names
     nvds_config.property_field.num_detected_classes = num_classes
+    if offsets:
+        nvds_config.property_field.offsets = offsets
     if labels_file is not None:
         nvds_config.property_field.labelfile_path = f"{os.path.basename(labels_file)}"
     nvds_config.property_field.infer_dims = input_shape
