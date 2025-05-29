@@ -41,7 +41,7 @@ spec:
       requests:
         memory: "32Gi"
       limits:
-        memory: "48Gi"
+        memory: "64Gi"
     env:
       - name: DOCKER_TLS_CERTDIR
         value: ""
@@ -57,7 +57,7 @@ spec:
         memory: "16Gi"
       limits:
         nvidia.com/gpu: 1
-        memory: "48Gi"
+        memory: "64Gi"
     tty: true
   restartPolicy: Never
   backoffLimit: 4
