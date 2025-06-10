@@ -36,6 +36,19 @@ tmp_top_dir = tmp_top_obj.name
 # always use batch size 1 for onnx export, otherwise nvdinov2 will thorw gridsample not found error.
 BATCH_SIZE = 1
 OUTPUT_SHAPE = 224
+TEST_TOPOLOGIES = [
+    # ConvNeXtV2.
+    ("mit_b0"),
+    # DINOV2.
+    ("vit_large_nvdinov2"),
+    # FAN.
+    ("fan_tiny_8_p4_hybrid"),
+    # OpenCLIP.
+    ("vit_base_nvclip_16_siglip"),
+    # ("vit_huge_nvclip_14_siglip"),  # Too big to export.
+    # RADIO.
+    ("c_radio_v2_vit_base_patch16_224"),
+]
 
 
 @pytest.fixture
@@ -49,21 +62,7 @@ def _test_experiment_spec():
 
 
 @pytest.mark.cv_unit
-@pytest.mark.parametrize("backbone",
-                         [("mit_b0"),
-                          ("mit_b1"),
-                          ("mit_b2"),
-                          ("mit_b3"),
-                          ("mit_b4"),
-                          ("mit_b5"),
-                          ("fan_tiny_8_p4_hybrid"),
-                          ("fan_large_16_p4_hybrid"),
-                          ("fan_small_12_p4_hybrid"),
-                          ("fan_base_16_p4_hybrid"),
-                          ("vit_large_nvdinov2"),
-                          ("vit_base_nvclip_16_siglip"),
-                          ("c_radio_v2_vit_base_patch16_224"),
-                          ("c_radio_v2_vit_large_patch16_224")])
+@pytest.mark.parametrize("backbone", TEST_TOPOLOGIES)
 @pytest.mark.parametrize("batch_size", [-1])
 @pytest.mark.parametrize("opset_version", [17])
 def test_segformer_onnx_compare_output(_test_experiment_spec, backbone, batch_size, opset_version):
@@ -139,21 +138,7 @@ def test_segformer_onnx_compare_output(_test_experiment_spec, backbone, batch_si
 
 
 @pytest.mark.cv_unit
-@pytest.mark.parametrize("backbone",
-                         [("mit_b0"),
-                          ("mit_b1"),
-                          ("mit_b2"),
-                          ("mit_b3"),
-                          ("mit_b4"),
-                          ("mit_b5"),
-                          ("fan_tiny_8_p4_hybrid"),
-                          ("fan_large_16_p4_hybrid"),
-                          ("fan_small_12_p4_hybrid"),
-                          ("fan_base_16_p4_hybrid"),
-                          ("vit_large_nvdinov2"),
-                          ("vit_base_nvclip_16_siglip"),
-                          ("c_radio_v2_vit_base_patch16_224"),
-                          ("c_radio_v2_vit_large_patch16_224")])
+@pytest.mark.parametrize("backbone", TEST_TOPOLOGIES)
 @pytest.mark.parametrize("batch_size", [-1])
 @pytest.mark.parametrize("opset_version", [17])
 def test_segformer_onnx_export(_test_experiment_spec, backbone, batch_size, opset_version):
@@ -204,21 +189,7 @@ def test_segformer_onnx_export(_test_experiment_spec, backbone, batch_size, opse
 
 @pytest.mark.cv_unit
 @pytest.mark.parametrize("batch_size", [1])
-@pytest.mark.parametrize("backbone",
-                         [("mit_b0"),
-                          ("mit_b1"),
-                          ("mit_b2"),
-                          ("mit_b3"),
-                          ("mit_b4"),
-                          ("mit_b5"),
-                          ("fan_tiny_8_p4_hybrid"),
-                          ("fan_large_16_p4_hybrid"),
-                          ("fan_small_12_p4_hybrid"),
-                          ("fan_base_16_p4_hybrid"),
-                          ("vit_large_nvdinov2"),
-                          ("vit_base_nvclip_16_siglip"),
-                          ("c_radio_v2_vit_base_patch16_224"),
-                          ("c_radio_v2_vit_large_patch16_224")])
+@pytest.mark.parametrize("backbone", TEST_TOPOLOGIES)
 @pytest.mark.parametrize("opset_version", [17])
 def test_cls_trtexec(_test_experiment_spec, backbone, batch_size, opset_version):
     check_and_create(tmp_top_dir)

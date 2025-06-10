@@ -756,9 +756,16 @@ class FasterViTLayer(nn.Module):
 
 
 class FasterViT(BackboneBase):
-    """
-    FasterViT based on: "Hatamizadeh et al.,
-    FasterViT: Fast Vision Transformers with Hierarchical Attention <https://arxiv.org/abs/2306.06189>"
+    """FasterViT model.
+
+    FasterViT is a new family of hybrid CNN-ViT neural networks, with a focus on high image throughput for computer
+    vision (CV) applications. FasterViT combines the benefits of fast local representation learning in CNNs and global
+    modeling properties in ViT.
+
+    References:
+    - [FasterViT: Fast Vision Transformers with Hierarchical Attention](
+    https://arxiv.org/abs/2306.06189)
+    - [https://github.com/NVlabs/FasterViT](https://github.com/NVlabs/FasterViT)
     """
 
     def __init__(

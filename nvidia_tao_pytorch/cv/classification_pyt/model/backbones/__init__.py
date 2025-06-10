@@ -40,6 +40,7 @@ from nvidia_tao_pytorch.cv.backbone_v2.radio import (
     c_radio_v2_vit_base_patch16,
     c_radio_v2_vit_large_patch16,
     c_radio_v2_vit_huge_patch16,
+    c_radio_v3_vit_large_patch16_reg4_dinov2,
 )
 from nvidia_tao_pytorch.cv.backbone_v2.fan import (
     fan_tiny_12_p16_224,
@@ -112,6 +113,7 @@ cradio_model_dict = {
     'c_radio_v2_vit_base_patch16': c_radio_v2_vit_base_patch16,
     'c_radio_v2_vit_large_patch16': c_radio_v2_vit_large_patch16,
     'c_radio_v2_vit_huge_patch16': c_radio_v2_vit_huge_patch16,
+    'c_radio_v3_vit_large_patch16_reg4_dinov2': c_radio_v3_vit_large_patch16_reg4_dinov2,
 }
 
 faster_vit_model_dict = {

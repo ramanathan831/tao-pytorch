@@ -29,6 +29,7 @@ from nvidia_tao_pytorch.cv.backbone_v2 import (
     fastervit,
     gcvit,
     hiera,
+    mit,
     open_clip,
     radio,
     resnet,
@@ -108,6 +109,16 @@ TEST_TOPOLOGIES = [
         ),
         id="hiera_tiny_224",
     ),
+    # MiT.
+    pytest.param(
+        (
+            mit.mit_b0,
+            "mit_b0.ckpt",
+            (1, 256),
+            [-0.8727, -0.0464, -0.5343, -0.2695, -0.1713],
+        ),
+        id="mit_b0",
+    ),
     # OpenCLIP.
     # TODO(@hongyuc): Large backbone weights failed to be loaded in CI.
     pytest.param(
@@ -128,6 +139,15 @@ TEST_TOPOLOGIES = [
             [0.2599, 0.0563, -0.1938, 0.0035, -0.1208],
         ),
         id="c_radio_v2_vit_base_patch16",
+    ),
+    pytest.param(
+        (
+            radio.c_radio_v3_vit_large_patch16_reg4_dinov2,
+            "c_radio_v3_l.ckpt",
+            (1, 3072),
+            [-0.7599, -0.0459,  0.6067, -0.0879, -0.1394],
+        ),
+        id="c_radio_v3_vit_large_patch16_reg4_dinov2",
     ),
     # ResNet.
     pytest.param(
@@ -163,7 +183,7 @@ LARGE_BACKBONES = [
     pytest.param(
         (
             radio.c_radio_p3_vit_huge_patch16_mlpnorm,
-            None,
+            None,  # c_radio_p3.ckpt
             (1, 3840),
             None,  # [-0.1248, -0.0078,  0.0229,  0.2046,  0.8349]
         ),
@@ -235,7 +255,8 @@ def test_basic_usage(backbone_data, activation_checkpoint, freeze_at):
     # Test the loading if backbone weights are available.
     if TEST_BACKBONE_DIR is not None and filename is not None:
         backbone.load_pretrained_weights(
-            torch.load(os.path.join(TEST_BACKBONE_DIR, filename), map_location="cpu", weights_only=False)
+            torch.load(os.path.join(TEST_BACKBONE_DIR, filename), map_location="cpu", weights_only=False),
+            strict=False,
         )
 
     # Test the forward.

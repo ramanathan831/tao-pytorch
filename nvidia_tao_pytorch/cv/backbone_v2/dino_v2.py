@@ -30,6 +30,9 @@ class DINOV2(VisionTransformer):
 
     This class extends the VisionTransformer by adding register tokens and
     handling different image sizes.
+
+    References:
+    - [DINOv2: Learning Robust Visual Features without Supervision](https://arxiv.org/abs/2304.07193)
     """
 
     def __init__(self, *args, **kwargs):

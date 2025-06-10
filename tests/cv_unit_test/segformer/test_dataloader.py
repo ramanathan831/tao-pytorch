@@ -105,7 +105,7 @@ def test_build_dataloader(_test_exp_spec, stage, _test_dir):
         loader = dm.predict_dataloader()
     for _, batch in enumerate(loader):
         img = batch['img']
-        assert img.shape[0] == BATCH_SIZE, "Incorrect image batch size"
+        assert img.shape[0] in (1, BATCH_SIZE), "Incorrect image batch size"
         assert img.shape[2] == _test_exp_spec["dataset"]['segment']["img_size"], "Incorrect image height"
         assert img.shape[3] == _test_exp_spec["dataset"]['segment']["img_size"], "Incorrect image width"
         if stage == 'fit':

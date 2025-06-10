@@ -25,7 +25,16 @@ from nvidia_tao_pytorch.cv.backbone_v2.backbone_base import BackboneBase
 
 
 class Hiera(TimmHiera, BackboneBase):
-    """Hiera model."""
+    """Hiera model.
+
+    Hiera is a hierarchical vision transformer that is fast, powerful, and, above all, simple. It outperforms the
+    state-of-the-art across a wide array of image and video tasks while being much faster.
+
+    References:
+    - [Hiera: A Hierarchical Vision Transformer without the Bells-and-Whistles](
+      https://arxiv.org/abs/2306.00989)
+    - [https://github.com/facebookresearch/hiera](https://github.com/facebookresearch/hiera)
+    """
 
     def __init__(self, *args, **kwargs):
         """Initialize the Hiera model."""

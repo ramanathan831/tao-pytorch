@@ -617,7 +617,19 @@ class OpSequential(nn.Module):
 
 
 class EfficientViT(BackboneBase):
-    """EfficientViT Backbone."""
+    """EfficientViT model.
+
+    EfficientViT is a new family of high-resolution vision models with novel multi-scale linear attention. Unlike prior
+    high-resolution dense prediction models that rely on heavy softmax attention, hardware-inefficient large-kernel
+    convolution, or complicated topology structure to obtain good performances, EfficientViT uses multi-scale linear
+    attention achieves the global receptive field and multi-scale learning with only lightweight and hardware-efficient
+    operations.
+
+    References:
+    - [EfficientViT: Multi-Scale Linear Attention for High-Resolution Dense Prediction](
+      https://arxiv.org/abs/2205.14756)
+    - [https://github.com/mit-han-lab/efficientvit](https://github.com/mit-han-lab/efficientvit)
+    """
 
     def __init__(
         self,
@@ -805,7 +817,19 @@ class EfficientViT(BackboneBase):
 
 
 class EfficientViTLarge(BackboneBase):
-    """EfficientViT Large Backbone."""
+    """EfficientViT Large model.
+
+    EfficientViT is a new family of high-resolution vision models with novel multi-scale linear attention. Unlike prior
+    high-resolution dense prediction models that rely on heavy softmax attention, hardware-inefficient large-kernel
+    convolution, or complicated topology structure to obtain good performances, EfficientViT uses multi-scale linear
+    attention achieves the global receptive field and multi-scale learning with only lightweight and hardware-efficient
+    operations.
+
+    References:
+    - [EfficientViT: Multi-Scale Linear Attention for High-Resolution Dense Prediction](
+      https://arxiv.org/abs/2205.14756)
+    - [https://github.com/mit-han-lab/efficientvit](https://github.com/mit-han-lab/efficientvit)
+    """
 
     def __init__(
         self,
