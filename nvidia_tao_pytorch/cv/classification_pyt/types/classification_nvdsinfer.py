@@ -51,7 +51,7 @@ class ClassificationNvDSInferConfig(BaseDSType):
         network_mode=1,
         output_blob_names=None,
         model_color_format=0,
-        classification_threshold=0.5,
+        classification_threshold=0.0,
     ))
 
     def validate(self):
