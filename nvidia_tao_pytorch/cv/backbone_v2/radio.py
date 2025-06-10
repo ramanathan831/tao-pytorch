@@ -32,13 +32,32 @@ from nvidia_tao_pytorch.cv.backbone_v2 import BACKBONE_REGISTRY
 from nvidia_tao_pytorch.cv.backbone_v2.backbone_base import BackboneBase
 
 
+# Note: The `img_size` is unused since RADIO models replace the `patch_embed` with `ViTPatchGenerator` in `_enable_cpe`
+# which supports arbitrary input sizes (please check `RADIOWrapper._validate_input()` for the details).
 radio_model_cfg = {
     # CRADIOV1.
-    "vit_huge_patch16_224_mlpnorm": {"patch_size": 16, "embed_dim": 1280, "depth": 32, "num_heads": 16},
+    "vit_huge_patch16_224_mlpnorm": {
+        "img_size": 224,
+        "patch_size": 16,
+        "embed_dim": 1280,
+        "depth": 32,
+        "num_heads": 16,
+    },
     # CRADIOV2.
-    "vit_base_patch16_224": {"patch_size": 16, "embed_dim": 768, "depth": 12, "num_heads": 12},
-    "vit_large_patch16_224": {"patch_size": 16, "embed_dim": 1024, "depth": 24, "num_heads": 16},
-    "vit_huge_patch16_224": {"patch_size": 16, "embed_dim": 1280, "depth": 32, "num_heads": 16},
+    "vit_base_patch16_224": {"img_size": 224, "patch_size": 16, "embed_dim": 768, "depth": 12, "num_heads": 12},
+    "vit_large_patch16_224": {"img_size": 224, "patch_size": 16, "embed_dim": 1024, "depth": 24, "num_heads": 16},
+    "vit_huge_patch16_224": {"img_size": 224, "patch_size": 16, "embed_dim": 1280, "depth": 32, "num_heads": 16},
+    # CRADIOV3.
+    "vit_large_patch16_reg4_dinov2": {
+        "img_size": 518 * 16 // 14,
+        "patch_size": 16,
+        "embed_dim": 1024,
+        "depth": 24,
+        "num_heads": 16,
+        "init_values": 1e-5,
+        "reg_tokens": 4,
+        "no_embed_class": True,
+    },
 }
 
 
@@ -52,7 +71,13 @@ def remove_state_dict_prefix(state_dict: Dict[str, Any], prefix: str):
     Returns:
         Dict[str, Any]: A new state dictionary with the prefix removed from the keys.
     """
-    mod_state_dict = {k[len(prefix):]: v for k, v in state_dict.items() if k.startswith(prefix)}
+    mod_state_dict = {}
+    for k, v in state_dict.items():
+        if k.startswith(prefix):
+            new_k = k.replace(prefix, "", 1)
+            mod_state_dict[new_k] = v
+        else:
+            mod_state_dict[k] = v
     return mod_state_dict
 
 
@@ -393,6 +418,7 @@ class RADIOBase(nn.Module):
         self,
         in_chans: int = 3,
         num_classes: int = 0,
+        resolution: Tuple[int, int] = (224, 224),
         backbone: str = "vit_base_patch16_224",
         summary_idxs: Optional[List[int]] = None,
         window_size: Optional[int] = None,
@@ -405,6 +431,7 @@ class RADIOBase(nn.Module):
         Args:
             in_chans (int): Number of input image channels. Default: `3`.
             num_classes (int): Number of classes for classification head. Default: `0`.
+            resolution (tuple): Input resolution. Default: `(224, 224)`.
             backbone (str): Name of the ViT backbone. Default: `"vit_base_patch16_224"`.
             summary_idxs (list): Indices of the summary tokens. Default: `None`.
             window_size (int): Window size for windowed attention. Default: `None`.
@@ -415,6 +442,7 @@ class RADIOBase(nn.Module):
         super().__init__()
         self.in_chans = int(in_chans)
         self.num_classes = int(num_classes)
+        self.resolution = resolution
         self.backbone = str(backbone)
         self.summary_idxs = summary_idxs
         self._window_size = window_size
@@ -429,7 +457,6 @@ class RADIOBase(nn.Module):
                 f"Unsupported backbone: {self.backbone}. Supported backbones are: {list(radio_model_cfg.keys())}"
             )
         vit_backbone = VisionTransformer(
-            img_size=224,
             in_chans=self.in_chans,
             num_classes=self.num_classes,
             drop_rate=0.0,
@@ -451,6 +478,7 @@ class RADIOBase(nn.Module):
         # Enable cropped position embedding.
         vit_backbone = self._enable_cpe(
             vit_backbone,
+            resolution=self.resolution,
             max_img_size=self.cpe_max_size,
             num_cls_tokens=self.num_teacher,
             register_multiple=self.register_multiple,
@@ -475,6 +503,7 @@ class RADIOBase(nn.Module):
     def _enable_cpe(
         self,
         model: VisionTransformer,
+        resolution: Tuple[int, int] = (224, 224),
         max_img_size: Union[int, Tuple[int, int]] = 2048,
         num_cls_tokens: int = 4,
         pos_dropout: float = 0.1,
@@ -484,6 +513,7 @@ class RADIOBase(nn.Module):
 
         Args:
             model (VisionTransformer): ViT model.
+            resolution (tuple): Input resolution. Default: `(224, 224)`.
             max_img_size (tuple): Maximum image size. Default: `2048`.
             num_cls_tokens (int): Number of class tokens. Default: `4`.
             pos_dropout (float): Dropout rate of the position embedding. Default: `0.1`.
@@ -494,7 +524,6 @@ class RADIOBase(nn.Module):
 
         patch_size = model.patch_embed.patch_size[0]
         embed_dim = model.embed_dim
-        input_dims = model.patch_embed.img_size
         normalize_patches = not isinstance(model.patch_embed.norm, nn.Identity)
         cls_token = model.cls_token is not None
         max_img_size = int(round(max_img_size / patch_size) * patch_size)
@@ -502,7 +531,7 @@ class RADIOBase(nn.Module):
         patch_generator = ViTPatchGenerator(
             patch_size=patch_size,
             embed_dim=embed_dim,
-            input_dims=input_dims,
+            input_dims=resolution,  # Ensure the correct resolution is passed to ViTPatchGenerator.
             normalize_patches=normalize_patches,
             cls_token=cls_token,
             max_input_dims=max_img_size,
@@ -517,6 +546,8 @@ class RADIOBase(nn.Module):
         model.pos_embed = None
         model.pos_drop = None
         model.patch_size = patch_size
+        if hasattr(model, "reg_token"):
+            model.reg_token = None
         model.num_cls_tokens = num_cls_tokens
         model.num_registers = patch_generator.num_registers
 
@@ -591,7 +622,19 @@ class RADIOWrapper(nn.Module):
 
 
 class RADIO(BackboneBase):
-    """RADIO model."""
+    """RADIO model.
+
+    RADIO, a new vision foundation model, excels across visual domains, serving as a superior replacement for vision
+    backbones. Integrating CLIP variants, DINOv2, and SAM through distillation, it preserves unique features like text
+    grounding and segmentation correspondence.
+
+    References:
+    - [AM-RADIO: Agglomerative Vision Foundation Model -- Reduce All Domains Into One](
+      https://arxiv.org/abs/2312.06709)
+    - [RADIOv2.5: Improved Baselines for Agglomerative Vision Foundation Models](
+      https://arxiv.org/abs/2412.07679)
+    - [https://github.com/NVlabs/RADIO](https://github.com/NVlabs/RADIO)
+    """
 
     def __init__(
         self,
@@ -653,6 +696,7 @@ class RADIO(BackboneBase):
         backbone = RADIOBase(
             in_chans=self.in_chans,
             num_classes=self.num_classes,
+            resolution=self.resolution,
             backbone=self.backbone,
             summary_idxs=self.summary_idxs,
             window_size=self._window_size,
@@ -683,7 +727,8 @@ class RADIO(BackboneBase):
             )
         elif self.radio_version == "CRADIOV2":
             return self.radio.radio.model.load_state_dict(
-                remove_state_dict_prefix(state_dict, "radio_model.model."), **kwargs
+                remove_state_dict_prefix(remove_state_dict_prefix(state_dict, "radio_model.model."), "base_model."),
+                **kwargs,
             )
         else:
             raise NotImplementedError(
@@ -812,6 +857,20 @@ def c_radio_v2_vit_huge_patch16(**kwargs):
     """CRADIOV2 ViT Huge Patch16 MLPNorm."""
     return RADIO(
         backbone="vit_huge_patch16_224",
+        summary_idxs=[0, 1, 2],
+        window_size=None,
+        num_teacher=4,
+        cpe_max_size=2048,
+        register_multiple=8,
+        **kwargs,
+    )
+
+
+@BACKBONE_REGISTRY.register()
+def c_radio_v3_vit_large_patch16_reg4_dinov2(**kwargs):
+    """CRADIOV3 ViT Large Patch16 Reg4."""
+    return RADIO(
+        backbone="vit_large_patch16_reg4_dinov2",
         summary_idxs=[0, 1, 2],
         window_size=None,
         num_teacher=4,

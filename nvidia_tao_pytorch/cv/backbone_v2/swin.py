@@ -36,8 +36,14 @@ from nvidia_tao_pytorch.cv.backbone_v2.swin_utils import (
 class SwinTransformer(BackboneBase):
     """Swin Transformer.
 
-    A PyTorch impl of : `Swin Transformer: Hierarchical Vision Transformer using Shifted Windows`  -
-    https://arxiv.org/pdf/2103.14030
+    Swin Transformer (the name Swin stands for Shifted window) serves as a general-purpose backbone for computer
+    vision. It is basically a hierarchical Transformer whose representation is computed with shifted windows. The
+    shifted windowing scheme brings greater efficiency by limiting self-attention computation to non-overlapping local
+    windows while also allowing for cross-window connection.
+
+    References:
+    - [Swin Transformer: Hierarchical Vision Transformer using Shifted Windows](https://arxiv.org/abs/2103.14030)
+    - [https://github.com/microsoft/Swin-Transformer](https://github.com/microsoft/Swin-Transformer)
     """
 
     def __init__(

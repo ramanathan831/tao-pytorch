@@ -81,7 +81,21 @@ class Block(nn.Module):
 
 
 class ConvNeXtV2(BackboneBase):
-    """ConvNeXt V2 model."""
+    """ConvNeXt V1 and V2 model.
+
+    ConvNeXts is ConvNets that modernizes the classic ResNet design by incorporating elements inspired by vision
+    Transformers. This results in a model that achieves competitive accuracy and scalability compared to Transformers,
+    while retaining the simplicity and efficiency of ConvNets.
+
+    ConvNeXt V2 introduces the Global Response Normalization (GRN) layer to the ConvNeXt architecture to enhance
+    inter-channel feature competition.
+
+    Reference:
+    - [A ConvNet for the 2020s](https://arxiv.org/abs/2201.03545)
+    - [ConvNeXt V2: Co-designing and Scaling ConvNets with Masked Autoencoders](https://arxiv.org/abs/2301.00808)
+    - [https://github.com/facebookresearch/ConvNeXt](https://github.com/facebookresearch/ConvNeXt)
+    - [https://github.com/facebookresearch/ConvNeXt-V2](https://github.com/facebookresearch/ConvNeXt-V2)
+    """
 
     def __init__(
         self,

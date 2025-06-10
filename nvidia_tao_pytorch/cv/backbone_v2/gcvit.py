@@ -628,9 +628,16 @@ class GCViTLayer(nn.Module):
 
 
 class GCViT(BackboneBase):
-    """
-    GCViT based on: "Hatamizadeh et al.,
-    Global Context Vision Transformers <https://arxiv.org/abs/2206.09959>"
+    """Global context vision transformer (GCViT) model.
+
+    GCViT is a novel architecture that enhances parameter and compute utilization for computer vision. It leverages
+    global context self-attention modules, joint with standard local self-attention, to effectively and efficiently
+    model both long and short-range spatial interactions, without the need for expensive operations such as computing
+    attention masks or shifting local windows.
+
+    References:
+    - [Global Context Vision Transformers](https://arxiv.org/abs/2206.09959)
+    - [https://github.com/NVlabs/GCVit](https://github.com/NVlabs/GCVit)
     """
 
     def __init__(

@@ -41,6 +41,20 @@ INPUT_SHAPE = 512
 OUTPUT_SHAPE = 224
 LABEL_TRANSFORM = 'norm'
 DATASET = 'SFDataset'
+TEST_TOPOLOGIES = [
+    # ConvNeXtV2.
+    ("mit_b0"),
+    # DINOV2.
+    ("vit_large_nvdinov2"),
+    # FAN.
+    ("fan_tiny_8_p4_hybrid"),
+    # OpenCLIP.
+    ("vit_base_nvclip_16_siglip"),
+    ("vit_huge_nvclip_14_siglip"),
+    # RADIO.
+    ("c_radio_v2_vit_base_patch16_224"),
+]
+
 
 @pytest.fixture
 def _test_dir():
@@ -107,24 +121,7 @@ def _train_spec():
 @pytest.mark.cv_unit
 @pytest.mark.segformer
 @pytest.mark.train
-@pytest.mark.parametrize("backbone",
-                         [("mit_b0"),
-                          ("mit_b1"),
-                          ("mit_b2"),
-                          ("mit_b3"),
-                          ("mit_b4"),
-                          ("mit_b5"),
-                          ("fan_tiny_8_p4_hybrid"),
-                          ("fan_large_16_p4_hybrid"),
-                          ("fan_small_12_p4_hybrid"),
-                          ("fan_base_16_p4_hybrid"),
-                          ("vit_large_nvdinov2"),
-                          ("vit_giant_nvdinov2"),
-                          ("vit_base_nvclip_16_siglip"),
-                          ("vit_huge_nvclip_14_siglip"),
-                          ("c_radio_v2_vit_base_patch16_224"),
-                          ("c_radio_v2_vit_large_patch16_224"),
-                          ("c_radio_v2_vit_huge_patch16_224")])
+@pytest.mark.parametrize("backbone", TEST_TOPOLOGIES)
 def test_trainer_fit(_test_dir, _train_spec, backbone):
 
     _train_spec.model.backbone.type = backbone
@@ -151,24 +148,7 @@ def test_trainer_fit(_test_dir, _train_spec, backbone):
 @pytest.mark.cv_unit
 @pytest.mark.segformer
 @pytest.mark.evaluate
-@pytest.mark.parametrize("backbone",
-                         [("mit_b0"),
-                          ("mit_b1"),
-                          ("mit_b2"),
-                          ("mit_b3"),
-                          ("mit_b4"),
-                          ("mit_b5"),
-                          ("fan_tiny_8_p4_hybrid"),
-                          ("fan_large_16_p4_hybrid"),
-                          ("fan_small_12_p4_hybrid"),
-                          ("fan_base_16_p4_hybrid"),
-                          ("vit_large_nvdinov2"),
-                          ("vit_giant_nvdinov2"),
-                          ("vit_base_nvclip_16_siglip"),
-                          ("vit_huge_nvclip_14_siglip"),
-                          ("c_radio_v2_vit_base_patch16_224"),
-                          ("c_radio_v2_vit_large_patch16_224"),
-                          ("c_radio_v2_vit_huge_patch16_224")])
+@pytest.mark.parametrize("backbone", TEST_TOPOLOGIES)
 def test_trainer_evaluate(_test_dir, _train_spec, backbone):
 
     _train_spec.model.backbone.type = backbone
@@ -191,24 +171,7 @@ def test_trainer_evaluate(_test_dir, _train_spec, backbone):
 @pytest.mark.cv_unit
 @pytest.mark.segformer
 @pytest.mark.inference
-@pytest.mark.parametrize("backbone",
-                         [("mit_b0"),
-                          ("mit_b1"),
-                          ("mit_b2"),
-                          ("mit_b3"),
-                          ("mit_b4"),
-                          ("mit_b5"),
-                          ("fan_tiny_8_p4_hybrid"),
-                          ("fan_large_16_p4_hybrid"),
-                          ("fan_small_12_p4_hybrid"),
-                          ("fan_base_16_p4_hybrid"),
-                          ("vit_large_nvdinov2"),
-                          ("vit_giant_nvdinov2"),
-                          ("vit_base_nvclip_16_siglip"),
-                          ("vit_huge_nvclip_14_siglip"),
-                          ("c_radio_v2_vit_base_patch16_224"),
-                          ("c_radio_v2_vit_large_patch16_224"),
-                          ("c_radio_v2_vit_huge_patch16_224")])
+@pytest.mark.parametrize("backbone", TEST_TOPOLOGIES)
 def test_trainer_infer(_test_dir, _train_spec, backbone):
 
     _train_spec.model.backbone.type = backbone

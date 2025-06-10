@@ -84,7 +84,19 @@ NVCLIP_MODEL_CONFIG = {
 
 
 class OpenCLIP(BackboneBase):
-    """OpenCLIP model."""
+    """OpenCLIP model.
+
+    This class is mostly for NV-CLIP models.
+
+    NV-CLIP is a multimodal embeddings model for image and text. Trained on 700M proprietary images, NV-CLIP is the
+    NVIDIA commercial version of OpenAI CLIP (Contrastive Language-Image Pre-Training) model. NV-CLIP can be applied
+    to various areas such as multimodal search, zero-shot image classification, and downstream computer vision tasks
+    such as object detection and more.
+
+    References:
+    - [https://build.nvidia.com/nvidia/nvclip/modelcard](https://build.nvidia.com/nvidia/nvclip/modelcard)
+    - [https://github.com/mlfoundations/open_clip](https://github.com/mlfoundations/open_clip)
+    """
 
     def __init__(
         self,

@@ -523,14 +523,21 @@ class HybridEmbed(nn.Module):
         self.num_patches = self.grid_size[0] * self.grid_size[1]
         self.proj = nn.Conv2d(feature_dim, embed_dim, kernel_size=patch_size, stride=patch_size)
 
-    def forward(self, x):
+    def forward(self, x, return_feat=False):
         """Forward Function"""
-        x = self.backbone.forward_features(x)
+        out_list = None
+        if return_feat:
+            x, out_list = self.backbone.forward_features(x, return_feat=return_feat)
+        else:
+            x = self.backbone.forward_features(x)
         if isinstance(x, (list, tuple)):
             x = x[-1]  # last feature if backbone outputs list/tuple of features
         _, _, H, W = x.shape
         x = self.proj(x).flatten(2).transpose(1, 2)
-        return x, (H // self.patch_size[0], W // self.patch_size[1])
+        if return_feat:
+            return x, (H // self.patch_size[0], W // self.patch_size[1]), out_list
+        else:
+            return x, (H // self.patch_size[0], W // self.patch_size[1])
 
 
 class ChannelProcessing(nn.Module):
@@ -852,9 +859,15 @@ class OverlapPatchEmbed(nn.Module):
 
 
 class FAN(BackboneBase):
-    """
-    Based on timm code bases
-    https://github.com/rwightman/pytorch-image-models/tree/master/timm
+    """Fully attentional network (FAN) model.
+
+    FAN is a vision transformer architecture that enhances self-attention mechanisms to improve robustness and
+    mid-level feature representations. It is highly robust to unseen natural corruptions in various visual recognition
+    tasks.
+
+    References:
+    - [Understanding The Robustness in Vision Transformers](https://arxiv.org/abs/2204.12451)
+    - [https://github.com/NVlabs/FAN](https://github.com/NVlabs/FAN)
     """
 
     def __init__(

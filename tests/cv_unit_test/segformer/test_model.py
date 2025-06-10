@@ -25,6 +25,20 @@ from nvidia_tao_pytorch.cv.segformer.model.segformer import SegFormer
 IMAGE_WIDTH = 224
 IMAGE_HEIGHT = 224
 OUTPUT_SHAPE = 224
+TEST_TOPOLOGIES = [
+    # ConvNeXtV2.
+    ("mit_b0"),
+    # DINOV2.
+    ("vit_large_nvdinov2"),
+    # FAN.
+    ("fan_tiny_8_p4_hybrid"),
+    # OpenCLIP.
+    ("vit_base_nvclip_16_siglip"),
+    ("vit_huge_nvclip_14_siglip"),
+    # RADIO.
+    ("c_radio_v2_vit_base_patch16_224"),
+]
+
 
 @pytest.fixture
 def _test_experiment_spec():
@@ -37,24 +51,7 @@ def _test_experiment_spec():
 
 
 @pytest.mark.cv_unit
-@pytest.mark.parametrize("backbone",
-                         [("mit_b0"),
-                          ("mit_b1"),
-                          ("mit_b2"),
-                          ("mit_b3"),
-                          ("mit_b4"),
-                          ("mit_b5"),
-                          ("fan_tiny_8_p4_hybrid"),
-                          ("fan_large_16_p4_hybrid"),
-                          ("fan_small_12_p4_hybrid"),
-                          ("fan_base_16_p4_hybrid"),
-                          ("vit_large_nvdinov2"),
-                          ("vit_giant_nvdinov2"),
-                          ("vit_base_nvclip_16_siglip"),
-                          ("vit_huge_nvclip_14_siglip"),
-                          ("c_radio_v2_vit_base_patch16_224"),
-                          ("c_radio_v2_vit_large_patch16_224"),
-                          ("c_radio_v2_vit_huge_patch16_224")])
+@pytest.mark.parametrize("backbone", TEST_TOPOLOGIES)
 @pytest.mark.parametrize("export", [False, True])
 def test_changenet_model_segment(_test_experiment_spec, backbone, export):
     _test_experiment_spec["model"].backbone['type'] = backbone

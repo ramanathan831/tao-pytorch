@@ -78,7 +78,8 @@ channels_map = {
     "c_radio_p3_vit_huge_patch16_mlpnorm": 3840,
     "c_radio_v2_vit_base_patch16": 2304,
     "c_radio_v2_vit_large_patch16": 3072,
-    "c_radio_v2_vit_huge_patch16": 3840
+    "c_radio_v2_vit_huge_patch16": 3840,
+    "c_radio_v3_vit_large_patch16_reg4_dinov2": 3072,
 }
 
 
