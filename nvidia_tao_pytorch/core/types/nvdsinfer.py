@@ -44,6 +44,12 @@ def replace_key_characters(dictionary: dict, find_char: str = "-", replace_char:
     for key, value in zip(keys, values):
         if isinstance(value, dict):
             value = replace_key_characters(value, find_char=find_char, replace_char=replace_char)
+        # Handle list of dictionaries.
+        if isinstance(value, list):
+            for item in value:
+                if isinstance(item, dict):
+                    item = replace_key_characters(item, find_char=find_char, replace_char=replace_char)
+                    value[value.index(item)] = item
         if find_char in key:
             updated_key = key.replace(find_char, replace_char)
             dictionary[updated_key] = deepcopy(dictionary[key])
@@ -64,7 +70,17 @@ def recursively_join_list(dictionary: dict) -> dict:
         if isinstance(value, dict):
             value = recursively_join_list(value)
         if isinstance(value, list):
-            value = ";".join([str(item) for item in value])
+            updated_value = []
+            if all(isinstance(item, dict) for item in value):
+                for item in value:
+                    if isinstance(item, dict):
+                        item = recursively_join_list(item)
+                    else:
+                        pass
+                    updated_value.append(item)
+                value = updated_value
+            else:
+                value = ";".join([str(item) for item in value])
         dictionary[key] = value
     return dictionary
 
