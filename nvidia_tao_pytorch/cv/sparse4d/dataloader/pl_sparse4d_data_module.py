@@ -121,7 +121,8 @@ class Sparse4DDataModule(pl.LightningDataModule):
         self.sequences = self.dataset_config["sequences"]
         self.train_dataset_cfg = self.dataset_config["train_dataset"]
         self.val_dataset_cfg = self.dataset_config["val_dataset"]
-        self.use_h5_file = self.dataset_config["use_h5_file"]
+        self.use_h5_file_for_rgb = self.dataset_config["use_h5_file_for_rgb"]
+        self.use_h5_file_for_depth = self.dataset_config["use_h5_file_for_depth"]
 
         # Create transforms
         self.train_transforms = self._build_train_transforms()
@@ -136,8 +137,8 @@ class Sparse4DDataModule(pl.LightningDataModule):
     def _build_train_transforms(self):
         """Build transforms for training data."""
         return Compose([
-            LoadMultiViewImageFromFiles(to_float32=True, h5_file=self.use_h5_file),
-            LoadDepthMap(max_depth=50, h5_file=self.use_h5_file),
+            LoadMultiViewImageFromFiles(to_float32=True, h5_file=self.use_h5_file_for_rgb),
+            LoadDepthMap(max_depth=50, h5_file=self.use_h5_file_for_depth),
             ResizeCropFlipImage(),
             ResizeCropFlipMultiScaleDepthMap(downsample=[4, 8, 16]),
             BBoxRotation(),
@@ -154,7 +155,7 @@ class Sparse4DDataModule(pl.LightningDataModule):
     def _build_val_transforms(self):
         """Build transforms for validation data."""
         return Compose([
-            LoadMultiViewImageFromFiles(to_float32=True, h5_file=self.use_h5_file),
+            LoadMultiViewImageFromFiles(to_float32=True, h5_file=self.use_h5_file_for_rgb),
             ResizeCropFlipImage(),
             NormalizeMultiviewImage(
                 mean=self.normalize["mean"],
@@ -167,7 +168,7 @@ class Sparse4DDataModule(pl.LightningDataModule):
     def _build_vis_transforms(self):
         """Build transforms for visualization data."""
         return Compose([
-            LoadMultiViewImageFromFiles(to_float32=True, h5_file=self.use_h5_file),
+            LoadMultiViewImageFromFiles(to_float32=True, h5_file=self.use_h5_file_for_rgb),
         ])
 
     def _build_test_transforms(self):

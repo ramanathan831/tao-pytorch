@@ -35,7 +35,8 @@ from nvidia_tao_core.config.sparse4d.dataset import (
 )
 
 sample_dataset_config = """
-use_h5_file: true
+use_h5_file_for_rgb: false
+use_h5_file_for_depth: true
 batch_size: 6
 num_bev_groups: 1
 num_workers: 6
