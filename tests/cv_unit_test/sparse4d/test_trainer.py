@@ -49,6 +49,8 @@ def _base_spec():
     cfg.dataset.test_dataset.ann_file = TEST_ANNO_ROOT
     cfg.dataset.batch_size = 1
     cfg.dataset.num_workers = 0
+    cfg.dataset.use_h5_file_for_rgb = True
+    cfg.dataset.use_h5_file_for_depth = True
     cfg.model.head.instance_bank.anchor = ANCHOR_PATH
     cfg.train.pretrained_model_path = CHECKPOINT_PATH
     cfg.dataset.train_dataset.sequences_split_num = 100

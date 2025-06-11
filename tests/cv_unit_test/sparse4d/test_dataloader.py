@@ -31,6 +31,8 @@ NUM_CAMS = 4
 @pytest.fixture
 def _test_exp_spec():
     experiment_config = OmegaConf.structured(ExperimentConfig())
+    experiment_config.dataset.use_h5_file_for_rgb = True
+    experiment_config.dataset.use_h5_file_for_depth = True
     experiment_config.dataset.train_dataset.ann_file = TRAIN_ANNO_ROOT
     experiment_config.dataset.data_root = DATA_ROOT
     experiment_config.dataset.anno_root = TRAIN_ANNO_ROOT

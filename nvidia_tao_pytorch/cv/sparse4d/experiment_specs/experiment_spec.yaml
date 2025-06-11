@@ -174,7 +174,8 @@ model:
     reg_weights: [2.0, 2.0, 2.0, 1 ,1, 1, 1, 1, 1, 1, 1]
 
 dataset:
-  use_h5_file: true
+  use_h5_file_for_rgb: false
+  use_h5_file_for_depth: true
   num_frames: 200
   batch_size: 4
   num_bev_groups: 1
