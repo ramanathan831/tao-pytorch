@@ -79,7 +79,10 @@ class ClassifierPlModel(TAOLightningModule):
         # construct prediction id 2 class name mapping for visualization
         self.id_2_class_names = {}
         self.class_names = []
-        with open(os.path.join(self.dataset_config.root_dir, "classes.txt")) as f:
+        classes_file = (self.dataset_config.classes_file
+                        if os.path.exists(self.dataset_config.classes_file)
+                        else os.path.join(self.dataset_config.images_dir, "classes.txt"))
+        with open(classes_file) as f:
             for idx, line in enumerate(f):
                 self.id_2_class_names[idx] = line.strip()
                 self.class_names.append(line.strip())
