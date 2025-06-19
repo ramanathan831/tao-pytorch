@@ -110,6 +110,7 @@ def _train_spec():
     experiment_config["dataset"]["img_size"] = OUTPUT_SHAPE
     experiment_config["dataset"]["batch_size"] = BATCH_SIZE
     experiment_config["dataset"]["num_classes"] = NUM_CLASSES
+    experiment_config["dataset"]["classes_file"] = os.path.join(tmp_top_dir, "classes.txt")
 
     experiment_config["results_dir"] = tmp_top_dir
 
