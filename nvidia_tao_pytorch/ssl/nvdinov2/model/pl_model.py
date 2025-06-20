@@ -148,7 +148,12 @@ class DinoV2PlModel(TAOLightningModule):
         self.clip_grad_norm = self.train_config["clip_grad_norm"]
         self.num_prototypes = self.train_config["num_prototypes"]
         self.num_gpus = max(self.train_config["num_gpus"], len(self.train_config["gpu_ids"]))
-        self.use_custom_attention = self.train_config["use_custom_attention"]
+        if self._test_if_after_or_equal_to_blackwell_gpu():
+            self.use_custom_attention = False
+            logging.info("Disabling flash attention since current GPU is after or equal to the Blackwell series, which is currently not supported for FA3")
+        else:
+            self.use_custom_attention = self.train_config["use_custom_attention"]
+            logging.info("Using flash attention if set by user")
         # Teacher Backbone
         self.teacher_backbone_type = self.model_config.backbone['teacher_type']
         self.teacher_depth = model_params.map_params['depth'][self.teacher_backbone_type]
@@ -263,6 +268,20 @@ class DinoV2PlModel(TAOLightningModule):
 
         self.checkpoint_filename = 'nvdinov2_model'
         self.dm = []
+
+    def _test_if_after_or_equal_to_blackwell_gpu(self):
+        """Test if the GPU is after or equal to the Blackwell GPU"""
+        # Get the major/minor compute capability of the current device
+        major = torch.cuda.get_device_properties(0).major
+        minor = torch.cuda.get_device_properties(0).minor
+
+        if (major, minor) >= (10, 0):
+            logging.debug("Running on GPU after or equal to the Blackwell series")
+            # Use native torch attention
+            return True
+
+        logging.debug("Running on GPU before to the Blackwell series")
+        return False
 
     def _build_model(self):
         """Build Teacher and Student"""
