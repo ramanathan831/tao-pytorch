@@ -147,8 +147,8 @@ class GroundingDINOPreprocessConfig(BaseDSType):
     user_configs: GroundingDINOUserConfigs = field(
         default_factory=lambda: GroundingDINOUserConfigs()
     )
-    group: GroundingDINOGroupConfig = field(
-        default_factory=lambda: GroundingDINOGroupConfig()
+    group: List[GroundingDINOGroupConfig] = field(
+        default_factory=lambda: [GroundingDINOGroupConfig()]
     )
 
     def validate(self):

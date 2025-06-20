@@ -162,11 +162,11 @@ class TransformerDecoder(nn.Module):
             # begin global query
             ###################################################################
             if self.frozen_fm_cfg and self.frozen_fm_cfg.enabled:
-                if self.export:
-                    bs = 1
                 assert image_query is not None, "Image query is not defined."
                 image_query_per_layer = self.image_query_norm[i](self.image_query_proj[i](image_query))
-                image_query_ref = torch.tile(torch.Tensor([0.5, 0.5, 1.0, 1.0]), [bs, 1, 1]).to(output.device)
+                # replace torch.tile due to onnx export issue with dynamic batch size
+                # image_query_ref = torch.tile(torch.Tensor([0.5, 0.5, 1.0, 1.0]), [bs, 1, 1]).to(output.device)
+                image_query_ref = torch.ones(bs, 1, 4, device=output.device) * torch.tensor([0.5, 0.5, 1.0, 1.0], device=output.device)
                 output = torch.cat([output, image_query_per_layer], dim=1)
                 ref_points_detach = torch.cat([ref_points_detach, image_query_ref], dim=1)
             ###################################################################
