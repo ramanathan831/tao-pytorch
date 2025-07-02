@@ -81,7 +81,7 @@ class ClassifierPlModel(TAOLightningModule):
         self.class_names = []
         classes_file = (self.dataset_config.classes_file
                         if os.path.exists(self.dataset_config.classes_file)
-                        else os.path.join(self.dataset_config.images_dir, "classes.txt"))
+                        else os.path.join(self.dataset_config.root_dir, "classes.txt"))
         with open(classes_file) as f:
             for idx, line in enumerate(f):
                 self.id_2_class_names[idx] = line.strip()
