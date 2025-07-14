@@ -349,7 +349,11 @@ class Omniverse3DDetTrackDataset(Dataset):
                 if "depth_map_path" not in cam_info:
                     depthmap_paths.append(None)
                 else:
-                    depthmap_paths.append(cam_info["depth_map_path"])
+                    if isinstance(cam_info["depth_map_path"], tuple):
+                        depth_map_absolute_path = (osp.join(self.data_root, cam_info["depth_map_path"][0]), cam_info["depth_map_path"][1])
+                    else:
+                        depth_map_absolute_path = osp.join(self.data_root, cam_info["depth_map_path"])
+                    depthmap_paths.append(depth_map_absolute_path)
                 cam_names.append(cam_type)
                 # obtain lidar to image transformation matrix
                 cam2world_transform = cam_info['sensor2world_transform']
