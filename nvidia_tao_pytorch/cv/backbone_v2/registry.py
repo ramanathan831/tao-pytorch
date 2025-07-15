@@ -11,5 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Registry for backbones."""
 
-"""Backbone Init Module."""
+from fvcore.common.registry import Registry  # for backward compatibility.
+
+
+BACKBONE_REGISTRY = Registry("BACKBONE")
+BACKBONE_REGISTRY.__doc__ = """
+Registry for backbones, which extract feature maps from images
+Registered object must return instance of :class:`BackboneBase`.
+"""

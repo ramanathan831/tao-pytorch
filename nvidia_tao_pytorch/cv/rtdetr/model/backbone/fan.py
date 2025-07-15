@@ -20,6 +20,7 @@ from torch import nn
 
 from nvidia_tao_pytorch.cv.backbone_v2.convnext_utils import ConvNeXtFANBackbone
 from nvidia_tao_pytorch.cv.backbone_v2.fan import FAN, HybridEmbed
+from nvidia_tao_pytorch.cv.rtdetr.model.backbone.registry import RTDETR_BACKBONE_REGISTRY
 
 
 class FANFPN(FAN):
@@ -44,14 +45,13 @@ class FANFPN(FAN):
         if isinstance(out_index, int):
             out_index = [out_index]
         self.out_index = out_index
-        self.out_channels = out_channels
         self.return_idx = return_idx
 
         for idx in self.return_idx:
-            layer = nn.LayerNorm(self.out_channels[idx])
+            layer = nn.LayerNorm(out_channels[idx])
             layer_name = f"out_norm{idx}"
             self.add_module(layer_name, layer)
-
+        self.out_channels = [out_channels[_i] for _i in return_idx]
         self.learnable_downsample = nn.Conv2d(
             in_channels=embed_dim,
             out_channels=768,
@@ -107,6 +107,7 @@ class FANFPN(FAN):
         return final_outs
 
 
+@RTDETR_BACKBONE_REGISTRY.register()
 def fan_tiny_8_p4_hybrid(out_indices=[1, 2, 3], activation_checkpoint=True, **kwargs):
     """FAN Hybrid Tiny
 
@@ -119,7 +120,7 @@ def fan_tiny_8_p4_hybrid(out_indices=[1, 2, 3], activation_checkpoint=True, **kw
     return FANFPN(
         patch_size=16,
         in_chans=3,
-        num_classes=80,
+        num_classes=0,
         embed_dim=192,
         depth=depth,
         backbone=backbone,
@@ -145,6 +146,7 @@ def fan_tiny_8_p4_hybrid(out_indices=[1, 2, 3], activation_checkpoint=True, **kw
     )
 
 
+@RTDETR_BACKBONE_REGISTRY.register()
 def fan_small_12_p4_hybrid(out_indices=[1, 2, 3], activation_checkpoint=True, **kwargs):
     """FAN Hybrid Small
 
@@ -157,7 +159,7 @@ def fan_small_12_p4_hybrid(out_indices=[1, 2, 3], activation_checkpoint=True, **
     return FANFPN(
         patch_size=16,
         in_chans=3,
-        num_classes=80,
+        num_classes=0,
         embed_dim=384,
         depth=depth,
         backbone=backbone,
@@ -183,6 +185,7 @@ def fan_small_12_p4_hybrid(out_indices=[1, 2, 3], activation_checkpoint=True, **
     )
 
 
+@RTDETR_BACKBONE_REGISTRY.register()
 def fan_base_12_p4_hybrid(out_indices=[1, 2, 3], activation_checkpoint=True, **kwargs):
     """FAN Hybrid Base
 
@@ -195,7 +198,7 @@ def fan_base_12_p4_hybrid(out_indices=[1, 2, 3], activation_checkpoint=True, **k
     return FANFPN(
         patch_size=16,
         in_chans=3,
-        num_classes=80,
+        num_classes=0,
         embed_dim=448,
         depth=depth,
         backbone=backbone,
@@ -221,6 +224,7 @@ def fan_base_12_p4_hybrid(out_indices=[1, 2, 3], activation_checkpoint=True, **k
     )
 
 
+@RTDETR_BACKBONE_REGISTRY.register()
 def fan_large_12_p4_hybrid(out_indices=[1, 2, 3], activation_checkpoint=True, **kwargs):
     """FAN Hybrid Large
 
@@ -233,7 +237,7 @@ def fan_large_12_p4_hybrid(out_indices=[1, 2, 3], activation_checkpoint=True, **
     return FANFPN(
         patch_size=16,
         in_chans=3,
-        num_classes=80,
+        num_classes=0,
         embed_dim=480,
         depth=depth,
         backbone=backbone,
@@ -257,11 +261,3 @@ def fan_large_12_p4_hybrid(out_indices=[1, 2, 3], activation_checkpoint=True, **
         activation_checkpoint=activation_checkpoint,
         **kwargs,
     )
-
-
-fan_model_dict = {
-    "fan_tiny": fan_tiny_8_p4_hybrid,
-    "fan_small": fan_small_12_p4_hybrid,
-    "fan_base": fan_base_12_p4_hybrid,
-    "fan_large": fan_large_12_p4_hybrid,
-}

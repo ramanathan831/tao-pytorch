@@ -19,6 +19,8 @@ import torch.nn as nn
 
 from nvidia_tao_pytorch.core.distributed.comm import get_global_rank
 from nvidia_tao_pytorch.core.tlt_logging import logging
+from nvidia_tao_pytorch.core.utils.ptm_utils import load_pretrained_weights
+
 from nvidia_tao_pytorch.cv.segformer.model.backbones import (
     cradio_vit_adapter_model_dict,
     fan_model_dict,
@@ -84,15 +86,9 @@ class SegFormer(nn.Module):
             self.backbone = fan_model_dict[self.model_name](
                 num_classes=0, img_size=img_size, feat_downsample=feat_downsample, freeze_at=freeze_at
             )
-            if pretrained_backbone_path is not None:
-                self.backbone.load_pretrained_weights(pretrained_backbone_path, strict=False)
-
         elif 'mit' in self.model_name:
             freeze_at = "all" if freeze_backbone else None
             self.backbone = mit_model_dict[self.model_name](num_classes=0, img_size=img_size, freeze_at=freeze_at)
-            if pretrained_backbone_path is not None:
-                self.backbone.load_pretrained_weights(pretrained_backbone_path, strict=False)
-
         elif 'radio' in self.model_name:
             assert img_size % 32 == 0, "Input image resolution must be a multiple of 32 for ViT-Adapter"
             freeze_at = "all" if freeze_backbone else None
@@ -101,20 +97,29 @@ class SegFormer(nn.Module):
                 resolution=(img_size, img_size),
                 activation_checkpoint=activation_checkpoint,
             )
-            if pretrained_backbone_path is not None:
-                self.backbone.load_pretrained_weights(pretrained_backbone_path, strict=False)
-
         elif 'vit' in self.model_name:
             assert img_size % 32 == 0, "Input image resolution must be a multiple of 32 for ViT-Adapter"
             freeze_at = "all" if freeze_backbone else None
             self.backbone = vit_adapter_model_dict[self.model_name](
                 return_idx=return_interm_indices, resolution=img_size, activation_checkpoint=activation_checkpoint
             )
-            if pretrained_backbone_path is not None:
-                self.backbone.load_pretrained_weights(pretrained_backbone_path, strict=False)
-
         else:
             raise NotImplementedError('Bacbkbone name [%s] is not supported' % self.model_name)
+
+        # TODO: @hong-yu, add parser and ptm_adapter for segformer
+        segformer_parser = None
+        ptm_adapter = None
+        # Load pretrained weights
+        if pretrained_backbone_path is not None:
+            state_dict = load_pretrained_weights(
+                pretrained_backbone_path,
+                parser=segformer_parser,
+                ptm_adapter=ptm_adapter
+            )
+            msg = self.backbone.load_state_dict(state_dict, strict=False)
+            if get_global_rank() == 0:
+                logging.info(f"Loaded pretrained weights from {pretrained_backbone_path}")
+                logging.warning(f"{msg}")
 
         # Transformer Decoder
         self.decoder = TAOSegFormerHead(

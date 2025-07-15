@@ -121,8 +121,7 @@ class OpenCLIP(BackboneBase):
         """
         if in_chans != 3:
             raise ValueError(f"in_chans must be 3 for OpenCLIP backbones. Received: in_chans={in_chans}")
-        if num_classes != 0:
-            raise ValueError(f"num_classes must be 0 for OpenCLIP backbones. Received: num_classes={num_classes}")
+
         super().__init__(
             in_chans=in_chans,
             num_classes=num_classes,
@@ -143,6 +142,7 @@ class OpenCLIP(BackboneBase):
             self._enable_interpolated_forward(self.model.visual)
         else:
             raise NotImplementedError(f"Unsupported model type {model_name} for dynamic image size.")
+        self.head = nn.Linear(self.model.visual.output_dim, num_classes) if num_classes > 0 else nn.Identity()
 
     def _register_nvclip_configs(self):
         """Register NVCLIP model configurations."""
@@ -261,14 +261,23 @@ class OpenCLIP(BackboneBase):
 
     @torch.jit.ignore
     def get_classifier(self):
-        """Get the classifier module."""
-        # TODO(@hongyuc): Does OpenCLIP have a classifier?
-        raise NotImplementedError("get_classifier is not implemented.")
+        """Get the classification head module.
 
-    def reset_classifier(self, num_classes):
-        """Reset the classifier head."""
-        # TODO(@hongyuc): Does OpenCLIP have a classifier?
-        raise NotImplementedError("reset_classifier is not implemented.")
+        Returns:
+            nn.Module: The classification head (Linear layer or Identity).
+        """
+        return self.head
+
+    def reset_classifier(self, num_classes, global_pool=""):
+        """Reset the classification head with a new number of classes.
+
+        Args:
+            num_classes (int): New number of classes for classification.
+            global_pool (str, optional): Global pooling type (unused in current implementation).
+                Defaults to "".
+        """
+        self.num_classes = num_classes
+        self.head = nn.Linear(self.num_features, num_classes) if num_classes > 0 else nn.Identity()
 
     def forward_pre_logits(self, x):
         """Forward pass through the visual encoder.
@@ -294,7 +303,9 @@ class OpenCLIP(BackboneBase):
         Returns:
             torch.Tensor: Features of shape (B, D).
         """
-        return self.model.encode_image(x, normalize=False)
+        x = self.model.encode_image(x, normalize=False)
+        x = self.head(x)
+        return x
 
 
 @BACKBONE_REGISTRY.register()

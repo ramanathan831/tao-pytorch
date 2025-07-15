@@ -19,8 +19,8 @@ import pytest
 from omegaconf import OmegaConf
 
 from nvidia_tao_core.config.classification_pyt.default_config import ModelConfig, DatasetConfig, ExperimentConfig
-from nvidia_tao_pytorch.cv.classification_pyt.model.classifier_pl_model import build_model
-from nvidia_tao_pytorch.cv.classification_pyt.model.classifier import Classifier
+from nvidia_tao_pytorch.cv.classification_pyt.model.classifier import build_model
+from nvidia_tao_pytorch.cv.backbone_v2.backbone_base import BackboneBase
 
 IMAGE_WIDTH = 224
 IMAGE_HEIGHT = 224
@@ -32,6 +32,7 @@ def _test_experiment_spec():
     model_config = OmegaConf.structured(ModelConfig())
     experiment_config = OmegaConf.structured(ExperimentConfig())
     experiment_config.dataset = dataset_config
+    experiment_config.dataset.num_classes = 0
     experiment_config.model = model_config
     yield experiment_config
 
@@ -54,10 +55,16 @@ def _test_experiment_spec():
         # GCViT.
         ("gc_vit_xxtiny"),
         # OpenCLIP.
-        ("ViT-L-14-SigLIP-CLIPA-336"),
+        ("vit_l_14_siglip_clipa_336"),
         # RADIO.
         ("c_radio_p3_vit_huge_patch16_mlpnorm"),
         ("c_radio_v2_vit_base_patch16"),
+        # SwinTransformer.
+        ("swin_tiny_patch4_window7_224"),
+        ("swin_small_patch4_window7_224"),
+        # EdgeNext,
+        ("edgenext_small"),
+        ("edgenext_base"),
     ],
 )
 # for classification_pyt, export or not is not affecting anything
@@ -67,4 +74,4 @@ def test_classifier_model(_test_experiment_spec, backbone, export):
     _test_experiment_spec["dataset"]["img_size"] = OUTPUT_SHAPE
 
     model = build_model(_test_experiment_spec, export)
-    assert(isinstance(model, Classifier))
+    assert(isinstance(model, BackboneBase))

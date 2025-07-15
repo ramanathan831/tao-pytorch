@@ -18,7 +18,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms.functional as TF
 
+from nvidia_tao_pytorch.core.distributed.comm import get_global_rank
+from nvidia_tao_pytorch.core.tlt_logging import logger
+from nvidia_tao_pytorch.core.utils.ptm_utils import load_pretrained_weights
 from nvidia_tao_pytorch.cv.rtdetr.model.backbone.radio import radio_model_dict
+from nvidia_tao_pytorch.cv.rtdetr.model.utils import rtdetr_parser, ptm_adapter
 
 
 class RTDETR(nn.Module):
@@ -43,8 +47,16 @@ class RTDETR(nn.Module):
                 for p in self.frozen_radio.parameters():
                     p.requires_grad = False
                 # Load the pretrained weights.
-                self.frozen_radio.load_pretrained_weights(frozen_fm_cfg.checkpoint)
-
+                msg = self.frozen_radio.load_state_dict(
+                    load_pretrained_weights(
+                        frozen_fm_cfg.checkpoint,
+                        parser=rtdetr_parser,
+                        ptm_adapter=ptm_adapter
+                    ),
+                    strict=False,
+                )
+                if get_global_rank() == 0:
+                    logger.info(f"Loaded frozen FM model from {frozen_fm_cfg.checkpoint} with message: {msg}")
                 self.frozen_radio.float()
                 self.frozen_radio.cuda()
                 self.maxpool = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)

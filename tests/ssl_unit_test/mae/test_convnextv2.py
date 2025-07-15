@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-from nvidia_tao_pytorch.ssl.mae.model.convnextv2 import (
+from nvidia_tao_pytorch.cv.backbone_v2.convnext_v2 import (
     ConvNeXtV2, Block,
     convnextv2_atto, convnextv2_femto, convnextv2_pico, convnextv2_nano,
     convnextv2_tiny, convnextv2_base, convnextv2_large, convnextv2_huge
@@ -74,7 +74,7 @@ def test_convnextv2_feature_extraction():
     model = ConvNeXtV2()
 
     # Perform forward pass to extract features
-    features = model.forward_features(x)
+    features = model.forward_pre_logits(x)
 
     assert isinstance(features, torch.Tensor)
     assert features.shape == (1, 768)  # Assuming 768 feature dimensions

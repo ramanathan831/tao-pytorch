@@ -28,7 +28,7 @@ from timm.models.vision_transformer import Mlp as MlpOri
 from nvidia_tao_pytorch.cv.backbone_v2 import BACKBONE_REGISTRY
 from nvidia_tao_pytorch.cv.backbone_v2.backbone_base import BackboneBase
 from nvidia_tao_pytorch.cv.backbone_v2.convnext_utils import ConvNeXtFANBackbone
-from nvidia_tao_pytorch.cv.backbone_v2.swin_utils import SwinTransformer
+from nvidia_tao_pytorch.cv.backbone_v2.swin import SwinTransformer
 
 
 class ClassAttn(nn.Module):
@@ -536,8 +536,7 @@ class HybridEmbed(nn.Module):
         x = self.proj(x).flatten(2).transpose(1, 2)
         if return_feat:
             return x, (H // self.patch_size[0], W // self.patch_size[1]), out_list
-        else:
-            return x, (H // self.patch_size[0], W // self.patch_size[1])
+        return x, (H // self.patch_size[0], W // self.patch_size[1])
 
 
 class ChannelProcessing(nn.Module):

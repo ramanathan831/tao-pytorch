@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,4 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Decode Heads Init Module."""
+"""RT-DETR backbone registry."""
+# from nvidia_tao_pytorch.cv.backbone.backbone_base import BackboneBase
+from fvcore.common.registry import Registry  # for backward compatibility.
+
+
+RTDETR_BACKBONE_REGISTRY = Registry("RTDETR_BACKBONE")
+RTDETR_BACKBONE_REGISTRY.__doc__ = """
+Registry for RT-DETR backbones, which extract feature maps from images
+Registered object must return instance of :class:`BackboneBase`.
+"""

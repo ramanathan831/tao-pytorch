@@ -94,6 +94,7 @@ class ResNet(TimmResNet, BackboneBase):
         activation_checkpoint = kwargs.pop("activation_checkpoint", False)
         freeze_at = kwargs.pop("freeze_at", None)
         freeze_norm = kwargs.pop("freeze_norm", False)
+        self.out_indices = kwargs.pop("out_indices", None)
 
         super().__init__(*args, **kwargs)  # TimmResNet initialization.
         BackboneBase.__init__(
@@ -121,9 +122,20 @@ class ResNet(TimmResNet, BackboneBase):
         x = super().forward_head(x, pre_logits=True)
         return x
 
-    def forward_feature_pyramid(self, *args, **kwargs):
+    def forward_feature_pyramid(self, x):
         """Forward pass through the backbone to extract intermediate feature maps."""
-        raise NotImplementedError("forward_feature_pyramid is not implemented.")
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.act1(x)
+        x = self.maxpool(x)
+
+        layer_names = ['layer1', 'layer2', 'layer3', 'layer4']
+        outs = {}
+        for i, name in enumerate(layer_names):
+            x = getattr(self, name)(x)  # won't work with torchscript, but keeps code reasonable, FML
+            if i in self.out_indices:
+                outs[f"p{i}"] = x
+        return outs
 
     def forward(self, x):
         """Forward."""

@@ -20,6 +20,7 @@ import os
 import pytest
 import torch
 
+from nvidia_tao_pytorch.core.utils.ptm_utils import load_pretrained_weights
 from nvidia_tao_pytorch.cv.backbone_v2 import (
     convnext,
     convnext_v2,
@@ -254,10 +255,13 @@ def test_basic_usage(backbone_data, activation_checkpoint, freeze_at):
 
     # Test the loading if backbone weights are available.
     if TEST_BACKBONE_DIR is not None and filename is not None:
-        backbone.load_pretrained_weights(
-            torch.load(os.path.join(TEST_BACKBONE_DIR, filename), map_location="cpu", weights_only=False),
-            strict=False,
+        state_dict = load_pretrained_weights(
+            os.path.join(TEST_BACKBONE_DIR, filename),
+            map_location="cpu",
+            weights_only=False,
         )
+        msg = backbone.load_state_dict(state_dict, strict=False)
+        print(msg)
 
     # Test the forward.
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")

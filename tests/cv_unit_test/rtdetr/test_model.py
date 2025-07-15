@@ -28,7 +28,7 @@ def _test_experiment_spec():
     yield experiment_config
 
 @pytest.mark.cv_unit
-@pytest.mark.parametrize("backbone", ["resnet_50", "efficientvit_b0", "efficientvit_l0", "fan_tiny", "convnext_tiny"])
+@pytest.mark.parametrize("backbone", ["resnet_50", "efficientvit_b0", "efficientvit_l0", "fan_tiny_8_p4_hybrid", "convnext_tiny"])
 @pytest.mark.parametrize("feats", [
                                     (
                                         [256, 256], 
