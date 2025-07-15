@@ -58,7 +58,7 @@ TEST_TOPOLOGIES = [
     # GCViT.
     ("gc_vit_xxtiny"),
     # OpenCLIP.
-    ("ViT-L-14-SigLIP-CLIPA-336"),
+    ("vit_l_14_siglip_clipa_336"),
     # RADIO.
     ("c_radio_v2_vit_base_patch16"),
 ]

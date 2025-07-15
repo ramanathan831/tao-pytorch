@@ -636,7 +636,7 @@ class EfficientViT(BackboneBase):
         in_chans=3,
         width_list=(8, 16, 32, 64, 128),
         depth_list=(1, 2, 2, 2, 2),
-        head_dim=32,
+        dim=32,
         expand_ratio=4,
         norm="bn2d",
         act_func="hswish",
@@ -652,7 +652,7 @@ class EfficientViT(BackboneBase):
             in_chans: Number of input image channels.
             width_list: Feature dimension at each stage.
             depth_list: Number of blocks at each stage.
-            head_dim: Dimension of the head.
+            dim: Dimension of the head.
             expand_ratio: Expand ratio for the MBConv block.
             norm: Normalization layer type.
             act_func: Activation layer type.
@@ -733,7 +733,7 @@ class EfficientViT(BackboneBase):
                 stage.append(
                     EfficientViTBlock(
                         in_channels=in_channels,
-                        dim=head_dim,
+                        dim=dim,
                         expand_ratio=expand_ratio,
                         norm=norm,
                         act_func=act_func,

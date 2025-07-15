@@ -19,6 +19,7 @@ import torch.nn as nn
 import torch.utils.checkpoint as checkpoint
 
 from nvidia_tao_pytorch.cv.backbone_v2.convnext_v2 import ConvNeXtV2 as ConvNeXt
+from nvidia_tao_pytorch.cv.rtdetr.model.backbone.registry import RTDETR_BACKBONE_REGISTRY
 
 
 class ConvNeXtFPN(ConvNeXt):
@@ -77,6 +78,7 @@ class ConvNeXtFPN(ConvNeXt):
         return outs
 
 
+@RTDETR_BACKBONE_REGISTRY.register()
 def convnext_tiny(out_indices=[1, 2, 3], **kwargs):
     """ConvNext-Tiny model.
 
@@ -89,10 +91,12 @@ def convnext_tiny(out_indices=[1, 2, 3], **kwargs):
         use_grn=False,
         layer_scale_init_value=1e-6,
         return_idx=out_indices,
+        num_classes=0,
         **kwargs,
     )
 
 
+@RTDETR_BACKBONE_REGISTRY.register()
 def convnext_small(out_indices=[1, 2, 3], **kwargs):
     """ConvNext-Small model.
 
@@ -105,10 +109,12 @@ def convnext_small(out_indices=[1, 2, 3], **kwargs):
         use_grn=False,
         layer_scale_init_value=1e-6,
         return_idx=out_indices,
+        num_classes=0,
         **kwargs,
     )
 
 
+@RTDETR_BACKBONE_REGISTRY.register()
 def convnext_base(out_indices=[1, 2, 3], **kwargs):
     """ConvNext-Base model.
 
@@ -121,10 +127,12 @@ def convnext_base(out_indices=[1, 2, 3], **kwargs):
         use_grn=False,
         layer_scale_init_value=1e-6,
         return_idx=out_indices,
+        num_classes=0,
         **kwargs,
     )
 
 
+@RTDETR_BACKBONE_REGISTRY.register()
 def convnext_large(out_indices=[1, 2, 3], **kwargs):
     """ConvNext-Large model.
 
@@ -137,10 +145,12 @@ def convnext_large(out_indices=[1, 2, 3], **kwargs):
         use_grn=False,
         layer_scale_init_value=1e-6,
         return_idx=out_indices,
+        num_classes=0,
         **kwargs,
     )
 
 
+@RTDETR_BACKBONE_REGISTRY.register()
 def convnext_xlarge(out_indices=[1, 2, 3], **kwargs):
     """ConvNext-XLarge model.
 
@@ -153,14 +163,6 @@ def convnext_xlarge(out_indices=[1, 2, 3], **kwargs):
         use_grn=False,
         layer_scale_init_value=1e-6,
         return_idx=out_indices,
+        num_classes=0,
         **kwargs,
     )
-
-
-convnext_model_dict = {
-    "convnext_tiny": convnext_tiny,
-    "convnext_small": convnext_small,
-    "convnext_base": convnext_base,
-    "convnext_large": convnext_large,
-    "convnext_xlarge": convnext_xlarge,
-}

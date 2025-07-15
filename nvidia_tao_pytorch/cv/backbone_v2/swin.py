@@ -21,7 +21,8 @@ import math
 
 import torch
 import torch.nn as nn
-from timm.layers import PatchEmbed
+import torch.nn.functional as F
+from timm.layers import to_2tuple, trunc_normal_
 from timm.models.vision_transformer import init_weights_vit_timm
 
 from nvidia_tao_pytorch.cv.backbone_v2 import BACKBONE_REGISTRY
@@ -29,12 +30,12 @@ from nvidia_tao_pytorch.cv.backbone_v2.backbone_base import BackboneBase
 from nvidia_tao_pytorch.cv.backbone_v2.swin_utils import (
     BasicLayer,
     PatchMerging,
-    PositionalEncodingFourier,
+    PatchEmbed,
 )
 
 
 class SwinTransformer(BackboneBase):
-    """Swin Transformer.
+    """Swin Transformer using FAN blocks.
 
     Swin Transformer (the name Swin stands for Shifted window) serves as a general-purpose backbone for computer
     vision. It is basically a hierarchical Transformer whose representation is computed with shifted windows. The
@@ -69,15 +70,18 @@ class SwinTransformer(BackboneBase):
         activation_checkpoint=False,
         freeze_at=None,
         freeze_norm=False,
+        out_indices=(0, 1, 2, 3),
+        dilation=False,
+        post_norm=False,
         **kwargs,
     ):
-        """Initialize SwinTransformer class
+        """Initialize the SwinTransformer model.
 
         Args:
             img_size (int | tuple(int)): Input image size. Default 224
             patch_size (int | tuple(int)): Patch size. Default: 4
-            in_chans (int): Number of input image channels. Default: 3
-            num_classes (int): Number of classes for classification head. Default: 1000
+            in_chans (int): Number of input image channels. Default: `3`.
+            num_classes (int): Number of classes for classification head. Default: `1000`.
             embed_dim (int): Patch embedding dimension. Default: 96
             depths (tuple(int)): Depth of each Swin Transformer layer.
             num_heads (tuple(int)): Number of attention heads in different layers.
@@ -103,61 +107,86 @@ class SwinTransformer(BackboneBase):
             freeze_norm=freeze_norm,
         )
 
+        self.img_size = img_size
         self.num_layers = len(depths)
         self.embed_dim = embed_dim
         self.ape = ape
-        self.patch_norm = patch_norm
+
         self.num_features = int(embed_dim * 2 ** (self.num_layers - 1))
-        self.mlp_ratio = mlp_ratio
+        self.patch_norm = patch_norm
+        self.out_indices = out_indices
+        self.dilation = dilation
 
         # split image into non-overlapping patches
         self.patch_embed = PatchEmbed(
-            img_size=img_size,
             patch_size=patch_size,
             in_chans=in_chans,
             embed_dim=embed_dim,
             norm_layer=norm_layer if self.patch_norm else None,
         )
 
-        self.patch_grid = self.patch_embed.grid_size
-
         # absolute position embedding
         if self.ape:
-            # self.absolute_pos_embed = nn.Parameter(torch.zeros(1, num_patches, embed_dim))
-            # trunc_normal_(self.absolute_pos_embed, std=.02)
-            self.absolute_pos_embed = PositionalEncodingFourier(dim=embed_dim)
-        else:
-            self.absolute_pos_embed = None
+            img_size = to_2tuple(img_size)
+            patch_size = to_2tuple(patch_size)
+            patches_resolution = [
+                img_size[0] // patch_size[0],
+                img_size[1] // patch_size[1],
+            ]
+
+            self.absolute_pos_embed = nn.Parameter(
+                torch.zeros(1, embed_dim, patches_resolution[0], patches_resolution[1])
+            )
+            trunc_normal_(self.absolute_pos_embed, std=0.02)
 
         self.pos_drop = nn.Dropout(p=drop_rate)
 
         # stochastic depth
-        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]  # stochastic depth decay rule
+        dpr = [
+            x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))
+        ]  # stochastic depth decay rule
 
         # build layers
-        layers = []
-        for i_layer in range(self.num_layers):
-            layers += [
-                BasicLayer(
-                    dim=int(embed_dim * 2**i_layer),
-                    input_resolution=(self.patch_grid[0] // (2**i_layer), self.patch_grid[1] // (2**i_layer)),
-                    depth=depths[i_layer],
-                    mlp_type=mlp_type[i_layer] if isinstance(mlp_type, list) else mlp_type,
-                    num_heads=num_heads[i_layer],
-                    window_size=window_size,
-                    mlp_ratio=self.mlp_ratio,
-                    qkv_bias=qkv_bias,
-                    drop=drop_rate,
-                    attn_drop=attn_drop_rate,
-                    drop_path=dpr[sum(depths[:i_layer]): sum(depths[: i_layer + 1])],
-                    norm_layer=norm_layer,
-                    downsample=PatchMerging if (i_layer < self.num_layers - 1) else None,
-                    use_checkpoint=self.activation_checkpoint,
-                )
-            ]
-        self.layers = nn.Sequential(*layers)
+        self.layers = nn.ModuleList()
 
-        self.norm = norm_layer(self.num_features)
+        # prepare downsample list
+        downsamplelist = [PatchMerging for i in range(self.num_layers)]
+        downsamplelist[-1] = None
+        self.num_inter_features = [int(embed_dim * 2**i) for i in range(self.num_layers)]
+        if self.dilation:
+            downsamplelist[-2] = None
+            self.num_inter_features[-1] = int(embed_dim * 2 ** (self.num_layers - 1)) // 2
+        for i_layer in range(self.num_layers):
+            layer = BasicLayer(
+                # dim=int(embed_dim * 2 ** i_layer),
+                dim=self.num_inter_features[i_layer],
+                depth=depths[i_layer],
+                mlp_type=mlp_type[i_layer] if isinstance(mlp_type, list) else mlp_type,
+                num_heads=num_heads[i_layer],
+                window_size=window_size,
+                mlp_ratio=mlp_ratio,
+                qkv_bias=qkv_bias,
+                drop=drop_rate,
+                attn_drop=attn_drop_rate,
+                drop_path=dpr[sum(depths[: i_layer]): sum(depths[: i_layer + 1])],
+                norm_layer=norm_layer,
+                # downsample=PatchMerging if (i_layer < self.num_layers - 1) else None,
+                downsample=downsamplelist[i_layer],
+                use_checkpoint=activation_checkpoint,
+            )
+            self.layers.append(layer)
+
+        # add a norm layer for each output
+        for i_layer in out_indices:
+            layer = norm_layer(self.num_inter_features[i_layer])
+            layer_name = f"norm{i_layer}"
+            self.add_module(layer_name, layer)
+
+        if post_norm:
+            self.post_norm = nn.LayerNorm(self.num_features)
+        else:
+            self.post_norm = None
+
         self.avgpool = nn.AdaptiveAvgPool1d(1)
         self.head = nn.Linear(self.num_features, num_classes) if num_classes > 0 else nn.Identity()
 
@@ -196,24 +225,59 @@ class SwinTransformer(BackboneBase):
         self.num_classes = num_classes
         self.head = nn.Linear(self.num_features, num_classes) if num_classes > 0 else nn.Identity()
 
-    def forward_pre_logits(self, x):
+    def forward_features(self, x):
         """Forward pass through the backbone, excluding the head."""
         x = self.patch_embed(x)
-        B, N, _ = x.shape
-        H = W = math.sqrt(N)
-        if self.absolute_pos_embed is not None:
-            # import pdb; pdb.set_trace()
-            x = x + self.absolute_pos_embed(B, H, W).reshape(B, -1, x.shape[1]).permute(0, 2, 1)
+
+        Wh, Ww = x.size(2), x.size(3)
+        if self.ape:
+            # interpolate the position embedding to the corresponding size
+            absolute_pos_embed = F.interpolate(
+                self.absolute_pos_embed, size=(Wh, Ww), mode="bicubic"
+            )
+            x = (x + absolute_pos_embed).flatten(2).transpose(1, 2)  # B Wh*Ww C
+        else:
+            x = x.flatten(2).transpose(1, 2)
         x = self.pos_drop(x)
-        x = self.layers(x)
-        x = self.norm(x)  # B L C
+        for layer in self.layers:
+            _, _, _, x, Wh, Ww = layer(x, Wh, Ww)
+        if self.post_norm:
+            x = self.post_norm(x)  # B L C
+        return x
+
+    def forward_pre_logits(self, x):
+        """Forward pass through the backbone, excluding the head."""
+        x = self.forward_features(x)
         x = self.avgpool(x.transpose(1, 2))  # B C 1
         x = torch.flatten(x, 1)
         return x
 
-    def forward_feature_pyramid(self, *args, **kwargs):
+    def forward_feature_pyramid(self, x):
         """Forward pass through the backbone to extract intermediate feature maps."""
-        raise NotImplementedError("forward_feature_pyramid is not implemented.")
+        x = self.patch_embed(x)
+
+        Wh, Ww = x.size(2), x.size(3)
+        if self.ape:
+            # interpolate the position embedding to the corresponding size
+            absolute_pos_embed = F.interpolate(
+                self.absolute_pos_embed, size=(Wh, Ww), mode="bicubic"
+            )
+            x = (x + absolute_pos_embed).flatten(2).transpose(1, 2)  # B Wh*Ww C
+        else:
+            x = x.flatten(2).transpose(1, 2)
+        x = self.pos_drop(x)
+
+        outs = {}
+        for idx, layer in enumerate(self.layers):
+            x_out, H, W, x, Wh, Ww = layer(x, Wh, Ww)
+
+            if idx in self.out_indices:
+                norm_layer = getattr(self, f"norm{idx}")
+                x_out = norm_layer(x_out)
+
+                out = x_out.view(-1, H, W, self.num_inter_features[idx]).permute(0, 3, 1, 2).contiguous()
+                outs[f'p{idx}'] = out
+        return outs
 
     def forward(self, x):
         """Forward."""

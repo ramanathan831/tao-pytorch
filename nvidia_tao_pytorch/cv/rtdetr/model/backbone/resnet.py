@@ -17,6 +17,7 @@
 from timm.models.resnet import BasicBlock, Bottleneck
 
 from nvidia_tao_pytorch.cv.backbone_v2.resnet import ResNet
+from nvidia_tao_pytorch.cv.rtdetr.model.backbone.registry import RTDETR_BACKBONE_REGISTRY
 
 
 class ResNetFPN(ResNet):
@@ -40,26 +41,39 @@ class ResNetFPN(ResNet):
         return out
 
 
+@RTDETR_BACKBONE_REGISTRY.register()
 def resnet_18(out_indices=[1, 2, 3], **kwargs):
     """Resnet-18 model.
     Args:
         out_indices (list): List of block indices to return as feature
     """
     return ResNetFPN(
-        out_channels=[64, 128, 256, 512], block=BasicBlock, layers=[2, 2, 2, 2], return_idx=out_indices, **kwargs
+        num_classes=0,
+        out_channels=[64, 128, 256, 512],
+        block=BasicBlock,
+        layers=[2, 2, 2, 2],
+        return_idx=out_indices,
+        **kwargs,
     )
 
 
+@RTDETR_BACKBONE_REGISTRY.register()
 def resnet_34(out_indices=[1, 2, 3], **kwargs):
-    """Resnet-34 model from.
+    """Resnet-34 model.
     Args:
         out_indices (list): List of block indices to return as feature
     """
     return ResNetFPN(
-        out_channels=[64, 128, 256, 512], block=BasicBlock, layers=[3, 4, 6, 3], return_idx=out_indices, **kwargs
+        num_classes=0,
+        out_channels=[64, 128, 256, 512],
+        block=BasicBlock,
+        layers=[3, 4, 6, 3],
+        return_idx=out_indices,
+        **kwargs,
     )
 
 
+@RTDETR_BACKBONE_REGISTRY.register()
 def resnet_50(out_indices=[1, 2, 3], **kwargs):
     """ResNet-50 model.
 
@@ -67,23 +81,26 @@ def resnet_50(out_indices=[1, 2, 3], **kwargs):
         out_indices (list): List of block indices to return as feature
     """
     return ResNetFPN(
-        out_channels=[256, 512, 1024, 2048], block=Bottleneck, layers=[3, 4, 6, 3], return_idx=out_indices, **kwargs
+        num_classes=0,
+        out_channels=[256, 512, 1024, 2048],
+        block=Bottleneck,
+        layers=[3, 4, 6, 3],
+        return_idx=out_indices,
+        **kwargs,
     )
 
 
+@RTDETR_BACKBONE_REGISTRY.register()
 def resnet_101(out_indices=[1, 2, 3], **kwargs):
     """ResNet-101 model.
     Args:
         out_indices (list): List of block indices to return as feature
     """
     return ResNetFPN(
-        out_channels=[256, 512, 1024, 2048], block=Bottleneck, layers=[3, 4, 23, 3], return_idx=out_indices, **kwargs
+        num_classes=0,
+        out_channels=[256, 512, 1024, 2048],
+        block=Bottleneck,
+        layers=[3, 4, 23, 3],
+        return_idx=out_indices,
+        **kwargs,
     )
-
-
-resnet_model_dict = {
-    "resnet_18": resnet_18,
-    "resnet_34": resnet_34,
-    "resnet_50": resnet_50,
-    "resnet_101": resnet_101,
-}

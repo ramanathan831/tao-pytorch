@@ -484,6 +484,7 @@ class RADIOBase(nn.Module):
             register_multiple=self.register_multiple,
         )
         self.model = vit_backbone
+        self.num_features = vit_backbone.embed_dim * len(self.summary_idxs)
 
     @property
     def num_summary_tokens(self) -> int:
@@ -650,6 +651,7 @@ class RADIO(BackboneBase):
         activation_checkpoint=False,
         freeze_at=None,
         freeze_norm=False,
+        head_init_scale=1.0,
         **kwargs,
     ):
         """Initialize the RADIO model.
@@ -668,9 +670,8 @@ class RADIO(BackboneBase):
             freeze_at (list): List of keys corresponding to the stages or layers to freeze. If `None`, no specific
                 layers are frozen. If `"all"`, the entire model is frozen and set to eval mode. Default: `None`.
             freeze_norm (bool): If `True`, all normalization layers in the backbone will be frozen. Default: `False`.
+            head_init_scale (float): Initialization scale for the head. Default: `1.0`.
         """
-        if num_classes != 0:
-            raise ValueError(f"num_classes must be 0 for RADIO backbones. Received: num_classes={num_classes}")
         super().__init__(
             in_chans=in_chans,
             num_classes=num_classes,
@@ -704,10 +705,16 @@ class RADIO(BackboneBase):
             cpe_max_size=self.cpe_max_size,
             register_multiple=self.register_multiple,
         )
-
+        self.num_features = backbone.num_features
         # Add an extra wrapper to the backbone.
         # TODO(@hongyuc): This is actually a redundant wrapper for the RADIO models. We can remove it in the future.
         self.radio = RADIOWrapper(backbone, resolution=self.resolution)
+        if num_classes > 0:
+            self.head = nn.Linear(self.num_features, num_classes)
+            self.head.weight.data.mul_(head_init_scale)
+            self.head.bias.data.mul_(head_init_scale)
+        else:
+            self.head = nn.Identity()
 
     @torch.jit.ignore
     def set_grad_checkpointing(self, enable=True):
@@ -744,14 +751,23 @@ class RADIO(BackboneBase):
 
     @torch.jit.ignore
     def get_classifier(self):
-        """Get the classifier module."""
-        # TODO(@hongyuc): Does CRADIO have a classifier?
-        raise NotImplementedError("get_classifier is not implemented.")
+        """Get the classification head module.
 
-    def reset_classifier(self, num_classes):
-        """Reset the classifier head."""
-        # TODO(@hongyuc): Does CRADIO have a classifier?
-        raise NotImplementedError("reset_classifier is not implemented.")
+        Returns:
+            nn.Module: The classification head (Linear layer or Identity).
+        """
+        return self.head
+
+    def reset_classifier(self, num_classes, global_pool=""):
+        """Reset the classification head with a new number of classes.
+
+        Args:
+            num_classes (int): New number of classes for classification.
+            global_pool (str, optional): Global pooling type (unused in current implementation).
+                Defaults to "".
+        """
+        self.num_classes = num_classes
+        self.head = nn.Linear(self.num_features, num_classes) if num_classes > 0 else nn.Identity()
 
     def forward_pre_logits(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """Forward pass through the backbone, excluding the head.
@@ -779,6 +795,7 @@ class RADIO(BackboneBase):
             summary (Tensor): Summary tensor.
         """
         summary, _ = self.radio(x)
+        summary = self.head(summary)
         return summary
 
 

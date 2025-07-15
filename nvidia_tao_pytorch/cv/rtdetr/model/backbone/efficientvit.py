@@ -19,6 +19,7 @@ import torch.utils.checkpoint as checkpoint
 from torch import nn
 
 from nvidia_tao_pytorch.cv.backbone_v2.efficientvit import EfficientViT, EfficientViTLarge
+from nvidia_tao_pytorch.cv.rtdetr.model.backbone.registry import RTDETR_BACKBONE_REGISTRY
 
 
 class EfficientViTFPN(EfficientViT):
@@ -88,6 +89,7 @@ class EfficientViTLargeFPN(EfficientViTLarge):
         return outs
 
 
+@RTDETR_BACKBONE_REGISTRY.register()
 def efficientvit_b0(out_indices=[1, 2, 3], **kwargs):
     """EfficientViT-B0 model.
 
@@ -99,10 +101,12 @@ def efficientvit_b0(out_indices=[1, 2, 3], **kwargs):
         depth_list=[1, 2, 2, 2, 2],
         dim=16,
         return_idx=out_indices,
+        num_classes=0,
         **kwargs,
     )
 
 
+@RTDETR_BACKBONE_REGISTRY.register()
 def efficientvit_b1(out_indices=[1, 2, 3], **kwargs):
     """EfficientViT-B1 model.
 
@@ -114,10 +118,12 @@ def efficientvit_b1(out_indices=[1, 2, 3], **kwargs):
         depth_list=[1, 2, 3, 3, 4],
         dim=16,
         return_idx=out_indices,
+        num_classes=0,
         **kwargs,
     )
 
 
+@RTDETR_BACKBONE_REGISTRY.register()
 def efficientvit_b2(out_indices=[1, 2, 3], **kwargs):
     """EfficientViT-B2 model.
 
@@ -129,10 +135,12 @@ def efficientvit_b2(out_indices=[1, 2, 3], **kwargs):
         depth_list=[1, 3, 4, 4, 6],
         dim=32,
         return_idx=out_indices,
+        num_classes=0,
         **kwargs,
     )
 
 
+@RTDETR_BACKBONE_REGISTRY.register()
 def efficientvit_b3(out_indices=[1, 2, 3], **kwargs):
     """EfficientViT-B3 model.
 
@@ -144,10 +152,12 @@ def efficientvit_b3(out_indices=[1, 2, 3], **kwargs):
         depth_list=[1, 4, 6, 6, 9],
         dim=32,
         return_idx=out_indices,
+        num_classes=0,
         **kwargs,
     )
 
 
+@RTDETR_BACKBONE_REGISTRY.register()
 def efficientvit_l0(out_indices=[1, 2, 3], **kwargs):
     """EfficientViT-L0 model.
 
@@ -158,10 +168,12 @@ def efficientvit_l0(out_indices=[1, 2, 3], **kwargs):
         width_list=[32, 64, 128, 256, 512],
         depth_list=[1, 1, 1, 4, 4],
         return_idx=out_indices,
+        num_classes=0,
         **kwargs,
     )
 
 
+@RTDETR_BACKBONE_REGISTRY.register()
 def efficientvit_l1(out_indices=[1, 2, 3], **kwargs):
     """EfficientViT-L1 model.
 
@@ -172,10 +184,12 @@ def efficientvit_l1(out_indices=[1, 2, 3], **kwargs):
         width_list=[32, 64, 128, 256, 512],
         depth_list=[1, 1, 1, 6, 6],
         return_idx=out_indices,
+        num_classes=0,
         **kwargs,
     )
 
 
+@RTDETR_BACKBONE_REGISTRY.register()
 def efficientvit_l2(out_indices=[1, 2, 3], **kwargs):
     """EfficientViT-L2 model.
 
@@ -186,10 +200,12 @@ def efficientvit_l2(out_indices=[1, 2, 3], **kwargs):
         width_list=[32, 64, 128, 256, 512],
         depth_list=[1, 2, 2, 8, 8],
         return_idx=out_indices,
+        num_classes=0,
         **kwargs,
     )
 
 
+@RTDETR_BACKBONE_REGISTRY.register()
 def efficientvit_l3(out_indices=[1, 2, 3], **kwargs):
     """EfficientViT-L3 model.
 
@@ -200,17 +216,6 @@ def efficientvit_l3(out_indices=[1, 2, 3], **kwargs):
         width_list=[64, 128, 256, 512, 1024],
         depth_list=[1, 2, 2, 8, 8],
         return_idx=out_indices,
+        num_classes=0,
         **kwargs,
     )
-
-
-efficientvit_model_dict = {
-    "efficientvit_b0": efficientvit_b0,
-    "efficientvit_b1": efficientvit_b1,
-    "efficientvit_b2": efficientvit_b2,
-    "efficientvit_b3": efficientvit_b3,
-    "efficientvit_l0": efficientvit_l0,
-    "efficientvit_l1": efficientvit_l1,
-    "efficientvit_l2": efficientvit_l2,
-    "efficientvit_l3": efficientvit_l3,
-}
