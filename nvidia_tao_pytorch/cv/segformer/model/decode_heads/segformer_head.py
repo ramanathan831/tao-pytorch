@@ -62,7 +62,7 @@ class TAOSegFormerHead(nn.Module):
         self.linear_c1 = MLP(input_dim=c1_in_channels, embed_dim=self.embedding_dim)
 
         self.linear_fuse = nn.Sequential(
-            nn.Conv2d(in_channels=self.embedding_dim * 4, out_channels=self.embedding_dim, kernel_size=1, bias=False),
+            nn.Conv2d(in_channels=self.embedding_dim * 4, out_channels=self.embedding_dim, kernel_size=1, bias=True),
             nn.BatchNorm2d(self.embedding_dim),
             nn.ReLU(inplace=True),
         )
