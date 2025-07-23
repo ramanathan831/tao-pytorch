@@ -1,4 +1,4 @@
-FROM nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:e5ea17c876b692e92cde067097f256bdedbe8bf096066a82c60a976ec0780645
+FROM nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:acbcb8bbba7123bd73e608ddc6ecaec998d179881d7260ac5eb5c0efd2b17288
 
 # Installing the TLT packages.
 WORKDIR /opt/nvidia
@@ -46,7 +46,7 @@ RUN cd wheels && ls ./*.whl|xargs -I'{}' python -m pip install '{}' \
 # RUN ln -s tao-converter converter
 
 ENV NVIDIA_PRODUCT_NAME "TAO Toolkit"
-ENV TAO_TOOLKIT_VERSION="5.2.0"
+ENV TAO_TOOLKIT_VERSION="6.1.0"
 ENV NVIDIA_TAO_TOOLKIT_VERSION="${TAO_TOOLKIT_VERSION}-PyTorch"
 ENV CUBLAS_WORKSPACE_CONFIG=":4096:8"
 
