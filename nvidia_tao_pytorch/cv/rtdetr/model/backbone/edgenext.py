@@ -171,7 +171,7 @@ def edgenext_base(out_indices=[1, 2, 3], **kwargs):
     Args:
         out_indices (list): List of block indices to return as feature
     """
-    return EdgeNeXt(
+    return EdgeNeXtFPN(
         depths=[3, 3, 9, 3], dims=[80, 160, 288, 584], expan_ratio=4,
         global_block=[0, 1, 1, 1],
         global_block_type=['None', 'SDTA', 'SDTA', 'SDTA'],
@@ -179,6 +179,7 @@ def edgenext_base(out_indices=[1, 2, 3], **kwargs):
         kernel_sizes=[3, 5, 7, 9],
         d2_scales=[2, 2, 3, 4],
         num_classes=0,
+        return_idx=out_indices,
         **kwargs
     )
 
