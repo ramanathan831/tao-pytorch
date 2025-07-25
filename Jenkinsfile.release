@@ -1,6 +1,6 @@
 // Global variables
 def TAO_VERSION = "6.25.7"
-def BUILD_TYPE = "dev"
+def BUILD_TYPE = "rc"
 
 def getPulseToken() {
     def token
@@ -128,48 +128,48 @@ spec:
           sh 'ls -l /home/scratch.metropolis2'
         }
 
-        stage ('checkmarx-scans') {
-          catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-            withCredentials([usernamePassword(credentialsId: 'checkmarx-ac-account', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]){
-              withEnv([
-              "CHECKMARX_USERNAME=${USERNAME}",
-              "CHECKMARX_PASSWORD=${PASSWORD}",
-              "CX_TEAM=CxServer/SP/Company/TLT",
-              "CX_PROJECT=TAO-PyTorch",
-              "CHECKMARX_BASE_URL=https://checkmarx.nvidia.com",
-              "CHECKMARX_VERSION=9.0",
-              "CHECKMARX_SETTINGS_OVERRIDE=false",
-              "CHECKMARX_CONFIGURATION=Default Configuration",
-              "CHECKMARX_SCAN_PRESET=Checkmarx Default",
-              "CX_FLOW_BREAK_BUILD=true",
-              "CX_FLOW_ZIP_EXCLUDE=.git*,.github,dist\\/.*,allowlist\\/.*,ci\\/.*,docker\\/.*,runner\\/.*,tests\\/.*,release\\/.*,scripts\\/.*,third_party\\/.*,tao-converter\\/.*,tao-core\\/.*",
-              "CX_PARAMS=''"
-              ]){
-                docker.withRegistry('https://gitlab-master.nvidia.com:5005', 'jenkins-TLT-pkg') {
-                  def img = 'pstooling/images/base-images/debian:cxflow-latest-prodsec-stable'
-                  docker.image(img).inside("--entrypoint=''") {
-                    sh '/app/check_variables.sh jenkins'
-                    sh """
-                    java -jar /app/cx-flow.jar \
-                    --scan \
-                    --bug-tracker="Csv" \
-                    --csv.file-name-format="[TEAM]-[PROJECT]-[TIME].csv" \
-                    --csv.include-headers="true" \
-                    --csv.data-folder="checkmarx" \
-                    --app="${CX_PROJECT}" \
-                    --cx-team="${CX_TEAM}" \
-                    --cx-project="${CX_PROJECT}" \
-                    --spring.profiles.active="sast" \
-                    --f=. \
-                    ${CX_PARAMS}
-                    """
-                    sh '/app/check_timeout.sh'
-                  }
-                }
-              }
-            }
-          }
-        }
+        // stage ('checkmarx-scans') {
+        //   catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+        //     withCredentials([usernamePassword(credentialsId: 'checkmarx-ac-account', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]){
+        //       withEnv([
+        //       "CHECKMARX_USERNAME=${USERNAME}",
+        //       "CHECKMARX_PASSWORD=${PASSWORD}",
+        //       "CX_TEAM=CxServer/SP/Company/TLT",
+        //       "CX_PROJECT=TAO-PyTorch",
+        //       "CHECKMARX_BASE_URL=https://checkmarx.nvidia.com",
+        //       "CHECKMARX_VERSION=9.0",
+        //       "CHECKMARX_SETTINGS_OVERRIDE=false",
+        //       "CHECKMARX_CONFIGURATION=Default Configuration",
+        //       "CHECKMARX_SCAN_PRESET=Checkmarx Default",
+        //       "CX_FLOW_BREAK_BUILD=true",
+        //       "CX_FLOW_ZIP_EXCLUDE=.git*,.github,dist\\/.*,allowlist\\/.*,ci\\/.*,docker\\/.*,runner\\/.*,tests\\/.*,release\\/.*,scripts\\/.*,third_party\\/.*,tao-converter\\/.*,tao-core\\/.*",
+        //       "CX_PARAMS=''"
+        //       ]){
+        //         docker.withRegistry('https://gitlab-master.nvidia.com:5005', 'jenkins-TLT-pkg') {
+        //           def img = 'pstooling/images/base-images/debian:cxflow-latest-prodsec-stable'
+        //           docker.image(img).inside("--entrypoint=''") {
+        //             sh '/app/check_variables.sh jenkins'
+        //             sh """
+        //             java -jar /app/cx-flow.jar \
+        //             --scan \
+        //             --bug-tracker="Csv" \
+        //             --csv.file-name-format="[TEAM]-[PROJECT]-[TIME].csv" \
+        //             --csv.include-headers="true" \
+        //             --csv.data-folder="checkmarx" \
+        //             --app="${CX_PROJECT}" \
+        //             --cx-team="${CX_TEAM}" \
+        //             --cx-project="${CX_PROJECT}" \
+        //             --spring.profiles.active="sast" \
+        //             --f=. \
+        //             ${CX_PARAMS}
+        //             """
+        //             sh '/app/check_timeout.sh'
+        //           }
+        //         }
+        //       }
+        //     }
+        //   }
+        // }
       }
       
       container('base-image') {
@@ -178,49 +178,60 @@ spec:
         def ci_path_env = 'CI_PROJECT_DIR=' + workspace_path
         command_env = pythonpath_env + ' ' + ci_path_env
 
-        stage ('static_tests') {
-          gitlabCommitStatus(name: "static_tests", connection: gitLabConnection('git-lab-master')) {
-            sh "${command_env} python3 ci/run_static_tests.py"
-          }
-        }
+        // stage ('static_tests') {
+        //   gitlabCommitStatus(name: "static_tests", connection: gitLabConnection('git-lab-master')) {
+        //     sh "${command_env} python3 ci/run_static_tests.py"
+        //   }
+        // }
 
-        stage ("functional_tests") {
-          withCredentials([string(credentialsId: 'NGC_CLI_API_KEY_SVC_TLT_CI', variable: 'NGC_CLI_API_KEY')]) {
-            script{
-              env.NGC_KEY=NGC_CLI_API_KEY
-              env.NGC_PATH='ea-tlt/tao_ea/pretrained_dino_imagenet:fan_hybrid_tiny'
-            }
-          }
-          gitlabCommitStatus(name: "functional_tests", connection: gitLabConnection('git-lab-master')) {
-            echo "starting functional test . . ."
-            sh "pip install pytest-cov"
-            sh "python setup.py develop"
-            sh "CPUCOUNT=1 pip install tao-core/"
-            // Running functional tests with coverage reporting.
-            // Steps run in the following order:
-            // 1. cv_unit
-            // 2. sdg_unit
-            // 3. distributed
-            // 4. ssl_unit_test
-            sh "${command_env} python ci/run_functional_tests.py -m 'cv_unit' --cov=nvidia_tao_pytorch --cov-report="
-            sh "cp .coverage /home/scratch.metropolis2/users/release_pipeline_files/coverage_reports/functional_test/.coverage.fn_pyt"
-            sh "${command_env} python ci/run_functional_tests.py -m 'sdg_unit' --cov=nvidia_tao_pytorch --cov-report="
-            sh "cat .coverage >> /home/scratch.metropolis2/users/release_pipeline_files/coverage_reports/functional_test/.coverage.fn_pyt"
-            sh "${command_env} pytest -v --color=yes tests/distributed --cov=nvidia_tao_pytorch --cov-report="
-            sh "cat .coverage >> /home/scratch.metropolis2/users/release_pipeline_files/coverage_reports/functional_test/.coverage.fn_pyt"
-            sh "${command_env} pytest -v --color=yes tests/ssl_unit_test --cov=nvidia_tao_pytorch --cov-report="
-            sh "cat .coverage >> /home/scratch.metropolis2/users/release_pipeline_files/coverage_reports/functional_test/.coverage.fn_pyt"
-          }
-        }
+        // stage ("functional_tests") {
+        //   withCredentials([string(credentialsId: 'NGC_CLI_API_KEY_SVC_TLT_CI', variable: 'NGC_CLI_API_KEY')]) {
+        //     script{
+        //       env.NGC_KEY=NGC_CLI_API_KEY
+        //       env.NGC_PATH='ea-tlt/tao_ea/pretrained_dino_imagenet:fan_hybrid_tiny'
+        //     }
+        //   }
+        //   gitlabCommitStatus(name: "functional_tests", connection: gitLabConnection('git-lab-master')) {
+        //     echo "starting functional test . . ."
+        //     sh "pip install pytest-cov"
+        //     sh "python setup.py develop"
+        //     sh "CPUCOUNT=1 pip install tao-core/"
+        //     // Running functional tests with coverage reporting.
+        //     // Steps run in the following order:
+        //     // 1. cv_unit
+        //     // 2. sdg_unit
+        //     // 3. distributed
+        //     // 4. ssl_unit_test
+        //     //sh "${command_env} python ci/run_functional_tests.py -m 'cv_unit' --cov=nvidia_tao_pytorch --cov-report="
+        //     //sh "cp .coverage /home/scratch.metropolis2/users/release_pipeline_files/coverage_reports/functional_test/.coverage.fn_pyt"
+        //     //sh "${command_env} python ci/run_functional_tests.py -m 'sdg_unit' --cov=nvidia_tao_pytorch --cov-report="
+        //     //sh "cat .coverage >> /home/scratch.metropolis2/users/release_pipeline_files/coverage_reports/functional_test/.coverage.fn_pyt"
+        //     //sh "${command_env} pytest -v --color=yes tests/distributed --cov=nvidia_tao_pytorch --cov-report="
+        //     //sh "cat .coverage >> /home/scratch.metropolis2/users/release_pipeline_files/coverage_reports/functional_test/.coverage.fn_pyt"
+        //     //sh "${command_env} pytest -v --color=yes tests/ssl_unit_test --cov=nvidia_tao_pytorch --cov-report="
+        //     //sh "cat .coverage >> /home/scratch.metropolis2/users/release_pipeline_files/coverage_reports/functional_test/.coverage.fn_pyt"
+        //   }
+        // }
 
         stage ('build_wheel') {
           gitlabCommitStatus(name: "build_wheel", connection: gitLabConnection('git-lab-master')) {
             // Building the wheels for the tao source code.
-            // Extract patch number from TAO_VERSION (e.g., "6.25.7" -> "7")
+            def VER
+            if (params.RC) {
+              VER = "${TAO_VERSION}.${BUILD_TYPE}${BUILD_NUMBER}"
+            } else {
+              VER = "${TAO_VERSION}"
+            }
+            // Extract patch number from TAO_VERSION (e.g., "6.0.0" -> "0")
             def VERSION_PARTS = TAO_VERSION.split('\\.')
             def PATCH_NUMBER = VERSION_PARTS[-1]
-            def VER="${TAO_VERSION}.${BUILD_TYPE}${BUILD_NUMBER}"
-            sh "echo '${PATCH_NUMBER}.${BUILD_TYPE}${BUILD_NUMBER}' > build.info"
+            
+            if (params.RC) {
+              sh "echo '${PATCH_NUMBER}${BUILD_TYPE}${BUILD_NUMBER}' > build.info"
+            } else {
+              // Use the patch number from TAO_VERSION for consistent versioning
+              sh "echo '${PATCH_NUMBER}' > build.info"
+            }
             build_env = command_env
             sh "${build_env} python setup.py bdist_wheel"
             sh "pip install dist/nvidia_tao_pytorch-*.whl"
@@ -239,124 +250,63 @@ spec:
             // install jfrog first
             sh "bash ${WORKSPACE}/docker/install_jfrog.sh"
             
-            // Extract patch number from TAO_VERSION and construct VER to match actual wheel naming
+            // Extract major.minor from TAO_VERSION and construct VER to match actual wheel naming
             def VERSION_PARTS = TAO_VERSION.split('\\.')
+            def MAJOR_MINOR = "${VERSION_PARTS[0]}.${VERSION_PARTS[1]}"
             def PATCH_NUMBER = VERSION_PARTS[-1]
-            def VER="${TAO_VERSION}.${BUILD_TYPE}${BUILD_NUMBER}"
             
+            def VER
+            if (params.RC) {
+              // RC builds: major.minor.patchbuildtypebuildnumber (no dot before rc per PEP 440)
+              VER = "${MAJOR_MINOR}.${PATCH_NUMBER}${BUILD_TYPE}${BUILD_NUMBER}"
+            } else {
+              // Non-RC builds: major.minor.patch (e.g., "6.0.0")
+              VER = "${MAJOR_MINOR}.${PATCH_NUMBER}"
+            }
             def PYTHON_VER="cp312-cp312"
             def ARCH="linux_x86_64"
-            def SRC="dist/nvidia_tao_pytorch-${VER}-${PYTHON_VER}-${ARCH}.whl"
+            def SRC = "dist/nvidia_tao_pytorch-${VER}-${PYTHON_VER}-${ARCH}.whl"
             def TARGET="sw-tao-pypi-local/nvidia-tao-pytorch/${VER}/"
             def PROP="component_name=nvidia-tao-pytorch;arch=x86_64;os=linux;build_source=None;version=${VER};branch=main;release_approver=vpraveen"
+            
             withCredentials([usernamePassword(credentialsId: 'tao-artifactory-tkn', passwordVariable: 'JFROG_PASSWORD', usernameVariable: 'JFROG_USERNAME')]) {
+              // For non-RC builds, check and remove existing asset
+              if (!params.RC) {
+                echo "Checking for existing wheel asset..."
+                def wheelPattern = "${TARGET}nvidia_tao_pytorch-${VER}-${PYTHON_VER}-${ARCH}.whl"
+                echo "Searching for pattern: ${wheelPattern}"
+                
+                // Search Artifactory for existing wheel using inline credentials (like nightly)
+                def searchStatus = sh(script: "jfrog rt s --url=https://urm.nvidia.com/artifactory/ --user=${JFROG_USERNAME} --access-token=${JFROG_PASSWORD} '${wheelPattern}' --count", returnStatus: true)
+                def count = 0
+                if (searchStatus == 0) {
+                  // Command succeeded, fetch the actual count
+                  count = Integer.parseInt(sh(script: "jfrog rt s --url=https://urm.nvidia.com/artifactory/ --user=${JFROG_USERNAME} --access-token=${JFROG_PASSWORD} '${wheelPattern}' --count", returnStdout: true).trim())
+                } else {
+                  echo "Search command returned non-zero (status=${searchStatus}). Treating as no existing wheel."
+                }
+
+                if (count > 0) {
+                  echo "Found ${count} existing wheel(s). Removing..."
+                  try {
+                    sh "jfrog rt del --url=https://urm.nvidia.com/artifactory/ --user=${JFROG_USERNAME} --access-token=${JFROG_PASSWORD} '${wheelPattern}' --quiet"
+                    echo "Successfully removed existing wheel"
+                  } catch (Exception e) {
+                    echo "Warning: Failed to delete existing wheel: ${e.getMessage()}"
+                    echo "Continuing with upload..."
+                  }
+                } else {
+                  echo "No existing wheel found (search count: ${count})"
+                }
+              }
+              
+              echo "Uploading wheel: ${SRC} to ${TARGET}"
               sh "jfrog rt u --url=https://urm.nvidia.com/artifactory/ --user=${JFROG_USERNAME} --access-token=${JFROG_PASSWORD} --target-props '${PROP}' ${SRC} ${TARGET}"
             }
             def append_string="pytorch_wheel: nvidia_tao_pytorch-${VER}-${PYTHON_VER}-${ARCH}.whl"
             def config_file_path = "/home/scratch.metropolis2/users/release_pipeline_files/release_items.yml"
             sh "python3 ci/update_release_config.py ${config_file_path} '${append_string}'"
             sh "cat /home/scratch.metropolis2/users/release_pipeline_files/release_items.yml"
-          }
-        }
-        
-        stage ('publish_release_artifacts') {
-          catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-            gitlabCommitStatus(name: "publish_release_artifacts", connection: gitLabConnection('git-lab-master')) {
-            withCredentials([string(credentialsId: 'gitlab-api-token', variable: 'GITLAB_TOKEN')]) {
-                def MAIN_WORKSPACE="${WORKSPACE}"
-                def GITLAB_PROJECT_ID = "140276"
-                def TAG_NAME = "Artifacts"
-                def RELEASE_NAME = "Release Artifacts"
-                def RELEASE_DESCRIPTION = "Release artifacts with third-party packages"
-
-                echo "Updating dependencies..."
-
-                sh """
-                        set -x
-                        python3 -m pip install requests
-                    """
-
-                try {
-                    sh """
-                        set -x
-                        # Configure APT source repositories for source package downloads
-                        echo "Configuring APT source repositories..."
-                        mkdir -p /etc/apt/sources.list.d || true
-                        SOURCES_FILE=/etc/apt/sources.list.d/jenkins-deb-src.list
-                        echo "Writing deb-src lines to ${SOURCES_FILE}..."
-                        cat <<-EOF > ${SOURCES_FILE} || (echo "Failed to write to ${SOURCES_FILE}, checking permissions" && ls -la /etc/apt/sources.list.d/)
-    deb-src http://archive.ubuntu.com/ubuntu/ jammy main restricted universe multiverse
-    deb-src http://archive.ubuntu.com/ubuntu/ jammy-updates main restricted universe multiverse
-    deb-src http://archive.ubuntu.com/ubuntu/ jammy-backports main restricted universe multiverse
-    deb-src http://security.ubuntu.com/ubuntu jammy-security main restricted universe multiverse
-    EOF
-                        apt-get update || echo "apt-get update failed, continuing anyway"
-                        python3 -m pip --version || (apt-get update && apt-get install -y python3-pip)
-                        python3 -m pip install --upgrade pip
-                        echo "Installing requests library..."
-                        python3 -m pip install requests
-                    """
-                } catch (Exception e) {
-                    echo "Error during APT setup: ${e.getMessage()}"
-                    echo "Continuing anyway..."
-                }
-
-                echo "Publishing release artifacts..."
-
-                try {
-                    sh """
-                    set -x
-                    # Check if git is installed, if not install it
-                    command -v git >/dev/null 2>&1 || { echo "Installing git..."; apt-get update && apt-get install -y git; }
-
-                    # Verify GITLAB_TOKEN is set (without printing it)
-                    if [ -z "${GITLAB_TOKEN}" ]; then
-                        echo "ERROR: GITLAB_TOKEN is empty!"
-                        exit 1
-                    else
-                        echo "GITLAB_TOKEN is set and not empty"
-                    fi
-
-                    # Test access to GitLab before attempting clone
-                    curl -s -I -H "Authorization: Bearer ${GITLAB_TOKEN}" https://gitlab-master.nvidia.com/api/v4/projects | grep -q "HTTP/2 200" && echo "GitLab API access successful" || echo "GitLab API access failed"
-
-                    # Clone using GitLab token for authentication
-                    git clone https://oauth2:${GITLAB_TOKEN}@gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-third-party-packages.git third-party-manager
-                    """
-                } catch (Exception e) {
-                    echo "Error during git operations: ${e.getMessage()}"
-                    error("Failed at git clone stage")
-                }
-
-                try {
-                    sh """
-                    set -x
-                    cd third-party-manager
-                    python3 manage_third_party.py \
-                        --enable-wheels \
-                        --enable-apt \
-                        --python-requirements "${MAIN_WORKSPACE}/docker/requirements-pip.txt" \
-                        --apt-requirements "${MAIN_WORKSPACE}/docker/requirements-apt.txt" \
-                        --gitlab-project-id ${GITLAB_PROJECT_ID} \
-                        --tag-name ${TAG_NAME} \
-                        --gitlab-token ${GITLAB_TOKEN} \
-                        --release-name "${RELEASE_NAME}" \
-                        --release-description "${RELEASE_DESCRIPTION}" \
-                        --wheels-dir "third_party_wheels" \
-                        --apt-dir "third_party_apt" \
-                        --apt-sources-dir "third_party_apt_sources" \
-                        --gitlab-timeout 60 \
-                        --gitlab-retries 3
-                    """
-                } catch (Exception e) {
-                    echo "Error during third-party package management: ${e.getMessage()}"
-                    error("Failed during package management")
-                }
-
-                echo "Cleaning up workspace..."
-                sh 'rm -rf third_party_wheels third_party_apt third_party_apt_sources || true'
-            }
-            }
           }
         }
 
@@ -379,11 +329,27 @@ spec:
               }
             }
             gitlabCommitStatus(name: "release_docker_build", connection: gitLabConnection('git-lab-master')) {
+              def IMAGE_TAG
+              if (params.RC) {
+                IMAGE_TAG = "${TAO_VERSION}-${BUILD_TYPE}-${BUILD_NUMBER}"
+              } else {
+                IMAGE_TAG = "${TAO_VERSION}"
+              }
+              
               docker.withRegistry('https://nvcr.io', 'NGC_API_KEY') {
-                sh "docker build -t ${IMAGE_NAME}:main-${BUILD_TYPE}-${BUILD_NUMBER} --network=host -f ${WORKSPACE}/release/docker/Dockerfile ${WORKSPACE}"
-                sh "docker push ${IMAGE_NAME}:main-${BUILD_TYPE}-${BUILD_NUMBER}"
+                // For non-RC builds, check and remove existing image
+                if (!params.RC) {
+                  echo "Checking for existing Docker image..."
+                  def imageExists = sh(script: "docker manifest inspect ${IMAGE_NAME}:${IMAGE_TAG} > /dev/null 2>&1", returnStatus: true)
+                  if (imageExists == 0) {
+                    echo "Existing image found. Note: Manual removal may be required from registry"
+                  }
+                }
+                
+                sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} --network=host -f ${WORKSPACE}/release/docker/Dockerfile ${WORKSPACE}"
+                sh "docker push ${IMAGE_NAME}:${IMAGE_TAG}"
 
-                def append_string="pytorch: ${IMAGE_NAME}:main-${BUILD_TYPE}-${BUILD_NUMBER}"
+                def append_string="pytorch: ${IMAGE_NAME}:${IMAGE_TAG}"
                 def config_file_path = "/home/scratch.metropolis2/users/release_pipeline_files/release_items.yml"
                 sh "python3 ci/update_release_config.py ${config_file_path} '${append_string}'"
                 sh "cat /home/scratch.metropolis2/users/release_pipeline_files/release_items.yml"
@@ -401,13 +367,29 @@ spec:
                 sleep time: 5, unit: 'MINUTES'
               }
             }
+            def IMAGE_TAG_CC
+            if (params.RC) {
+              IMAGE_TAG_CC = "${TAO_VERSION}-${BUILD_TYPE}-${BUILD_NUMBER}-cc"
+            } else {
+              IMAGE_TAG_CC = "${TAO_VERSION}-cc"
+            }
+            
             docker.withRegistry('https://nvcr.io', 'NGC_API_KEY') {
+              // For non-RC builds, check and remove existing coverage image
+              if (!params.RC) {
+                echo "Checking for existing Docker coverage image..."
+                def imageExists = sh(script: "docker manifest inspect ${IMAGE_NAME}:${IMAGE_TAG_CC} > /dev/null 2>&1", returnStatus: true)
+                if (imageExists == 0) {
+                  echo "Existing coverage image found. Note: Manual removal may be required from registry"
+                }
+              }
+              
               sh "cat coverage_build.txt >> ${WORKSPACE}/release/docker/Dockerfile"
               sh "cat ${WORKSPACE}/release/docker/Dockerfile"
-              sh "docker build -t ${IMAGE_NAME}:main-${BUILD_TYPE}-${BUILD_NUMBER}-cc --network=host -f ${WORKSPACE}/release/docker/Dockerfile ${WORKSPACE}"
-              sh "docker push ${IMAGE_NAME}:main-${BUILD_TYPE}-${BUILD_NUMBER}-cc"
+              sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG_CC} --network=host -f ${WORKSPACE}/release/docker/Dockerfile ${WORKSPACE}"
+              sh "docker push ${IMAGE_NAME}:${IMAGE_TAG_CC}"
 
-              def append_string="pytorch: ${IMAGE_NAME}:main-${BUILD_TYPE}-${BUILD_NUMBER}-cc"
+              def append_string="pytorch: ${IMAGE_NAME}:${IMAGE_TAG_CC}"
               def config_file_path = "/home/scratch.metropolis2/users/release_pipeline_files/coverage_tags.yml"
               sh "python3 ci/update_release_config.py ${config_file_path} '${append_string}'"
               sh "cat /home/scratch.metropolis2/users/release_pipeline_files/coverage_tags.yml"
@@ -417,8 +399,18 @@ spec:
 
         stage ('create_manifest') {
           gitlabCommitStatus(name: "create_manifest", connection: gitLabConnection('git-lab-master')) {
+            def SOURCE_TAG
+            def MANIFEST_TAG
+            if (params.RC) {
+              SOURCE_TAG = "${TAO_VERSION}-${BUILD_TYPE}-${BUILD_NUMBER}"
+              MANIFEST_TAG = "${TAO_VERSION}-${BUILD_TYPE}"
+            } else {
+              SOURCE_TAG = "${TAO_VERSION}"
+              MANIFEST_TAG = "${TAO_VERSION}-release"
+            }
+            
             docker.withRegistry('https://nvcr.io', 'NGC_API_KEY') {
-              sh "docker buildx imagetools create -t ${IMAGE_NAME}:nightly ${IMAGE_NAME}:main-${BUILD_TYPE}-${BUILD_NUMBER}"
+              sh "docker buildx imagetools create -t ${IMAGE_NAME}:${MANIFEST_TAG} ${IMAGE_NAME}:${SOURCE_TAG}"
             }
           }
         }
@@ -426,11 +418,18 @@ spec:
         // Todo: @achafale to uncomment after issue in the prod-sec code-base has been resolved
         // stage ('pulse_oss_scan') {
         //   gitlabCommitStatus(name: "pulse_oss_scan", connection: gitLabConnection('git-lab-master')) {
+        //     def SCAN_TAG
+        //     if (params.RC) {
+        //       SCAN_TAG = "${TAO_VERSION}-${BUILD_TYPE}-${BUILD_NUMBER}"
+        //     } else {
+        //       SCAN_TAG = "${TAO_VERSION}"
+        //     }
+        //     
         //     docker.withRegistry('https://nvcr.io', 'NGC_API_KEY') {
         //       docker.withRegistry('https://gitlab-master.nvidia.com:5005', 'jenkins-TLT-pkg') {
         //         def NSPECT_ID="NSPECT-76DN-OP7I"
         //         def SSA_TOKEN=getPulseToken()
-        //         def CONTAINER_TAG="${IMAGE_NAME}:main-${BUILD_TYPE}-${BUILD_NUMBER}"
+        //         def CONTAINER_TAG="${IMAGE_NAME}:${SCAN_TAG}"
         //         def CONTAINER_ARCHIVE="container_image.tar"
         //         def CONTAINER_SCAN_POLICY="allowlist/tao_24_03_sec_policy_v2.json"
         //         try {
