@@ -12,7 +12,53 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""EdgeNeXt backbone."""
+"""EdgeNeXt backbone module.
+
+This module provides EdgeNeXt implementations for the TAO PyTorch framework.
+EdgeNeXt is a hybrid CNN-Transformer architecture designed for mobile vision
+applications, combining the efficiency of convolutional layers with the
+representational power of transformer blocks.
+
+The EdgeNeXt architecture introduces Split Depth-wise Transpose Attention (SDTA)
+mechanisms that efficiently capture both local and global information. It uses
+a hierarchical structure with four stages, each containing a mix of convolutional
+and transformer blocks.
+
+Key Features:
+- Hybrid CNN-Transformer architecture for mobile applications
+- Split Depth-wise Transpose Attention (SDTA) for efficient attention
+- Cross-Covariance Attention (XCA) for global information
+- Configurable global blocks for long-range dependencies
+- Support for multiple model sizes (XX-Small, X-Small, Small, Base)
+- BN-HS variants with BatchNorm and Hard Swish activation
+- Integration with TAO backbone framework
+- Support for activation checkpointing and layer freezing
+- Efficient design for mobile and edge devices
+
+Classes:
+    EdgeNeXt: Main EdgeNeXt model with hybrid architecture
+    EdgeNeXtBNHS: EdgeNeXt variant with BatchNorm and Hard Swish
+
+Functions:
+    edgenext_xx_small: EdgeNeXt XX-Small model
+    edgenext_x_small: EdgeNeXt X-Small model
+    edgenext_small: EdgeNeXt Small model
+    edgenext_base: EdgeNeXt Base model
+    edgenext_xx_small_bn_hs: EdgeNeXt XX-Small with BN-HS
+    edgenext_x_small_bn_hs: EdgeNeXt X-Small with BN-HS
+    edgenext_small_bn_hs: EdgeNeXt Small with BN-HS
+
+Example:
+    >>> from nvidia_tao_pytorch.cv.backbone_v2 import edgenext_small
+    >>> model = edgenext_small(num_classes=1000)
+    >>> x = torch.randn(1, 3, 224, 224)
+    >>> output = model(x)
+
+References:
+    - [EdgeNeXt: Efficiently Amalgamated CNN-Transformer Architecture for Mobile Vision Applications](
+      https://arxiv.org/abs/2206.10589)
+    - [https://github.com/mmaaz60/EdgeNeXt](https://github.com/mmaaz60/EdgeNeXt)
+"""
 import torch
 from torch import nn
 from timm.models.layers import trunc_normal_
