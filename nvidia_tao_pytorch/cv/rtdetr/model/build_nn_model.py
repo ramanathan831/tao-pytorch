@@ -99,8 +99,10 @@ class RTDETRModel(nn.Module):
                     new_checkpoint[k] = v
                 else:
                     # Skip layers that mismatch
-                    logger.info(f"skip layer: {k}, checkpoint layer size: {list(v.size())},",
-                                f"current model layer size: {list(teacher_model_dict[k].size())}")
+                    logger.info(
+                        "skip layer: %s, checkpoint layer size: %s, current model layer size: %s",
+                        k, list(v.size()), list(teacher_model_dict[k].size())
+                    )
                     new_checkpoint[k] = teacher_model_dict[k]
             msg = backbone.load_state_dict(new_checkpoint, strict=False)
             if get_global_rank() == 0:
