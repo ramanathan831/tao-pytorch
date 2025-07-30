@@ -182,7 +182,7 @@ class ResNet(TimmResNet, BackboneBase):
         activation_checkpoint = kwargs.pop("activation_checkpoint", False)
         freeze_at = kwargs.pop("freeze_at", None)
         freeze_norm = kwargs.pop("freeze_norm", False)
-        self.out_indices = kwargs.pop("out_indices", None)
+        self.out_indices = kwargs.pop("out_indices", [0, 1, 2, 3])
 
         super().__init__(*args, **kwargs)  # TimmResNet initialization.
         BackboneBase.__init__(

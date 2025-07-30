@@ -228,6 +228,7 @@ class OpenCLIP(BackboneBase):
             self._enable_interpolated_forward(self.model.visual)
         else:
             raise NotImplementedError(f"Unsupported model type {model_name} for dynamic image size.")
+        self.num_features = self.model.visual.output_dim
         self.head = nn.Linear(self.model.visual.output_dim, num_classes) if num_classes > 0 else nn.Identity()
 
     def _register_nvclip_configs(self):
