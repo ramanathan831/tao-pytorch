@@ -59,20 +59,25 @@ def run_experiment(experiment_config):
         current_model_dict = pt_model.model.state_dict()
         checkpoint = load_pretrained_weights(pretrained_path, parser=parse_checkpoint)
         new_checkpoint = {}
-        for k, k_ckpt in zip(sorted(current_model_dict.keys()), sorted(checkpoint.keys())):
-            v = checkpoint[k_ckpt]
+        for k in sorted(current_model_dict.keys()):
             # Handle PTL format
-            k = k.replace("model.model.", "model.")
-            if v.size() == current_model_dict[k].size():
-                new_checkpoint[k] = v
+            k_new = k.replace("model.", "model.model.")
+            v = checkpoint.get(k_new, None)
+            if v is not None:
+                if v.size() == current_model_dict[k].size():
+                    new_checkpoint[k] = v
+                else:
+                    # Skip layers that mismatch
+                    logging.warning(
+                        "skip layer: %s, checkpoint layer size: %s, current model layer size: %s",
+                        k, list(v.size()), list(current_model_dict[k].size())
+                    )
+                    new_checkpoint[k] = current_model_dict[k]
             else:
-                # Skip layers that mismatch
-                logging.info(
-                    "skip layer: %s, checkpoint layer size: %s, current model layer size: %s",
-                    k, list(v.size()), list(current_model_dict[k].size()))
-                new_checkpoint[k] = current_model_dict[k]
+                logging.warning("skip layer %s as it doesn't exist in the checkpoint", k)
         # Load pretrained weights
-        pt_model.model.load_state_dict(new_checkpoint, strict=False)
+        m = pt_model.model.load_state_dict(new_checkpoint, strict=False)
+        logging.info("Loading pretrained weights from %s \nm: %s", pretrained_path, m)
     else:
         pt_model = GDINOPlModel(experiment_config, cap_lists=cap_lists)
 
