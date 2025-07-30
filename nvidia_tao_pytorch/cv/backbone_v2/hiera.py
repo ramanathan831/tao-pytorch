@@ -199,23 +199,9 @@ class Hiera(TimmHiera, BackboneBase):
         """
         return super().forward_features(x, mask, return_intermediates=False)
 
-    def forward_feature_pyramid(self, *args, **kwargs):
-        """Forward pass through the backbone to extract intermediate feature maps.
-
-        This method is not implemented for Hiera as it doesn't naturally produce
-        multi-scale feature maps like CNN-based architectures. Hiera produces a
-        single-scale feature representation.
-
-        Raises:
-            NotImplementedError: This method is not supported for Hiera as it doesn't
-                produce multi-scale features.
-
-        Note:
-            For multi-scale feature extraction from Hiera, consider using the output
-            of `forward_pre_logits` or implementing a custom feature pyramid network
-            on top of the transformer features.
-        """
-        raise NotImplementedError("forward_feature_pyramid is not implemented for Hiera.")
+    def forward_feature_pyramid(self, x: torch.Tensor, mask: torch.Tensor = None):
+        """Forward pass through the backbone to extract intermediate feature maps."""
+        return super().forward_intermediates(x, mask, intermediates_only=True, output_fmt="NCHW")
 
 
 @BACKBONE_REGISTRY.register()

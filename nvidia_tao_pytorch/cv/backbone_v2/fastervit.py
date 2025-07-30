@@ -979,9 +979,14 @@ class FasterViT(BackboneBase):
         x = torch.flatten(x, 1)
         return x
 
-    def forward_feature_pyramid(self, *args, **kwargs):
+    def forward_feature_pyramid(self, x):
         """Forward pass through the backbone to extract intermediate feature maps."""
-        raise NotImplementedError("forward_feature_pyramid is not implemented.")
+        outs = []
+        x = self.patch_embed(x)
+        for level in self.levels:
+            x = level(x)
+            outs.append(x)
+        return outs
 
     def forward(self, x):
         """Forward."""

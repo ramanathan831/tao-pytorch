@@ -22,7 +22,6 @@ from typing import Sequence
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 import torch.optim as optim
 from torch.optim import lr_scheduler
@@ -37,8 +36,8 @@ from nvidia_tao_pytorch.core.callbacks.ema import EMA, EMAModelCheckpoint
 from nvidia_tao_pytorch.core.utilities import get_latest_checkpoint
 
 from nvidia_tao_pytorch.core.distillation.distiller import Distiller
-from nvidia_tao_pytorch.core.distillation.losses import LPCriterion, KLDivCriterion
 
+from nvidia_tao_pytorch.cv.classification_pyt.distillation.loss import DistillationLoss
 from nvidia_tao_pytorch.cv.classification_pyt.model.classifier import build_model
 from nvidia_tao_pytorch.cv.classification_pyt.utils.loss import Cross_Entropy
 from nvidia_tao_pytorch.cv.classification_pyt.dataloader.dataset import NOCLASS_IDX
@@ -186,15 +185,13 @@ class ClassDistiller(Distiller):
         if 'radio' in teacher_cfg.model.backbone.type:
             assert self.num_classes == 0, "Number of classes must be 0 when using radio as the teacher"
         if self.num_classes == 0:
-            assert self.distill_loss == "FD" or self.distill_loss == "CS", \
-                "Only FD (`smooth L1`), CS (`cosine similarity`) are supported when the number of classes is 0"
+            assert self.distill_loss in ["FD", "CS", "balanced"], \
+                "Only FD (`smooth L1`), CS (`cosine similarity`), balanced (`cosine similarity` + `smooth L1`) are supported when the number of classes is 0"
 
         # Build the teacher model
         self.teacher = build_model(experiment_config=teacher_cfg, export=export)
         # Build the student model
         self.model = build_model(experiment_config=self.experiment_spec, export=export)
-        # build the projection layer
-        self.projection_layer = nn.Linear(self.model.num_features, self.teacher.num_features)
         self.teacher.eval()
         self.model.train()
 
@@ -222,14 +219,16 @@ class ClassDistiller(Distiller):
         else:
             raise NotImplementedError(self.train_config["loss"])
 
-        self.criterions = {
-            "L1": LPCriterion(p=1),
-            "L2": LPCriterion(p=2),
-            "KL": KLDivCriterion(),
-            "CE": Cross_Entropy(soft=True, label_smoothing=False),
-            "FD": nn.SmoothL1Loss(beta=2.0),
-            "CS": nn.CosineSimilarity(dim=-1, eps=1e-8),
-        }
+        # Create the distillation loss module
+        self.distillation_loss_fn = DistillationLoss(
+            loss_type=self.distill_loss,
+            student_model=self.model,
+            teacher_model=self.teacher,
+            distillation_mode="auto",  # Auto-detect based on loss type
+            num_classes=self.num_classes,
+            temperature=getattr(self.distill_config, 'temperature', 1.0),
+            normalize_features=(self.distill_loss in ["FD", "CS", "BALANCED"]),
+        )
 
     @staticmethod
     def _get_parameter_groups(model, weight_decay, skip_names=()):
@@ -338,33 +337,14 @@ class ClassDistiller(Distiller):
     def training_step(self, batch, batch_idx):
         """Training step"""
         out = self.model(batch["img"])
-        teacher_outputs = self.teacher(batch["img"])
         if self.num_classes > 0:
             acc = self.train_acc(out, batch["class"].long())
             self.log_dict(acc, sync_dist=False, on_step=True, on_epoch=False, prog_bar=True)
             loss = self.criterion(out, batch["class"].long())
         else:
             loss = torch.tensor(0.0)
-
-        # TODO(@yuw): potentially enable BCE/sigmoid for multi-category
-        if self.distill_loss == "CE":
-            distillation_loss = self.criterions["CE"](
-                out, F.softmax(teacher_outputs, dim=-1)
-            )
-        elif self.distill_loss == "FD" or self.distill_loss == "CS":
-            assert self.num_classes == 0, "Number of classes must be 0 when using `FD` or `CS` as the distillation loss type"
-            # here we assume the teacher and student have the same number of tokens
-            s_feat_dim = out.shape[-1]
-            t_feat_dim = teacher_outputs.shape[-1]
-            if s_feat_dim != t_feat_dim:
-                out = self.projection_layer(out)
-            distillation_loss = self.criterions[self.distill_loss](
-                out, nn.LayerNorm(t_feat_dim, elementwise_affine=False)(teacher_outputs)
-            )
-        else:
-            distillation_loss = self.criterions[self.distill_loss](
-                out, teacher_outputs
-            )
+        # compute distillation loss
+        distillation_loss = self.distillation_loss_fn(batch["img"])
 
         supervised_loss = (1 - self.distill_weight) * loss
         distill_loss = self.distill_weight * distillation_loss * 100

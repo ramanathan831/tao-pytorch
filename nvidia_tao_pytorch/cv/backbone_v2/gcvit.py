@@ -900,9 +900,17 @@ class GCViT(BackboneBase):
         x = torch.flatten(x, 1)
         return x
 
-    def forward_feature_pyramid(self, *args, **kwargs):
+    def forward_feature_pyramid(self, x):
         """Forward pass through the backbone to extract intermediate feature maps."""
-        raise NotImplementedError("forward_feature_pyramid is not implemented.")
+        outs = []
+        x = self.patch_embed(x)
+        x = self.pos_drop(x)
+
+        for level in self.levels:
+            x = level(x)
+            x_spatial = x.permute(0, 3, 1, 2)  # To channel first.
+            outs.append(x_spatial)
+        return outs
 
     def forward(self, x):
         """Forward."""

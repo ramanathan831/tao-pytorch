@@ -423,23 +423,18 @@ class ConvNeXtV2(BackboneBase):
                 x = checkpoint.checkpoint(self.stages[idx], x)
         return self.norm(x.mean([-2, -1]))  # global average pooling, (N, C, H, W) -> (N, C)
 
-    def forward_feature_pyramid(self, *args, **kwargs):
-        """Forward pass through the backbone to extract intermediate feature maps.
-
-        This method is not implemented for ConvNeXt V2 as it doesn't naturally produce
-        multi-scale feature maps like CNN-based architectures. ConvNeXt V2 produces a
-        single-scale feature representation.
-
-        Raises:
-            NotImplementedError: This method is not supported for ConvNeXt V2 as it doesn't
-                produce multi-scale features.
-
-        Note:
-            For multi-scale feature extraction from ConvNeXt V2, consider using the output
-            of `forward_pre_logits` or implementing a custom feature pyramid network
-            on top of the transformer features.
-        """
-        raise NotImplementedError("forward_feature_pyramid is not implemented for ConvNeXt V2.")
+    def forward_feature_pyramid(self, x):
+        """Forward pass through the backbone to extract intermediate feature maps."""
+        outs = []
+        for idx in range(self.num_stages):
+            x = self.downsample_layers[idx](x)
+            # Disable activation checkpointing during ONNX export
+            if torch.onnx.is_in_onnx_export() or not self.activation_checkpoint:
+                x = self.stages[idx](x)
+            else:
+                x = checkpoint.checkpoint(self.stages[idx], x)
+            outs.append(x)
+        return outs
 
     def forward(self, x):
         """Complete forward pass through the ConvNeXt V2 model.

@@ -146,6 +146,14 @@ from nvidia_tao_pytorch.cv.backbone_v2.open_clip import (
     vit_l_14_siglip_clipa_336,
     vit_h_14_siglip_clipa_224,
 )
+from nvidia_tao_pytorch.cv.backbone_v2.mit import (
+    mit_b0,
+    mit_b1,
+    mit_b2,
+    mit_b3,
+    mit_b4,
+    mit_b5,
+)
 
 __all__ = [
     "BACKBONE_REGISTRY",
@@ -248,4 +256,10 @@ __all__ = [
     "vit_l_14_siglip_clipa_224",
     "vit_l_14_siglip_clipa_336",
     "vit_h_14_siglip_clipa_224",
+    "mit_b0",
+    "mit_b1",
+    "mit_b2",
+    "mit_b3",
+    "mit_b4",
+    "mit_b5",
 ]

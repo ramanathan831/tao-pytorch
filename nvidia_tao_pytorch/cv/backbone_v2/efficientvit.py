@@ -1297,15 +1297,18 @@ class EfficientViT(BackboneBase):
                 x = checkpoint.checkpoint(stage, x)
         return x.mean(dim=[2, 3])
 
-    def forward_feature_pyramid(self, *args, **kwargs):
-        """Forward pass through the backbone to extract intermediate feature maps.
-
-        This method is not implemented in the EfficientViT model.
-
-        Raises:
-            NotImplementedError: Always raised.
-        """
-        raise NotImplementedError("forward_feature_pyramid is not implemented.")
+    def forward_feature_pyramid(self, x):
+        """Forward pass through the backbone to extract intermediate feature maps."""
+        outs = []
+        x = self.input_stem(x)
+        for stage in self.stages:
+            # Disable activation checkpointing during ONNX export
+            if torch.onnx.is_in_onnx_export() or not self.activation_checkpoint:
+                x = stage(x)
+            else:
+                x = checkpoint.checkpoint(stage, x)
+            outs.append(x)
+        return outs
 
     def forward(self, x):
         """Forward pass of the EfficientViT model.
@@ -1563,15 +1566,18 @@ class EfficientViTLarge(BackboneBase):
                 x = checkpoint.checkpoint(stage, x)
         return x
 
-    def forward_feature_pyramid(self, *args, **kwargs):
-        """Forward pass through the backbone to extract intermediate feature maps.
-
-        This method is not implemented in the EfficientViTLarge model.
-
-        Raises:
-            NotImplementedError: Always raised.
-        """
-        raise NotImplementedError("forward_feature_pyramid is not implemented.")
+    def forward_feature_pyramid(self, x):
+        """Forward pass through the backbone to extract intermediate feature maps."""
+        outs = []
+        x = self.input_stem(x)
+        for stage in self.stages:
+            # Disable activation checkpointing during ONNX export
+            if torch.onnx.is_in_onnx_export() or not self.activation_checkpoint:
+                x = stage(x)
+            else:
+                x = checkpoint.checkpoint(stage, x)
+            outs.append(x)
+        return outs
 
     def forward(self, x):
         """Forward pass of the EfficientViTLarge model.

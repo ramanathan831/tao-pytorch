@@ -292,24 +292,10 @@ class VisionTransformer(TimmVisionTransformer, BackboneBase):
         x = super().forward_head(x, pre_logits=True)
         return x
 
-    def forward_feature_pyramid(self, *args, **kwargs):
-        """Forward pass through the backbone to extract intermediate feature maps.
-
-        This method is not implemented for Vision Transformer as it doesn't
-        naturally produce multi-scale feature maps like CNN-based architectures.
-        Vision Transformers produce a single-scale feature representation.
-
-        Raises:
-            NotImplementedError: This method is not supported for Vision Transformer
-                as it doesn't produce multi-scale features.
-
-        Note:
-            For multi-scale feature extraction from Vision Transformers, consider
-            using the `get_spatial_feat` method on the output of `forward_pre_logits`
-            or implementing a custom feature pyramid network on top of the transformer
-            features.
-        """
-        raise NotImplementedError("forward_feature_pyramid is not implemented for Vision Transformer.")
+    def forward_feature_pyramid(self, x):
+        """Forward pass through the backbone to extract intermediate feature maps."""
+        x = self.forward_intermediates(x, output_fmt='NCHW', intermediates_only=True)
+        return x
 
     def forward(self, x):
         """Complete forward pass through the Vision Transformer model.

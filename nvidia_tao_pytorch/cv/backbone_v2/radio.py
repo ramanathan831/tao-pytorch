@@ -706,6 +706,7 @@ class RADIO(BackboneBase):
             register_multiple=self.register_multiple,
         )
         self.num_features = backbone.num_features
+        self.patch_size = backbone.patch_size
         # Add an extra wrapper to the backbone.
         # TODO(@hongyuc): This is actually a redundant wrapper for the RADIO models. We can remove it in the future.
         self.radio = RADIOWrapper(backbone, resolution=self.resolution)
@@ -781,9 +782,16 @@ class RADIO(BackboneBase):
         """
         return self.radio(x)
 
-    def forward_feature_pyramid(self, *args, **kwargs):
+    def forward_feature_pyramid(self, x):
         """Forward pass through the backbone to extract intermediate feature maps."""
-        raise NotImplementedError("forward_feature_pyramid is not implemented.")
+        _, spatial_features = self.radio(x)
+        B, _, C = spatial_features.shape
+        assert C == self.num_features // len(self.summary_idxs), \
+            f"Number of features mismatch: {C} != {self.num_features // len(self.summary_idxs)}"
+        # [B, L, C] -> [B, C, H, W]
+        H, W = self.resolution[0] // self.patch_size, self.resolution[1] // self.patch_size
+        spatial_features = spatial_features.permute(0, 2, 1).view(B, C, H, W)
+        return spatial_features
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward.

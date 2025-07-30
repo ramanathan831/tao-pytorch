@@ -1119,9 +1119,30 @@ class FAN(BackboneBase):
         """Forward pass through the backbone, excluding the head."""
         return self.forward_features(x)
 
-    def forward_feature_pyramid(self, *args, **kwargs):
+    def forward_feature_pyramid(self, x):
         """Forward pass through the backbone to extract intermediate feature maps."""
-        raise NotImplementedError("forward_feature_pyramid is not implemented.")
+        outs = []
+        B = x.shape[0]
+        x, (Hp, Wp) = self.patch_embed(x)
+
+        if self.use_pos_embed:
+            pos_encoding = self.pos_embed(B, Hp, Wp).reshape(B, -1, x.shape[1]).permute(0, 2, 1)
+            x = x + pos_encoding
+
+        x = self.pos_drop(x)
+        H, W = Hp, Wp
+        for blk in self.blocks:
+            blk.H, blk.W = H, W
+            # Disable activation checkpointing during ONNX export
+            if torch.onnx.is_in_onnx_export() or not self.activation_checkpoint:
+                x = blk(x)
+            else:
+                x = checkpoint.checkpoint(blk, x, use_reentrant=True)
+            H, W = blk.H, blk.W
+            # [B, L, C] -> [B, C, H, W]
+            x_spatial = x.permute(0, 2, 1).view(B, -1, H, W)
+            outs.append(x_spatial)
+        return outs
 
     def forward(self, x):
         """Forward."""
