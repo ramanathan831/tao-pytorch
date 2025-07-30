@@ -31,6 +31,7 @@ def swin_tiny_224_1k(out_indices=[0, 1, 2, 3], activation_checkpoint=True, **kwa
                             pretrain_img_size=224,
                             out_indices=out_indices,
                             activation_checkpoint=activation_checkpoint,
+                            num_classes=0,
                             **kwargs)
     model.num_features = [int(model.embed_dim * 2**i) for i in range(model.num_layers)]
     return model
@@ -50,6 +51,7 @@ def swin_base_224_22k(out_indices=[0, 1, 2, 3], activation_checkpoint=True, **kw
                             pretrain_img_size=224,
                             out_indices=out_indices,
                             activation_checkpoint=activation_checkpoint,
+                            num_classes=0,
                             **kwargs)
     model.num_features = [int(model.embed_dim * 2**i) for i in range(model.num_layers)]
     return model
@@ -69,6 +71,7 @@ def swin_base_384_22k(out_indices=[0, 1, 2, 3], activation_checkpoint=True, **kw
                             pretrain_img_size=384,
                             out_indices=out_indices,
                             activation_checkpoint=activation_checkpoint,
+                            num_classes=0,
                             **kwargs)
     model.num_features = [int(model.embed_dim * 2**i) for i in range(model.num_layers)]
     return model
@@ -88,6 +91,7 @@ def swin_large_224_22k(out_indices=[0, 1, 2, 3], activation_checkpoint=True, **k
                             pretrain_img_size=224,
                             out_indices=out_indices,
                             activation_checkpoint=activation_checkpoint,
+                            num_classes=0,
                             **kwargs)
     model.num_features = [int(model.embed_dim * 2**i) for i in range(model.num_layers)]
     return model
@@ -107,6 +111,7 @@ def swin_large_384_22k(out_indices=[0, 1, 2, 3], activation_checkpoint=True, **k
                             pretrain_img_size=384,
                             out_indices=out_indices,
                             activation_checkpoint=activation_checkpoint,
+                            num_classes=0,
                             **kwargs)
     return model
 
