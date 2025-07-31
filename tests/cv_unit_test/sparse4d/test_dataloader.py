@@ -35,7 +35,6 @@ def _test_exp_spec():
     experiment_config.dataset.use_h5_file_for_depth = True
     experiment_config.dataset.train_dataset.ann_file = TRAIN_ANNO_ROOT
     experiment_config.dataset.data_root = DATA_ROOT
-    experiment_config.dataset.anno_root = TRAIN_ANNO_ROOT
     experiment_config.dataset.val_dataset.ann_file = VAL_ANNO_ROOT
     experiment_config.dataset.test_dataset.ann_file = TEST_ANNO_ROOT
 
