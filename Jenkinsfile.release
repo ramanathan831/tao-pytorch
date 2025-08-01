@@ -1,4 +1,4 @@
-// Global variables
+// Global variables - Version is passed to release/update_version.py to patch build files
 def TAO_VERSION = "6.25.7"
 def BUILD_TYPE = "rc"
 
@@ -80,6 +80,13 @@ spec:
             checkout scm
             // Adding this since 22.05+ containers need this in git.
             sh "git config --global --add safe.directory $WORKSPACE && ls -lrt"
+          }
+        }
+
+        stage ('patch_build_files') {
+          gitlabCommitStatus(name: "patch_build_files", connection: gitLabConnection('git-lab-master')) {
+            sh "python3 release/update_version.py --version ${TAO_VERSION}"
+            echo "Build files patched with version ${TAO_VERSION}"
           }
         }
 
