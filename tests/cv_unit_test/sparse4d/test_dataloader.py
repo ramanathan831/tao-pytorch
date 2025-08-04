@@ -22,8 +22,8 @@ DATA_ROOT = "/home/scratch.metropolis2/tao_ci/tao_pytorch/data/sparse4d/SURF_Boo
 TRAIN_ANNO_ROOT = "/home/scratch.metropolis2/tao_ci/tao_pytorch/data/sparse4d/SURF_Booth_031325/anno_pkls/ov_train_split/SURF_Booth_031325+bev-sensor-buffer-zone-c4_infos_train.pkl"
 VAL_ANNO_ROOT = "/home/scratch.metropolis2/tao_ci/tao_pytorch/data/sparse4d/SURF_Booth_031325/anno_pkls/ov_infos_val.pkl"
 TEST_ANNO_ROOT = "/home/scratch.metropolis2/tao_ci/tao_pytorch/data/sparse4d/SURF_Booth_031325/anno_pkls/ov_test_split/SURF_Booth_031325+bev-sensor-buffer-zone-c4_infos_test.pkl"
-ANCHOR_PATH = "/home/scratch.metropolis2/tao_ci/tao_pytorch/data/sparse4d/SURF_Booth_031325/_aic25v0.1_kmeans900_sample100.npy"
-CHECKPOINT_PATH = "/home/scratch.metropolis2/tao_ci/tao_pytorch/data/sparse4d/SURF_Booth_031325/sparse4d_detection_aic25v0.1_warehouse_all_classes_iter_9842_v1.pth"
+ANCHOR_PATH = "/home/scratch.metropolis2/tao_ci/tao_pytorch/data/sparse4d/SURF_Booth_031325/_ov_kmeans900_sample100_.npy"
+CHECKPOINT_PATH = "/home/scratch.metropolis2/tao_ci/tao_pytorch/data/sparse4d/SURF_Booth_031325/sparse4d_tracking_aic25v0.3_moving_classes_iter_60900_v1.1.pth"
 BATCH_SIZE = 1
 NUM_CAMS = 4
 
@@ -31,6 +31,9 @@ NUM_CAMS = 4
 @pytest.fixture
 def _test_exp_spec():
     experiment_config = OmegaConf.structured(ExperimentConfig())
+    experiment_config.model.head.instance_bank.anchor = ANCHOR_PATH
+    experiment_config.model.head.deformable_model.use_camera_embed = True
+    experiment_config.dataset.classes = ['person', 'gr1_t2', 'agility_digit', 'nova_carter', 'transporter', 'forklift', 'pallet']
     experiment_config.dataset.use_h5_file_for_rgb = True
     experiment_config.dataset.use_h5_file_for_depth = True
     experiment_config.dataset.train_dataset.ann_file = TRAIN_ANNO_ROOT

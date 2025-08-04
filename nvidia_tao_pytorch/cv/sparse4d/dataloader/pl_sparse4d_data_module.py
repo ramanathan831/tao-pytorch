@@ -282,7 +282,7 @@ class Sparse4DDataModule(pl.LightningDataModule):
         test_loader = DataLoader(
             self.test_dataset,
             batch_sampler=batch_sampler,
-            num_workers=0,  # Set to 0 for strict sequential order
+            num_workers=self.num_workers,
             collate_fn=collate_fn,
         )
 
@@ -296,7 +296,7 @@ class Sparse4DDataModule(pl.LightningDataModule):
         test_loader = DataLoader(
             self.test_dataset,
             batch_sampler=batch_sampler,
-            num_workers=0,  # Set to 0 for strict sequential order
+            num_workers=self.num_workers,
             collate_fn=collate_fn,
         )
         return test_loader

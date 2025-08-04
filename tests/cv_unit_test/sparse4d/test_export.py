@@ -25,14 +25,16 @@ from nvidia_tao_core.config.sparse4d.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.sparse4d.model.sparse4d_pl_model import Sparse4DPlModel
 from nvidia_tao_pytorch.cv.sparse4d.utils.onnx_export import Sparse4DExporter
 
-ANCHOR_PATH = "/home/scratch.metropolis2/tao_ci/tao_pytorch/data/sparse4d/SURF_Booth_031325/_aic25v0.1_kmeans900_sample100.npy"
-CHECKPOINT_PATH = "/home/scratch.metropolis2/tao_ci/tao_pytorch/data/sparse4d/SURF_Booth_031325/sparse4d_detection_aic25v0.1_warehouse_all_classes_iter_9842_v1.pth"
+ANCHOR_PATH = "/home/scratch.metropolis2/tao_ci/tao_pytorch/data/sparse4d/SURF_Booth_031325/_ov_kmeans900_sample100_.npy"
+CHECKPOINT_PATH = "/home/scratch.metropolis2/tao_ci/tao_pytorch/data/sparse4d/SURF_Booth_031325/sparse4d_tracking_aic25v0.3_moving_classes_iter_60900_v1.1.pth"
 
 @pytest.fixture
 def _test_experiment_spec():
     """Creates a minimal ExperimentConfig for testing export."""
     cfg = OmegaConf.structured(ExperimentConfig())
     cfg.model.head.instance_bank.anchor = ANCHOR_PATH
+    cfg.model.head.deformable_model.use_camera_embed = True
+    cfg.dataset.classes = ['person', 'gr1_t2', 'agility_digit', 'nova_carter', 'transporter', 'forklift', 'pallet']
     OmegaConf.resolve(cfg)
     return cfg
 
