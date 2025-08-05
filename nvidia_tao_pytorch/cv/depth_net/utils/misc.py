@@ -19,7 +19,6 @@ import numpy as np
 import cv2
 import os
 import torch
-from nvidia_tao_pytorch.cv.depth_net.model.build_pl_model import build_pl_model, get_pl_module
 
 
 def apply_3d_mask(tensor, mask, value=0):
@@ -217,31 +216,3 @@ def parse_checkpoint(model_dict, model_type):
             k = k.replace("depth_head", "metric_depth_head")
         final[k] = v
     return final
-
-
-def build_model_load_checkpoint(experiment_config, model_path, is_strict=True):
-    """
-    Load pretrained checkpoint.
-
-    Args:
-        experiment_config (dict): Experiment configuration.
-        model_path (str): Path to the pretrained checkpoint.
-        is_strict (bool): Whether to load the checkpoint strictly.
-
-    Returns:
-        model (torch.nn.Module): Loaded model.
-    """
-    model_dict = torch.load(model_path, map_location="cpu")
-    model_type = experiment_config.model.model_type
-    if "pytorch-lightning_version" not in model_dict:
-        # parse public checkpoint
-        modified_dict = parse_checkpoint(model_dict, model_type)
-        model = build_pl_model(model_type)
-        model.load_state_dict(modified_dict, strict=is_strict)
-    else:
-        model = get_pl_module(model_type).load_from_checkpoint(
-            model_path,
-            map_location="cpu",
-            experiment_spec=experiment_config
-        )
-    return model

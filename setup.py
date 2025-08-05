@@ -66,6 +66,7 @@ setuptools.setup(
             'segformer=nvidia_tao_pytorch.cv.segformer.entrypoint.segformer:main',
             'classification_pyt=nvidia_tao_pytorch.cv.classification_pyt.entrypoint.classification:main',
             'deformable_detr=nvidia_tao_pytorch.cv.deformable_detr.entrypoint.deformable_detr:main',
+            'depth_net=nvidia_tao_pytorch.cv.depth_net.entrypoint.depth_net:main',
             'dino=nvidia_tao_pytorch.cv.dino.entrypoint.dino:main',
             'grounding_dino=nvidia_tao_pytorch.cv.grounding_dino.entrypoint.grounding_dino:main',
             'rtdetr=nvidia_tao_pytorch.cv.rtdetr.entrypoint.rtdetr:main',
