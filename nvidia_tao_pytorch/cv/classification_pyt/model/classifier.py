@@ -47,6 +47,12 @@ def build_model(experiment_config,
             num_classes=dataset_config.num_classes,
             freeze_at='all' if freeze_backbone else None,  # TODO(@yuw): add freeze_at/freeze_norm options in tao-core
             freeze_norm=freeze_norm)
+        # We should unfreeze the head for training, even `freeze_backbone` is set to `True`.
+        if freeze_backbone:
+            head = model.get_classifier()
+            for p in head.parameters():
+                p.requires_grad = True
+            head.train()
     except KeyError as e:
         logger.error(f"Error building model: {e}")
         logger.warning(f"BACKBONE_REGISTRY: {BACKBONE_REGISTRY}")
