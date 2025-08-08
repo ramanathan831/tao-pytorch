@@ -1,0 +1,151 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Integration tests for the quantization framework."""
+
+import pytest
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader, TensorDataset
+
+from nvidia_tao_pytorch.core.quantization import (
+    QuantizerBase,
+    Calibratable,
+    ModelQuantizationConfig,
+    LayerQuantizationConfig,
+    WeightQuantizationConfig,
+    ActivationQuantizationConfig,
+    BaseQuantizationConfig,
+    register_observer,
+    register_fake_quant,
+    register_backend,
+    get_backend_class,
+    get_registry_manager,
+)
+
+
+class DummyObserver(nn.Module):
+    """A dummy observer module for integration testing."""
+
+    def forward(self, x):
+        """Return the input tensor unmodified."""
+        return x
+
+
+class DummyFakeQuant(nn.Module):
+    """A dummy fake quantization module for integration testing."""
+
+    def forward(self, x):
+        """Return the input tensor unmodified."""
+        return x
+
+
+class QuantizedLinear(nn.Module):
+    """A placeholder for a quantized Linear layer."""
+
+    def __init__(self, original_linear):
+        """Initialize with the original Linear layer."""
+        super().__init__()
+        self.original_linear = original_linear
+
+    def forward(self, x):
+        """Forward pass through the original layer."""
+        return self.original_linear(x)
+
+
+class DummyBackend(QuantizerBase, Calibratable):
+    """A dummy backend for integration testing."""
+
+    def prepare(self, model: nn.Module, config: ModelQuantizationConfig) -> nn.Module:
+        """Replace Linear layers with a placeholder for quantization."""
+        for name, module in model.named_children():
+            if isinstance(module, nn.Linear):
+                setattr(model, name, QuantizedLinear(module))
+        return model
+
+    def quantize(self, model: nn.Module, config: ModelQuantizationConfig) -> nn.Module:
+        """Return the model unmodified as a no-op."""
+        return model
+
+    def calibrate(self, model: nn.Module, data_loader: DataLoader):
+        """Simulate a calibration loop."""
+        model.eval()
+        with torch.no_grad():
+            for data, _ in data_loader:
+                model(data)
+
+
+class TestQuantizationIntegration:
+    """Test suite for a full dummy quantization workflow."""
+
+    def setup_method(self):
+        """Set up the test environment by registering dummy components."""
+        get_registry_manager().clear_all()
+        register_observer("dummy_observer")(DummyObserver)
+        register_fake_quant("dummy_fake_quant")(DummyFakeQuant)
+        register_backend("dummy_backend")(DummyBackend)
+
+    def test_quantization_workflow(self):
+        """Test the end-to-end quantization workflow."""
+        model = nn.Sequential(nn.Linear(10, 20), nn.ReLU(), nn.Linear(20, 5))
+
+        quant_config = ModelQuantizationConfig(
+            mode="static_ptq",
+            backend="dummy_backend",
+            layers=[
+                LayerQuantizationConfig(
+                    module_name="Linear",
+                    weights=[
+                        WeightQuantizationConfig(
+                            dtype="int8",
+                            observer_or_fake_quant="dummy_observer",
+                        )
+                    ],
+                    activations=[
+                        ActivationQuantizationConfig(
+                            dtype="int8",
+                            observer_or_fake_quant="dummy_fake_quant",
+                        )
+                    ],
+                )
+            ],
+        )
+
+        backend_class = get_backend_class("dummy_backend")
+        quantizer = backend_class()
+
+        prepared_model = quantizer.prepare(model, quant_config)
+
+        assert isinstance(prepared_model[0], QuantizedLinear)
+        assert isinstance(prepared_model[2], QuantizedLinear)
+
+        dummy_data = torch.randn(16, 10)
+        dummy_labels = torch.randint(0, 5, (16,))
+        data_loader = DataLoader(TensorDataset(dummy_data, dummy_labels), batch_size=4)
+
+        assert isinstance(quantizer, Calibratable)
+        quantizer.calibrate(prepared_model, data_loader)
+
+        quantized_model = quantizer.quantize(prepared_model, quant_config)
+
+        assert quantized_model == prepared_model
+
+        quantized_model.eval()
+        with torch.no_grad():
+            output = quantized_model(dummy_data)
+            assert output.shape == (16, 5)
+
+    def teardown_method(self):
+        """Clean up the test environment by clearing the registry."""
+        get_registry_manager().clear_all()
