@@ -57,12 +57,14 @@ class MonoDepthNetPlModel(TAOLightningModule):
         # init the model
         self.checkpoint_filename = 'dn_model'
 
-        self._build_model_criterion()
+        self._build_model_criterion(export)
         self.post_processors = PostProcess()
 
-    def _build_model_criterion(self):
+    def _build_model_criterion(self, export=False):
         """Build the depth prediction model and loss criterion.
-
+        Args:
+            export (bool, optional): Whether the model is being used for export.
+                Defaults to False.
         Note:
             - For relative depth models: Sets align_gt=True and clears depth bounds
             - For metric depth models: Sets align_gt=False and uses configured depth bounds
@@ -78,7 +80,7 @@ class MonoDepthNetPlModel(TAOLightningModule):
             self.min_depth = self.dataset_config["min_depth"]
 
         ModelClass, LossClass = get_model_loss_class(self.model_type)
-        self.model = ModelClass(self.model_config, self.max_depth)
+        self.model = ModelClass(self.model_config, self.max_depth, export=export)
         self.criterion = LossClass()
 
     def configure_optimizers(self):

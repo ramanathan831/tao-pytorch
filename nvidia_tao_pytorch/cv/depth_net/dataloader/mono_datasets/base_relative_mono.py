@@ -58,7 +58,10 @@ class BaseRelativeMonoDataset(Dataset):
             sample (dict): sample from the dataset.
         """
         split_list = self.filelist[index].split(' ')
-        if len(split_list) == 2:
+        if len(split_list) == 1:
+            left_img_path = split_list[0]
+            depth_path = None
+        elif len(split_list) == 2:
             left_img_path = split_list[0]
             depth_path = split_list[1]
         else:
@@ -69,9 +72,11 @@ class BaseRelativeMonoDataset(Dataset):
         left_image = read_image(left_img_path)
         image_size = left_image.shape[:2]
 
-        depth = np.array(self.read_gt_depth(depth_path))
-
-        depth_dict = {'disparity': depth}
+        if depth_path is not None:
+            depth = np.array(self.read_gt_depth(depth_path))
+            depth_dict = {'disparity': depth}
+        else:
+            depth_dict = {}
 
         if self.transform is not None:
             sample = self.transform({'image': left_image, **depth_dict})
@@ -82,11 +87,17 @@ class BaseRelativeMonoDataset(Dataset):
         # Height,
         sample['image_size'] = torch.tensor([image_size[0], image_size[1]])
 
-        sample['disparity'] = torch.from_numpy(sample['disparity'])  # (1, H, W)
-        valid_mask = sample['disparity'] < 1000  # (1, H, W)
-        sample['disparity'][valid_mask == 0] = 0
+        if "disparity" in sample:
+            sample['disparity'] = torch.from_numpy(sample['disparity'])  # (1, H, W)
+            valid_mask = sample['disparity'] < 1000  # (1, H, W)
+            sample['disparity'][valid_mask == 0] = 0
 
-        sample['valid_mask'] = valid_mask.squeeze(0)  # (B, H, W)
+        if "valid_mask" in sample:
+            sample['valid_mask'] = valid_mask.squeeze(0)  # (B, H, W)
+        else:
+            valid_mask = torch.ones(image_size[0], image_size[1])
+            sample['valid_mask'] = valid_mask  # (B, H, W)
+
         sample['image_path'] = left_img_path
         return sample
 

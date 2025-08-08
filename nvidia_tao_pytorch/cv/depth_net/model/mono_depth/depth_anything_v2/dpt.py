@@ -302,7 +302,7 @@ class RelativeDepthAnythingV2(nn.Module):
 
     def __init__(
         self,
-        model_config, max_depth
+        model_config, max_depth, export=False
     ):
         """
         Initialize RelativeDepthAnythingV2.
@@ -310,6 +310,8 @@ class RelativeDepthAnythingV2(nn.Module):
         Args:
             model_config (dict): Model configuration dictionary.
             max_depth (float): Maximum depth value for normalization.
+            export (bool, optional): Whether the model is being used for export.
+                Defaults to False.
         """
         super(RelativeDepthAnythingV2, self).__init__()
         encoder = model_config['encoder']
@@ -329,7 +331,7 @@ class RelativeDepthAnythingV2(nn.Module):
         features = self.model_configs[self.encoder]['features']
         out_channels = self.model_configs[self.encoder]['out_channels']
 
-        self.pretrained = DINOV2(model_name=encoder)
+        self.pretrained = DINOV2(model_name=encoder, export=export)
 
         self.depth_head = DPTHead(self.pretrained.embed_dim, features, use_bn, out_channels=out_channels, use_clstoken=use_clstoken)
 
@@ -364,7 +366,7 @@ class MetricDepthAnythingV2(RelativeDepthAnythingV2):
 
     def __init__(
         self,
-        model_config, max_depth
+        model_config, max_depth, export=False
     ):
         """
         Initialize MetricDepthAnythingV2.
@@ -372,8 +374,10 @@ class MetricDepthAnythingV2(RelativeDepthAnythingV2):
         Args:
             model_config (dict): Model configuration dictionary.
             max_depth (float): Maximum depth value for normalization.
+            export (bool, optional): Whether the model is being used for export.
+                Defaults to False.
         """
-        super().__init__(model_config, max_depth)
+        super().__init__(model_config, max_depth, export=export)
         features = self.model_configs[self.encoder]['features']
         out_channels = self.model_configs[self.encoder]['out_channels']
         use_bn = model_config['use_bn']
@@ -393,5 +397,9 @@ class MetricDepthAnythingV2(RelativeDepthAnythingV2):
         """
         patch_h, patch_w = x.shape[-2] // 14, x.shape[-1] // 14
         features = self.pretrained.get_intermediate_layers(x.contiguous(), self.model_configs[self.encoder]['intermediate_layer_idx'], return_class_token=True)
-        depth = self.metric_depth_head(features, patch_h, patch_w) * self.max_depth
+        depth = self.metric_depth_head(features, patch_h, patch_w)
+        if self.max_depth is not None:
+            depth = depth * self.max_depth
+        else:
+            depth = depth.sigmoid()
         return depth.squeeze(1)

@@ -1,9 +1,4 @@
 results_dir: /results/metric_depth_anything/
-wandb:
-  entity: metropolis
-  project: MetricDepthAnythingV2
-  name: train_metric
-  tags: [metric, train]
 dataset:
   dataset_name: MonoDataset
   min_depth: 0.001
