@@ -137,7 +137,7 @@ class SetCriterion(nn.Module):
                 data["gt_bboxes_3d"],
                 data["instance_id"],
                 data["asset_id"],
-                data["gt_visibility"],
+                data["gt_visibility"] if "gt_visibility" in data else None,
                 gt_index_mapping_curr,
                 use_hungarian_only=use_hungarian_only,
                 update_gt_indices=update_gt_indices,
