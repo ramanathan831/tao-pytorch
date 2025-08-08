@@ -341,3 +341,183 @@ class RegistryManager:
 
 # Global registry manager instance
 _registry_manager = RegistryManager()
+
+
+# Convenience functions that use the global registry manager
+def register_observer(name: str):
+    """
+    Decorator to register an observer class under a specified name.
+
+    This decorator adds the given observer class to the global registry manager,
+    enabling it to be referenced by name in quantization configurations.
+
+    Parameters
+    ----------
+    name : str
+        The unique name to register the observer class under.
+
+    Returns
+    -------
+    decorator : callable
+        A decorator that registers the observer class.
+
+    """
+
+    def decorator(observer):
+        _registry_manager.register_observer(name, observer)
+        return observer
+
+    return decorator
+
+
+def register_fake_quant(name: str):
+    """
+    Decorator to register a fake quant class under a specified name.
+
+    This decorator adds the given fake quant class to the global registry manager,
+    enabling it to be referenced by name in quantization configurations.
+
+    Parameters
+    ----------
+    name : str
+        The unique name to register the fake quant class under.
+
+    Returns
+    -------
+    decorator : callable
+        A decorator that registers the fake quant class.
+
+    """
+
+    def decorator(fake_quant):
+        _registry_manager.register_fake_quant(name, fake_quant)
+        return fake_quant
+
+    return decorator
+
+
+def register_backend(name: str):
+    """
+    Decorator to register a backend class under a specified name.
+
+    This decorator adds the given backend class to the global registry manager,
+    enabling it to be referenced by name in quantization configurations.
+
+    Parameters
+    ----------
+    name : str
+        The unique name to register the backend class under.
+
+    Returns
+    -------
+    decorator : callable
+        A decorator that registers the backend class.
+
+    """
+
+    def decorator(backend):
+        _registry_manager.register_backend(name, backend)
+        return backend
+
+    return decorator
+
+
+def get_available_backends():
+    """
+    Get all available quantization backends.
+
+    Returns
+    -------
+    list
+        List of backend names that are currently registered.
+    """
+    return _registry_manager.get_available_backends()
+
+
+def get_backend_class(backend_name: str):
+    """
+    Get the backend class for a given backend name.
+
+    Parameters
+    ----------
+    backend_name : str
+        Name of the backend to retrieve.
+
+    Returns
+    -------
+    class
+        The backend class if registered.
+
+    """
+    return _registry_manager.get_backend(backend_name)
+
+
+# Additional convenience functions for the new functionality
+def get_available_observers():
+    """
+    Get all available observer names.
+
+    Returns
+    -------
+    list
+        List of observer names that are currently registered.
+    """
+    return _registry_manager.get_available_observers()
+
+
+def get_available_fake_quants():
+    """
+    Get all available fake quant names.
+
+    Returns
+    -------
+    list
+        List of fake quant names that are currently registered.
+    """
+    return _registry_manager.get_available_fake_quants()
+
+
+def get_observer_class(observer_name: str):
+    """
+    Get the observer class for a given observer name.
+
+    Parameters
+    ----------
+    observer_name : str
+        Name of the observer to retrieve.
+
+    Returns
+    -------
+    class
+        The observer class if registered.
+    """
+    return _registry_manager.get_observer(observer_name)
+
+
+def get_fake_quant_class(fake_quant_name: str):
+    """
+    Get the fake quant class for a given fake quant name.
+
+    Parameters
+    ----------
+    fake_quant_name : str
+        Name of the fake quant to retrieve.
+
+    Returns
+    -------
+    class
+        The fake quant class if registered.
+    """
+    return _registry_manager.get_fake_quant(fake_quant_name)
+
+
+def get_registry_manager() -> RegistryManager:
+    """
+    Get the global registry manager instance.
+
+    Returns
+    -------
+    RegistryManager
+        The global registry manager instance.
+    """
+    return _registry_manager
