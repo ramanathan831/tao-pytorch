@@ -22,6 +22,7 @@ import torch
 import torch.nn as nn
 import torch.utils.checkpoint
 from torch.nn.init import trunc_normal_
+from timm.models.vision_transformer import Attention
 
 from .dinov2_layers import Mlp, PatchEmbed, SwiGLUFFNFused, MemEffAttention, NestedTensorBlock as Block
 
@@ -507,13 +508,14 @@ def init_weights_vit_timm(module: nn.Module, name: str = ""):
             nn.init.zeros_(module.bias)
 
 
-def vit_small(patch_size=16, num_register_tokens=0, **kwargs):
+def vit_small(patch_size=16, num_register_tokens=0, export=False, **kwargs):
     """Build a ViT-Small model with DINOv2 configuration.
 
     Args:
         patch_size (int, optional): Size of image patches. Defaults to 16.
         num_register_tokens (int, optional): Number of additional register tokens.
             Defaults to 0.
+        export (bool, optional): Whether to export the model. Defaults to False.
         **kwargs: Additional arguments passed to DinoVisionTransformer.
 
     Returns:
@@ -528,26 +530,32 @@ def vit_small(patch_size=16, num_register_tokens=0, **kwargs):
         - Uses MemEffAttention for memory-efficient attention computation
         - Suitable for medium-resolution images and moderate computational budgets
     """
+    if export:
+        block_fn = partial(Block, attn_class=Attention)
+    else:
+        block_fn = partial(Block, attn_class=MemEffAttention)
+
     model = DinoVisionTransformer(
         patch_size=patch_size,
         embed_dim=384,
         depth=12,
         num_heads=6,
         mlp_ratio=4,
-        block_fn=partial(Block, attn_class=MemEffAttention),
+        block_fn=block_fn,
         num_register_tokens=num_register_tokens,
         **kwargs,
     )
     return model
 
 
-def vit_base(patch_size=16, num_register_tokens=0, **kwargs):
+def vit_base(patch_size=16, num_register_tokens=0, export=False, **kwargs):
     """Build a ViT-Base model with DINOv2 configuration.
 
     Args:
         patch_size (int, optional): Size of image patches. Defaults to 16.
         num_register_tokens (int, optional): Number of additional register tokens.
             Defaults to 0.
+        export (bool, optional): Whether to export the model. Defaults to False.
         **kwargs: Additional arguments passed to DinoVisionTransformer.
 
     Returns:
@@ -563,26 +571,32 @@ def vit_base(patch_size=16, num_register_tokens=0, **kwargs):
         - Standard model size for most applications
         - Good balance between performance and computational cost
     """
+    if export:
+        block_fn = partial(Block, attn_class=Attention)
+    else:
+        block_fn = partial(Block, attn_class=MemEffAttention)
+
     model = DinoVisionTransformer(
         patch_size=patch_size,
         embed_dim=768,
         depth=12,
         num_heads=12,
         mlp_ratio=4,
-        block_fn=partial(Block, attn_class=MemEffAttention),
+        block_fn=block_fn,
         num_register_tokens=num_register_tokens,
         **kwargs,
     )
     return model
 
 
-def vit_large(patch_size=16, num_register_tokens=0, **kwargs):
+def vit_large(patch_size=16, num_register_tokens=0, export=False, **kwargs):
     """Build a ViT-Large model with DINOv2 configuration.
 
     Args:
         patch_size (int, optional): Size of image patches. Defaults to 16.
         num_register_tokens (int, optional): Number of additional register tokens.
             Defaults to 0.
+        export (bool, optional): Whether to export the model. Defaults to False.
         **kwargs: Additional arguments passed to DinoVisionTransformer.
 
     Returns:
@@ -598,26 +612,32 @@ def vit_large(patch_size=16, num_register_tokens=0, **kwargs):
         - Higher capacity model for demanding applications
         - Requires more computational resources and memory
     """
+    if export:
+        block_fn = partial(Block, attn_class=Attention)
+    else:
+        block_fn = partial(Block, attn_class=MemEffAttention)
+
     model = DinoVisionTransformer(
         patch_size=patch_size,
         embed_dim=1024,
         depth=24,
         num_heads=16,
         mlp_ratio=4,
-        block_fn=partial(Block, attn_class=MemEffAttention),
+        block_fn=block_fn,
         num_register_tokens=num_register_tokens,
         **kwargs,
     )
     return model
 
 
-def vit_giant2(patch_size=16, num_register_tokens=0, **kwargs):
+def vit_giant2(patch_size=16, num_register_tokens=0, export=False, **kwargs):
     """Build a ViT-Giant2 model with DINOv2 configuration.
 
     Args:
         patch_size (int, optional): Size of image patches. Defaults to 16.
         num_register_tokens (int, optional): Number of additional register tokens.
-            Defaults to 0.
+            Defaults to 0
+        export (bool, optional): Whether to export the model. Defaults to False.
         **kwargs: Additional arguments passed to DinoVisionTransformer.
 
     Returns:
@@ -634,20 +654,25 @@ def vit_giant2(patch_size=16, num_register_tokens=0, **kwargs):
         - Requires significant computational resources and memory
         - Uses SwiGLU fused feed-forward network for efficiency
     """
+    if export:
+        block_fn = partial(Block, attn_class=Attention)
+    else:
+        block_fn = partial(Block, attn_class=MemEffAttention)
+
     model = DinoVisionTransformer(
         patch_size=patch_size,
         embed_dim=1536,
         depth=40,
         num_heads=24,
         mlp_ratio=4,
-        block_fn=partial(Block, attn_class=MemEffAttention),
+        block_fn=block_fn,
         num_register_tokens=num_register_tokens,
         **kwargs,
     )
     return model
 
 
-def DINOV2(model_name):
+def DINOV2(model_name, export=False):
     """Build a DINOv2 model based on the specified model name.
 
     Args:
@@ -656,6 +681,7 @@ def DINOV2(model_name):
             - "vitb": ViT-Base (768 dims, 12 blocks, 12 heads)
             - "vitl": ViT-Large (1024 dims, 24 blocks, 16 heads)
             - "vitg": ViT-Giant2 (1536 dims, 40 blocks, 24 heads)
+        export (bool, optional): Whether to export the model. Defaults to False.
 
     Returns:
         DinoVisionTransformer: Configured DINOv2 model with:
@@ -691,5 +717,6 @@ def DINOV2(model_name):
         block_chunks=0,
         num_register_tokens=0,
         interpolate_antialias=False,
-        interpolate_offset=0.1
+        interpolate_offset=0.1,
+        export=export
     )

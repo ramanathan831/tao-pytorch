@@ -41,7 +41,7 @@ def get_pl_module(experiment_config):
     return _pl_model_modules[experiment_config.model.model_type]
 
 
-def build_pl_model(experiment_config):
+def build_pl_model(experiment_config, export=False):
     """
     This function creates a fully configured PyTorch Lightning model instance based on
     the provided experiment configuration. It automatically selects the appropriate
@@ -55,8 +55,10 @@ def build_pl_model(experiment_config):
                 - "RelativeDepthAnything": For relative depth estimation
             - Additional model-specific configuration parameters as required by the
               selected model class constructor
+        export (bool, optional): Whether the model is being used for export.
+            Defaults to False.
 
     Returns:
         MonoDepthNetPlModel: Instantiated PyTorch Lightning model ready for training.
     """
-    return _pl_model_modules[experiment_config.model.model_type](experiment_config)
+    return _pl_model_modules[experiment_config.model.model_type](experiment_config, export=export)
