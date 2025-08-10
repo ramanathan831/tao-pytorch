@@ -110,7 +110,7 @@ class SegFormer(nn.Module):
         segformer_parser = None
         ptm_adapter = None
         # Load pretrained weights
-        if pretrained_backbone_path is not None:
+        if pretrained_backbone_path:
             state_dict = load_pretrained_weights(
                 pretrained_backbone_path,
                 parser=segformer_parser,
