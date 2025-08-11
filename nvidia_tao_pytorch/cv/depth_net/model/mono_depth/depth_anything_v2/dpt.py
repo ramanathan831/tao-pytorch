@@ -400,6 +400,4 @@ class MetricDepthAnythingV2(RelativeDepthAnythingV2):
         depth = self.metric_depth_head(features, patch_h, patch_w)
         if self.max_depth is not None:
             depth = depth * self.max_depth
-        else:
-            depth = depth.sigmoid()
         return depth.squeeze(1)

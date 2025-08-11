@@ -37,7 +37,6 @@ def build_mono_transforms(aug_config, split='train', resize_target=True):
     net_h, net_w = aug_config['crop_size']
     mean = aug_config["input_mean"]
     std = aug_config["input_std"]
-
     transform = Compose([
         Resize(
             width=net_w,
@@ -51,7 +50,6 @@ def build_mono_transforms(aug_config, split='train', resize_target=True):
         NormalizeImage(mean=mean, std=std),
         PrepareForNet(),
     ] + ([Crop(net_h)] if split == 'train' else []))
-
     return transform
 
 

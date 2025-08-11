@@ -95,7 +95,7 @@ class BaseRelativeMonoDataset(Dataset):
         if "valid_mask" in sample:
             sample['valid_mask'] = valid_mask.squeeze(0)  # (B, H, W)
         else:
-            valid_mask = torch.ones(image_size[0], image_size[1])
+            valid_mask = torch.ones(sample['disparity'].shape[1], sample['disparity'].shape[2]).bool()
             sample['valid_mask'] = valid_mask  # (B, H, W)
 
         sample['image_path'] = left_img_path
