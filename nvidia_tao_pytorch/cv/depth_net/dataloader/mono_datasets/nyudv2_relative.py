@@ -12,25 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Dataset Class for 3DVLM data."""
+"""Dataset Class for NYUDV2 data."""
 
 import numpy as np
 import torch
-from nvidia_tao_pytorch.cv.depth_net.utils.frame_utils import read_image, read_gt_3dvlm
+from nvidia_tao_pytorch.cv.depth_net.utils.frame_utils import read_gt_nyudv2, read_image
+from nvidia_tao_pytorch.cv.depth_net.utils.misc import apply_3d_mask
 from nvidia_tao_pytorch.cv.depth_net.dataloader.mono_datasets.base_relative_mono import BaseRelativeMonoDataset
 
 
-class ThreeDVLM(BaseRelativeMonoDataset):
-    """Dataset class for 3DVLM, providing ground truth in disparity format."""
+class NYUDV2Relative(BaseRelativeMonoDataset):
+    """Dataset class for NYUDV2, providing ground truth in Metric Depth format."""
 
     def __getitem__(self, index):
-        """Get item from the ThreeDVLM dataset.
+        """Get item from the NYUDV2 dataset.
 
         Args:
             index (int): index to retrieve.
 
         Returns:
-            sample (dict): sample from the ThreeDVLM dataset.
+            sample (dict): sample from the NYUDV2 dataset.
         """
         split_list = self.filelist[index].split(' ')
         if len(split_list) == 1:
@@ -47,7 +48,7 @@ class ThreeDVLM(BaseRelativeMonoDataset):
         image_size = left_image.shape[:2]
 
         if depth_path is not None:
-            depth = np.array(read_gt_3dvlm(depth_path, normalize_depth=self.normalize_depth, return_disparity=True))
+            depth = np.array(read_gt_nyudv2(depth_path, normalize_depth=self.normalize_depth, return_disparity=True))
             depth_dict = {'disparity': depth}
         else:
             depth_dict = {}
@@ -60,13 +61,15 @@ class ThreeDVLM(BaseRelativeMonoDataset):
         sample['image'] = torch.from_numpy(sample['image'])
         sample['image_size'] = torch.tensor([image_size[0], image_size[1]])
 
-        if "disparity" in sample:
-            sample['disparity'] = torch.from_numpy(sample['disparity'])  # (1, H, W)
-            valid_mask = sample['disparity'] < 1000  # (1, H, W)
-            sample['disparity'][valid_mask == 0] = 0
-
-        if "valid_mask" in sample:
+        if 'disparity' in sample:
+            depth = torch.from_numpy(sample['disparity'])  # (1, H, W)
+            valid_mask = torch.logical_and((depth > self.min_depth), (depth < self.max_depth)).bool()
+            eval_mask = torch.zeros_like(valid_mask.squeeze()).bool()
+            eval_mask[45:471, 41:601] = 1
+            eval_mask = eval_mask.reshape(valid_mask.shape)
+            valid_mask = torch.logical_and(valid_mask, eval_mask)
             sample['valid_mask'] = valid_mask.squeeze(0)  # (B, H, W)
+            sample['disparity'] = apply_3d_mask(depth, valid_mask)
         else:
             valid_mask = torch.ones(sample['disparity'].shape[1], sample['disparity'].shape[2]).bool()
             sample['valid_mask'] = valid_mask  # (B, H, W)
@@ -75,5 +78,5 @@ class ThreeDVLM(BaseRelativeMonoDataset):
         return sample
 
     def __len__(self):
-        """Returns length of the ThreeDVLM dataset."""
+        """Returns length of the NYUDV2Relative dataset."""
         return len(self.filelist)

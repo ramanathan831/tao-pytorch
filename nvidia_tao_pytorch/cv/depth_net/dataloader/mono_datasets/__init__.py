@@ -24,6 +24,7 @@ from .issac_stereo import IssacStereo
 from .crestereo import Crestereo
 from .middlebury import Middlebury
 from .nyudv2 import NYUDV2
+from .nyudv2_relative import NYUDV2Relative
 from .base_relative_mono import BaseRelativeMonoDataset
 from .base_metric_mono import BaseMetricMonoDataset
 
@@ -35,6 +36,7 @@ DATASETS = {
     'crestereo': Crestereo,
     'middlebury': Middlebury,
     'nyudv2': NYUDV2,
+    'nyudv2relative': NYUDV2Relative,
     'relativemonodataset': BaseRelativeMonoDataset,
     'metricmonodataset': BaseMetricMonoDataset,
 }
