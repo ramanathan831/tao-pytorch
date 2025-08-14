@@ -185,8 +185,8 @@ class ClassDistiller(Distiller):
         if 'radio' in teacher_cfg.model.backbone.type:
             assert self.num_classes == 0, "Number of classes must be 0 when using radio as the teacher"
         if self.num_classes == 0:
-            assert self.distill_loss in ["FD", "CS", "balanced"], \
-                "Only FD (`smooth L1`), CS (`cosine similarity`), balanced (`cosine similarity` + `smooth L1`) are supported when the number of classes is 0"
+            assert self.distill_loss in ["FD", "CS", "balanced", "MSE"], \
+                "Only FD (`smooth L1`), CS (`cosine similarity`), balanced (`cosine similarity` + `smooth L1`, MSE) are supported when the number of classes is 0"
 
         # Build the teacher model
         self.teacher = build_model(experiment_config=teacher_cfg, export=export)
@@ -224,10 +224,12 @@ class ClassDistiller(Distiller):
             loss_type=self.distill_loss,
             student_model=self.model,
             teacher_model=self.teacher,
-            distillation_mode="auto",  # Auto-detect based on loss type
+            distillation_mode=self.distill_config.mode or "auto",  # Auto-detect based on loss type
             num_classes=self.num_classes,
             temperature=getattr(self.distill_config, 'temperature', 1.0),
-            normalize_features=(self.distill_loss in ["FD", "CS", "BALANCED"]),
+            use_mlp=getattr(self.distill_config, 'use_mlp', True),
+            mlp_hidden_size=getattr(self.distill_config, 'mlp_hidden_size', 1024),
+            mlp_num_inner=getattr(self.distill_config, 'mlp_num_inner', 0),
         )
 
     @staticmethod
@@ -412,18 +414,35 @@ class ClassDistiller(Distiller):
     def validation_step(self, batch, batch_idx):
         """Validation step."""
         out = self.model(batch["img"])
-        loss = self.criterion(out, batch["class"].long())
-        self.valid_acc.update(out, batch["class"].long())
+        if self.num_classes > 0:
+            loss = self.criterion(out, batch["class"].long())
+            self.valid_acc.update(out, batch["class"].long())
+            self.log(
+                "val_loss",
+                loss,
+                on_step=True,
+                on_epoch=False,
+                prog_bar=True,
+                sync_dist=True,
+                batch_size=self.batch_size,
+                rank_zero_only=True
+            )
+        else:
+            loss = torch.tensor(0.0).to(out.device)
+
+        # compute distillation loss
+        distillation_loss = self.distillation_loss_fn(batch["img"])
         self.log(
-            "val_loss",
-            loss,
-            on_step=False,
-            on_epoch=True,
+            "distillation_loss",
+            distillation_loss,
+            on_step=True,
+            on_epoch=False,
             prog_bar=True,
             sync_dist=True,
             batch_size=self.batch_size,
             rank_zero_only=True
         )
+        loss += distillation_loss
         return loss
 
     def on_validation_epoch_end(self):
@@ -433,22 +452,23 @@ class ClassDistiller(Distiller):
         # FLUSHING VALIDATION EPOCH METRICS
         # scores, mean_scores = self._collect_epoch_states()  # logs all evaluation metrics
         # self.log("val_acc", scores['acc'], on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
-        acc = self.valid_acc.compute()
-        self.log_dict(acc, sync_dist=True, on_step=False, on_epoch=True, prog_bar=False)
-        self.valid_acc.reset()
-        # self._clear_cache()
+        if self.num_classes > 0:
+            acc = self.valid_acc.compute()
+            self.log_dict(acc, sync_dist=True, on_step=False, on_epoch=True, prog_bar=False)
+            self.valid_acc.reset()
+            # self._clear_cache()
 
-        average_val_loss = self.trainer.logged_metrics["val_loss"].item()
-        if not self.trainer.sanity_checking:
-            self.status_logging_dict = {}
-            self.status_logging_dict["val_loss"] = average_val_loss
-            for acc_key in acc.keys():
-                self.status_logging_dict[acc_key] = acc[acc_key].item()
-            status_logging.get_status_logger().kpi = self.status_logging_dict
-            status_logging.get_status_logger().write(
-                message="Eval metrics generated.",
-                status_level=status_logging.Status.RUNNING,
-            )
+            average_val_loss = self.trainer.logged_metrics["val_loss"].item()
+            if not self.trainer.sanity_checking:
+                self.status_logging_dict = {}
+                self.status_logging_dict["val_loss"] = average_val_loss
+                for acc_key in acc.keys():
+                    self.status_logging_dict[acc_key] = acc[acc_key].item()
+                status_logging.get_status_logger().kpi = self.status_logging_dict
+                status_logging.get_status_logger().write(
+                    message="Eval metrics generated.",
+                    status_level=status_logging.Status.RUNNING,
+                )
 
         pl.utilities.memory.garbage_collection_cuda()
 
