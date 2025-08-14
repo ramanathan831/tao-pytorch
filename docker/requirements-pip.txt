@@ -76,5 +76,6 @@ wandb==0.19.6
 webdataset==0.2.111
 wget==3.2
 yapf==0.43.0
+memoizer==0.0.1
 git+https://github.com/lilohuang/PyTurboJPEG.git
 git+https://github.com/facebookresearch/pytorch3d.git
