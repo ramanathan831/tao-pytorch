@@ -150,6 +150,15 @@ TEST_TOPOLOGIES = [
         ),
         id="c_radio_v3_vit_large_patch16_reg4_dinov2",
     ),
+    pytest.param(
+        (
+            radio.c_radio_v3_vit_large_patch16_reg4_dinov2,
+            "c_radio_v3_l.safetensors",  # From HF.
+            (1, 3072),
+            [-0.7599, -0.0459,  0.6067, -0.0879, -0.1394],
+        ),
+        id="c_radio_v3_vit_large_patch16_reg4_dinov2_safetensors",  # Test loading from safetensors.
+    ),
     # ResNet.
     pytest.param(
         (
