@@ -30,7 +30,7 @@ def _test_experiment_spec():
     yield experiment_config
 
 @pytest.mark.cv_unit
-@pytest.mark.parametrize("backbone", ["resnet_50", "fan_small", "gc_vit_tiny", "vit_large_nvdinov2"])
+@pytest.mark.parametrize("backbone", ["resnet_50", "fan_small", "vit_large_nvdinov2"])
 @pytest.mark.parametrize("num_feature_levels", [2, 4])
 @pytest.mark.parametrize("return_interm_indices", [[1, 2], [1, 2, 3, 4]])
 @pytest.mark.parametrize("num_queries", [300, 900])

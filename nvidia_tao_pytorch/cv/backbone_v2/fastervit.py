@@ -854,6 +854,7 @@ class FasterViT(BackboneBase):
         activation_checkpoint=False,
         freeze_at=None,
         freeze_norm=False,
+        export=False,
         **kwargs,
     ):
         """Initialize the FasterViT model.
@@ -883,6 +884,7 @@ class FasterViT(BackboneBase):
             freeze_at (list): List of keys corresponding to the stages or layers to freeze. If `None`, no specific
                 layers are frozen. If `"all"`, the entire model is frozen and set to eval mode. Default: `None`.
             freeze_norm (bool): If `True`, all normalization layers in the backbone will be frozen. Default: `False`.
+            export (bool): Whether to enable export mode. If `True`, replace BN with FrozenBN
         """
         super().__init__(
             in_chans=in_chans,
@@ -890,6 +892,7 @@ class FasterViT(BackboneBase):
             activation_checkpoint=activation_checkpoint,
             freeze_at=freeze_at,
             freeze_norm=freeze_norm,
+            export=export,
         )
 
         self.num_features = int(dim * 2 ** (len(depths) - 1))

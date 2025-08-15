@@ -22,12 +22,12 @@ from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_pytorch.core.tlt_logging import logging
 from nvidia_tao_pytorch.core.initialize_experiments import initialize_train_experiment
-from nvidia_tao_pytorch.cv.deformable_detr.utils.misc import load_pretrained_weights
+from nvidia_tao_pytorch.core.utils.ptm_utils import load_pretrained_weights
 
 from nvidia_tao_core.config.grounding_dino.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.grounding_dino.dataloader.pl_odvg_data_module import ODVGDataModule
 from nvidia_tao_pytorch.cv.grounding_dino.model.pl_gdino_model import GDINOPlModel
-from nvidia_tao_pytorch.cv.grounding_dino.utils.misc import parse_checkpoint
+from nvidia_tao_pytorch.cv.grounding_dino.model.utils import grounding_dino_parser, ptm_adapter
 
 
 def run_experiment(experiment_config):
@@ -57,12 +57,15 @@ def run_experiment(experiment_config):
         experiment_config.model.pretrained_backbone_path = None
         pt_model = GDINOPlModel(experiment_config, cap_lists=cap_lists)
         current_model_dict = pt_model.model.state_dict()
-        checkpoint = load_pretrained_weights(pretrained_path, parser=parse_checkpoint)
+        checkpoint = load_pretrained_weights(
+            pretrained_path,
+            parser=grounding_dino_parser,
+            ptm_adapter=ptm_adapter
+        )
         new_checkpoint = {}
         for k in sorted(current_model_dict.keys()):
             # Handle PTL format
-            k_new = k.replace("model.", "model.model.")
-            v = checkpoint.get(k_new, None)
+            v = checkpoint.get(k, None)
             if v is not None:
                 if v.size() == current_model_dict[k].size():
                     new_checkpoint[k] = v

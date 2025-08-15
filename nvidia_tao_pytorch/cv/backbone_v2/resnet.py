@@ -172,6 +172,7 @@ class ResNet(TimmResNet, BackboneBase):
                 Defaults to False.
             out_indices (tuple, optional): Indices of stages to output for feature pyramid.
                 Defaults to (0, 1, 2, 3).
+            export (bool): Whether to enable export mode. If `True`, replace BN with FrozenBN
 
         Note:
             The constructor handles both timm ResNet initialization and TAO BackboneBase
@@ -182,6 +183,7 @@ class ResNet(TimmResNet, BackboneBase):
         activation_checkpoint = kwargs.pop("activation_checkpoint", False)
         freeze_at = kwargs.pop("freeze_at", None)
         freeze_norm = kwargs.pop("freeze_norm", False)
+        export = kwargs.pop("export", False)
         self.out_indices = kwargs.pop("out_indices", [0, 1, 2, 3])
 
         super().__init__(*args, **kwargs)  # TimmResNet initialization.
@@ -192,6 +194,7 @@ class ResNet(TimmResNet, BackboneBase):
             activation_checkpoint=activation_checkpoint,
             freeze_at=freeze_at,
             freeze_norm=freeze_norm,
+            export=export,
         )
 
     def get_stage_dict(self):

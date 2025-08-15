@@ -140,6 +140,7 @@ class Hiera(TimmHiera, BackboneBase):
         activation_checkpoint = kwargs.pop("activation_checkpoint", False)
         freeze_at = kwargs.pop("freeze_at", None)
         freeze_norm = kwargs.pop("freeze_norm", False)
+        export = kwargs.pop("export", False)
 
         super().__init__(*args, **kwargs)  # TimmHiera initialization.
         BackboneBase.__init__(
@@ -149,6 +150,7 @@ class Hiera(TimmHiera, BackboneBase):
             activation_checkpoint=activation_checkpoint,
             freeze_at=freeze_at,
             freeze_norm=freeze_norm,
+            export=export,
         )
 
     def get_stage_dict(self):

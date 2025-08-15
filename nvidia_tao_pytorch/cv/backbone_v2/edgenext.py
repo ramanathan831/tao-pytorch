@@ -385,6 +385,7 @@ class EdgeNeXtBNHS(BackboneBase):
                  activation_checkpoint=False,
                  freeze_at=None,
                  freeze_norm=False,
+                 export=False,
                  **kwargs):
         """Initialize the EdgeNeXtBNHS backbone model.
 
@@ -396,6 +397,7 @@ class EdgeNeXtBNHS(BackboneBase):
             activation_checkpoint=activation_checkpoint,
             freeze_at=freeze_at,
             freeze_norm=freeze_norm,
+            export=export,
         )
         self.dims = dims
         for g in global_block_type:

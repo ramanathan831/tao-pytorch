@@ -45,8 +45,9 @@ def build_model(experiment_config,
     try:
         model = BACKBONE_REGISTRY.get(backbone)(
             num_classes=dataset_config.num_classes,
-            freeze_at='all' if freeze_backbone else None,  # TODO(@yuw): add freeze_at/freeze_norm options in tao-core
-            freeze_norm=freeze_norm)
+            freeze_at='all' if freeze_backbone else None,
+            freeze_norm=freeze_norm,
+            export=export)
         # We should unfreeze the head for training, even `freeze_backbone` is set to `True`.
         if freeze_backbone:
             head = model.get_classifier()

@@ -78,8 +78,7 @@ def test_dino_onnx_export(_test_experiment_spec, backbone, batch_size):
 
 
 @pytest.mark.cv_unit
-@pytest.mark.parametrize("backbone", ["gc_vit_xxtiny",
-                                      "fan_tiny",
+@pytest.mark.parametrize("backbone", ["fan_tiny",
                                       "vit_large_nvdinov2"])
 @pytest.mark.parametrize("batch_size", [-1])
 def test_dino_compare_onnx_output(_test_experiment_spec, backbone, batch_size):

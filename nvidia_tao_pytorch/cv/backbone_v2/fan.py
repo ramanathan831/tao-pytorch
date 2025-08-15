@@ -962,6 +962,7 @@ class FAN(BackboneBase):
         activation_checkpoint=False,
         freeze_at=None,
         freeze_norm=False,
+        export=False,
     ):
         """Initialize the FAN model."""
         super().__init__(
@@ -970,6 +971,7 @@ class FAN(BackboneBase):
             activation_checkpoint=activation_checkpoint,
             freeze_at=freeze_at,
             freeze_norm=freeze_norm,
+            export=export,
         )
 
         img_size = to_2tuple(img_size)

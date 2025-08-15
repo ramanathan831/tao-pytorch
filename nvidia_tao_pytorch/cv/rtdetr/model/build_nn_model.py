@@ -68,7 +68,7 @@ class RTDETRModel(nn.Module):
         freeze_norm = False
         if not train_backbone:
             freeze_at = "all"
-        elif pretrained_backbone and train_backbone:
+        elif pretrained_backbone and train_backbone and backbone_name.startswith('resnet'):
             freeze_at = [0]
             freeze_norm = True
         backbone = RTDETR_BACKBONE_REGISTRY.get(backbone_name)(
@@ -76,6 +76,7 @@ class RTDETRModel(nn.Module):
             freeze_at=freeze_at,
             freeze_norm=freeze_norm,
             activation_checkpoint=activation_checkpoint,
+            export=export,
         )
         in_channels = backbone.out_channels
         if pretrained_backbone:
