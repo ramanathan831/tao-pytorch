@@ -81,6 +81,27 @@ def remove_state_dict_prefix(state_dict: Dict[str, Any], prefix: str):
     return mod_state_dict
 
 
+def replace_state_dict_key(state_dict: Dict[str, Any], old_key: str, new_key: str):
+    """Replace an old key with a new key in a state dict.
+
+    Args:
+        state_dict (dict): The pretrained model weights.
+        old_key (str): The old key to be replaced.
+        new_key (str): The new key.
+
+    Returns:
+        Dict[str, Any]: A new state dictionary with the old key replaced with the new key.
+    """
+    mod_state_dict = {}
+    for k, v in state_dict.items():
+        if old_key in k:
+            new_k = k.replace(old_key, new_key, 1)
+            mod_state_dict[new_k] = v
+        else:
+            mod_state_dict[k] = v
+    return mod_state_dict
+
+
 class Im2Patches(nn.Module):
     """Image patches module."""
 
@@ -731,11 +752,18 @@ class RADIO(BackboneBase):
         """
         if self.radio_version == "CRADIOV1":
             return self.radio.radio.model.load_state_dict(
-                remove_state_dict_prefix(state_dict, "base_model."), **kwargs
+                remove_state_dict_prefix(remove_state_dict_prefix(state_dict, "radio_model.model."), "base_model."),
+                **kwargs,
             )
         elif self.radio_version == "CRADIOV2":
             return self.radio.radio.model.load_state_dict(
-                remove_state_dict_prefix(remove_state_dict_prefix(state_dict, "radio_model.model."), "base_model."),
+                replace_state_dict_key(
+                    remove_state_dict_prefix(
+                        remove_state_dict_prefix(state_dict, "radio_model.model."), "base_model."
+                    ),
+                    old_key="grandma",  # Typo in the V3 safetensors checkpoint from HF.
+                    new_key="gamma",
+                ),
                 **kwargs,
             )
         else:
