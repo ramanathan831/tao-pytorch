@@ -207,13 +207,14 @@ class OpenCLIP(BackboneBase):
         """
         if in_chans != 3:
             raise ValueError(f"in_chans must be 3 for OpenCLIP backbones. Received: in_chans={in_chans}")
-
+        export = kwargs.pop("export", False)
         super().__init__(
             in_chans=in_chans,
             num_classes=num_classes,
             activation_checkpoint=activation_checkpoint,
             freeze_at=freeze_at,
             freeze_norm=freeze_norm,
+            export=export,
         )
         self._register_nvclip_configs()
         self.model = open_clip.create_model(model_name, **kwargs)

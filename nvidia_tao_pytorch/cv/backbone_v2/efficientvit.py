@@ -1090,6 +1090,7 @@ class EfficientViT(BackboneBase):
         activation_checkpoint=False,
         freeze_at=None,
         freeze_norm=False,
+        export=False,
         **kwargs,
     ):
         """Initialize the EfficientViT model.
@@ -1107,6 +1108,7 @@ class EfficientViT(BackboneBase):
             freeze_at (list): List of keys corresponding to the stages or layers to freeze. If `None`, no specific
                 layers are frozen. If `"all"`, the entire model is frozen and set to eval mode. Default: `None`.
             freeze_norm (bool): If `True`, all normalization layers in the backbone will be frozen. Default: `False`.
+            export (bool): Whether to enable export mode. If `True`, replace BN with FrozenBN
         """
         super().__init__(
             in_chans=in_chans,
@@ -1114,6 +1116,7 @@ class EfficientViT(BackboneBase):
             activation_checkpoint=activation_checkpoint,
             freeze_at=freeze_at,
             freeze_norm=freeze_norm,
+            export=export,
         )
 
         self.width_list = []
@@ -1354,6 +1357,7 @@ class EfficientViTLarge(BackboneBase):
         activation_checkpoint=False,
         freeze_at=None,
         freeze_norm=False,
+        export=False,
         **kwargs,
     ):
         """Initialize the EfficientViTLarge class.
@@ -1370,6 +1374,7 @@ class EfficientViTLarge(BackboneBase):
             freeze_at (list): List of keys corresponding to the stages or layers to freeze. If `None`, no specific
                 layers are frozen. If `"all"`, the entire model is frozen and set to eval mode. Default: `None`.
             freeze_norm (bool): If `True`, all normalization layers in the backbone will be frozen. Default: `False`.
+            export (bool): Whether to enable export mode. If `True`, replace BN with FrozenBN
         """
         super().__init__(
             in_chans=in_chans,
@@ -1377,6 +1382,7 @@ class EfficientViTLarge(BackboneBase):
             activation_checkpoint=activation_checkpoint,
             freeze_at=freeze_at,
             freeze_norm=freeze_norm,
+            export=export,
         )
 
         self.width_list = []

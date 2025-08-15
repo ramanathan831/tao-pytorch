@@ -11,23 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-""" Misc functions. """
+"""DINO model utils. """
 from nvidia_tao_pytorch.core.utils.ptm_utils import StateDictAdapter
-
 
 ptm_adapter = StateDictAdapter()
 ptm_adapter.add("mae", "model.encoder.")
 ptm_adapter.add("classification", "model.")
-ptm_adapter.add("rtdetr", "model.model.backbone.")
-ptm_adapter.add("mask2former", "model.backbone.")
-ptm_adapter.add("mal", "student.backbone.")
-ptm_adapter.add("mask_grounding_dino", "model.model.backbone.0.body.")
-ptm_adapter.add("grounding_dino", "model.model.backbone.0.body.")
-ptm_adapter.add("dino", "model.model.backbone.0.body.")
+ptm_adapter.add("dino", "model.")
 
 
-def cls_parser(original):
-    """Parse public classification checkpoints."""
+def dino_parser(original):
+    """Parse public DINO checkpoints."""
     state_dict = {}
     for key, value in list(original.items()):
         if "module" in key:
@@ -56,6 +50,13 @@ def cls_parser(original):
         elif key.startswith("ema_"):
             # Do not include ema params from MMLab
             continue
+        elif 'grn' in key:
+            # Reshape GRN parameters from 6D to 4D if needed
+            if value.dim() == 6:  # If parameter is 6D [1, 1, 1, 1, 1, C]
+                state_dict[key] = value.squeeze(3).squeeze(3)  # Reshape to 4D [1, 1, 1, C]
+            elif value.dim() == 2:
+                state_dict[key] = value.unsqueeze(0).unsqueeze(1)
+
         else:
             state_dict[key] = value
     return state_dict

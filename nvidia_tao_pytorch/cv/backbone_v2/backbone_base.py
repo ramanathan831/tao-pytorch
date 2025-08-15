@@ -54,8 +54,6 @@ Example:
             return logits
     ```
 """
-# TODO: add export flag
-
 import abc
 from typing import Dict, List, Optional, Set, Union
 
@@ -154,6 +152,7 @@ class BackboneBase(nn.Module, metaclass=BackboneMeta):
         activation_checkpoint: bool = False,
         freeze_at: Optional[List[Union[int, str]]] = None,
         freeze_norm: bool = False,
+        export: bool = False,
     ):
         """Initialize the backbone base class.
 
@@ -164,6 +163,7 @@ class BackboneBase(nn.Module, metaclass=BackboneMeta):
             freeze_at (list): List of keys corresponding to the stages or layers to freeze. If `None`, no specific
                 layers are frozen. If `"all"`, the entire model is frozen and set to eval mode. Default: `None`.
             freeze_norm (bool): If `True`, all normalization layers in the backbone will be frozen. Default: `False`.
+            export (bool): Whether to enable export mode. If `True`, replace BN with FrozenBN
         """
         if not self._module_is_initialized:
             nn.Module.__init__(self)
@@ -183,6 +183,7 @@ class BackboneBase(nn.Module, metaclass=BackboneMeta):
         self.activation_checkpoint = bool(activation_checkpoint)
         self.freeze_norm = bool(freeze_norm)
         self.freeze_at = freeze_at
+        self.export = export
 
     @property
     def _module_is_initialized(self):
@@ -209,6 +210,8 @@ class BackboneBase(nn.Module, metaclass=BackboneMeta):
         after object creation.
         """
         self.freeze_backbone()
+        if self.export:
+            self._freeze_bn_norm(self)
         self.set_grad_checkpointing(self.activation_checkpoint)
 
     def _init_weights(self, m):
