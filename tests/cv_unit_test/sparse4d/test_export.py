@@ -67,3 +67,53 @@ def test_sparse4d_onnx_export(_test_experiment_spec, batch_size=1): # Fixed batc
     )
     sparse4d_exporter.check_onnx(output_file)
     assert os.path.exists(output_file), "ONNX file was not generated properly!"
+
+
+@pytest.mark.cv_unit
+@pytest.mark.sparse4d
+@pytest.mark.export
+def test_sparse4d_refinement_module():
+    """Simple test for the refinement module forward pass."""
+    from nvidia_tao_pytorch.cv.sparse4d.model.detection3d.detection3d_blocks import SparseBox3DRefinementModule
+    from nvidia_tao_pytorch.cv.sparse4d.utils.onnx_export import Sparse4DExporter
+    
+    # Create a simple refinement module
+    embed_dims = 256
+    output_dim = 11
+    num_cls = 7
+    
+    module = SparseBox3DRefinementModule(
+        embed_dims=embed_dims,
+        output_dim=output_dim,
+        num_cls=num_cls,
+        refine_yaw=True,
+        normalize_yaw=True,
+        with_quality_estimation=True
+    )
+    module.eval()
+    
+    # Create test inputs
+    batch_size = 2
+    num_anchors = 10
+    
+    instance_feature = torch.randn(batch_size, num_anchors, embed_dims)
+    anchor = torch.randn(batch_size, num_anchors, 11)  # [x,y,z,w,l,h,sin_yaw,cos_yaw,vx,vy,vz]
+    anchor_embed = torch.randn(batch_size, num_anchors, embed_dims)
+    time_interval = torch.tensor(0.1)
+    
+    # Test original forward vs static forward method for export
+    with torch.no_grad():
+        # Original forward
+        original_output, original_cls, original_quality = module(
+            instance_feature, anchor, anchor_embed, time_interval, return_cls=True
+        )
+        
+        # Static forward method for ONNX export
+        static_output, static_cls, static_quality = Sparse4DExporter.sparse_box_3d_refinement_module_forward(
+            module, instance_feature, anchor, anchor_embed, time_interval, return_cls=True
+        )
+    
+    # Check if outputs match across original forward methods and static forward method for export
+    torch.testing.assert_close(original_output, static_output, rtol=1e-4, atol=1e-5)
+    torch.testing.assert_close(original_cls, static_cls, rtol=1e-4, atol=1e-5)
+    torch.testing.assert_close(original_quality, static_quality, rtol=1e-4, atol=1e-5)
