@@ -12,27 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Constants for the quantization framework."""
+"""TorchAO quantization backend package.
 
-from enum import Enum, auto
-
-
-class SupportedDtype(Enum):
-    """Supported data types for quantization."""
-
-    INT8 = "int8"
-    FP8_E4M3FN = "fp8_e4m3fn"
-    FP8_E5M2 = "fp8_e5m2"
-
-
-class QuantizationMode(Enum):
-    """Supported quantization modes."""
-
-    WEIGHT_ONLY_PTQ = auto()
-    STATIC_PTQ = auto()
-
-
-# Registry dictionaries for backward compatibility
-BACKEND_REGISTRY = {}
-OBSERVER_REGISTRY = {}
-FAKE_QUANT_REGISTRY = {}
+This package will host the TorchAO backend integration when implemented.
+"""

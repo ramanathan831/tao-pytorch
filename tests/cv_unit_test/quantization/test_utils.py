@@ -67,7 +67,9 @@ linear_layer = nn.Linear(10, 20)
 )
 def test_match_layer(module, module_name, pattern, expected, description):
     """Tests various scenarios for the match_layer function."""
-    assert match_layer(module, module_name, pattern) == expected, description
+    assert (
+        match_layer(module, module_name, pattern) == expected
+    ), f"{description}: expected {expected} for pattern '{pattern}' against module '{module_name}'"
 
 
 def test_match_layer_precedence():
@@ -76,9 +78,13 @@ def test_match_layer_precedence():
     The implementation short-circuits, so this verifies the order of checks.
     """
     # This pattern matches the graph name but wouldn't match the type name.
-    assert match_layer(conv_layer, "backbone.features.conv1", "backbone.features.*")
+    assert match_layer(
+        conv_layer, "backbone.features.conv1", "backbone.features.*"
+    ), "Graph-name match should take precedence and succeed"
     # This pattern doesn't match the graph name but does match the type name.
-    assert match_layer(conv_layer, "backbone.features.conv1", "Conv2d")
+    assert match_layer(
+        conv_layer, "backbone.features.conv1", "Conv2d"
+    ), "Type-name match should also succeed if graph-name check didn't match earlier"
 
 
 def test_match_layer_input_validation():

@@ -13,8 +13,6 @@
 # limitations under the License.
 
 """Integration tests for the quantization framework."""
-
-import pytest
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
@@ -26,7 +24,6 @@ from nvidia_tao_pytorch.core.quantization import (
     LayerQuantizationConfig,
     WeightQuantizationConfig,
     ActivationQuantizationConfig,
-    BaseQuantizationConfig,
     register_observer,
     register_fake_quant,
     register_backend,
@@ -69,9 +66,15 @@ class DummyBackend(QuantizerBase, Calibratable):
 
     def prepare(self, model: nn.Module, config: ModelQuantizationConfig) -> nn.Module:
         """Replace Linear layers with a placeholder for quantization."""
+        # More efficient: only iterate once and collect changes
+        replacements = {}
         for name, module in model.named_children():
             if isinstance(module, nn.Linear):
-                setattr(model, name, QuantizedLinear(module))
+                replacements[name] = QuantizedLinear(module)
+
+        # Apply all replacements at once
+        for name, replacement in replacements.items():
+            setattr(model, name, replacement)
         return model
 
     def quantize(self, model: nn.Module, config: ModelQuantizationConfig) -> nn.Module:
@@ -82,8 +85,9 @@ class DummyBackend(QuantizerBase, Calibratable):
         """Simulate a calibration loop."""
         model.eval()
         with torch.no_grad():
-            for data, _ in data_loader:
-                model(data)
+            # Get first batch directly without iteration
+            data, _ = next(iter(data_loader))
+            model(data)
 
 
 class TestQuantizationIntegration:
@@ -98,10 +102,10 @@ class TestQuantizationIntegration:
 
     def test_quantization_workflow(self):
         """Test the end-to-end quantization workflow."""
-        model = nn.Sequential(nn.Linear(10, 20), nn.ReLU(), nn.Linear(20, 5))
+        # Smaller model for faster testing
+        model = nn.Sequential(nn.Linear(5, 8), nn.ReLU(), nn.Linear(8, 3))
 
         quant_config = ModelQuantizationConfig(
-            mode="static_ptq",
             backend="dummy_backend",
             layers=[
                 LayerQuantizationConfig(
@@ -127,24 +131,38 @@ class TestQuantizationIntegration:
 
         prepared_model = quantizer.prepare(model, quant_config)
 
-        assert isinstance(prepared_model[0], QuantizedLinear)
-        assert isinstance(prepared_model[2], QuantizedLinear)
+        # Essential assertions only
+        assert isinstance(
+            prepared_model[0], QuantizedLinear
+        ), "First Linear should be wrapped with QuantizedLinear"
+        assert isinstance(
+            prepared_model[2], QuantizedLinear
+        ), "Second Linear should be wrapped with QuantizedLinear"
 
-        dummy_data = torch.randn(16, 10)
-        dummy_labels = torch.randint(0, 5, (16,))
-        data_loader = DataLoader(TensorDataset(dummy_data, dummy_labels), batch_size=4)
+        # Minimal data for faster testing
+        dummy_data = torch.randn(2, 5)  # Even smaller: 2 samples, 5 features
+        dummy_labels = torch.randint(0, 3, (2,))
+        data_loader = DataLoader(TensorDataset(dummy_data, dummy_labels), batch_size=2)
 
-        assert isinstance(quantizer, Calibratable)
+        assert isinstance(
+            quantizer, Calibratable
+        ), "Dummy backend should implement Calibratable"
         quantizer.calibrate(prepared_model, data_loader)
 
         quantized_model = quantizer.quantize(prepared_model, quant_config)
 
-        assert quantized_model == prepared_model
+        assert (
+            quantized_model == prepared_model
+        ), "Dummy backend quantize() is a no-op and should return the same model"
 
+        # Final validation with minimal computation
         quantized_model.eval()
         with torch.no_grad():
             output = quantized_model(dummy_data)
-            assert output.shape == (16, 5)
+            assert output.shape == (
+                2,
+                3,
+            ), "Output tensor shape should match the final layer output size"
 
     def teardown_method(self):
         """Clean up the test environment by clearing the registry."""

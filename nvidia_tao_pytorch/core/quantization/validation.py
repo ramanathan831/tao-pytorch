@@ -12,17 +12,37 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Validation utilities for quantization framework."""
+"""Validation utilities for the quantization framework."""
 
 from typing import List
 
-from .constants import SupportedDtype
+from nvidia_tao_pytorch.core.quantization.constants import SupportedDtype
 
 
 def get_valid_dtype_options() -> List[str]:
-    """Get valid dtype options from the enum values.
+    """Return valid dtype options derived from the enum values.
 
-    Returns:
-        List of valid data type strings (e.g., ["int8", "fp8_e4m3fn", "fp8_e5m2"])
+    Returns
+    -------
+    list[str]
+        Valid data type strings (e.g., ["int8", "fp8_e4m3fn", "fp8_e5m2"]).
     """
     return [dtype.value for dtype in SupportedDtype]
+
+
+def assert_supported_dtype(dtype: str) -> None:
+    """Raise a helpful error if dtype is not supported.
+
+    Parameters
+    ----------
+    dtype : str
+        Dtype string to validate.
+    """
+    if dtype is None:
+        raise TypeError("dtype cannot be None")
+    valid = get_valid_dtype_options()
+    if str(dtype).lower() not in valid:
+        raise ValueError(
+            f"Unsupported dtype '{dtype}'. Supported dtypes: {valid}. "
+            "To extend support, add the dtype to SupportedDtype in constants.py."
+        )

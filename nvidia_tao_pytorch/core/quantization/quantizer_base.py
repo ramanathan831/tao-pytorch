@@ -23,69 +23,59 @@ from nvidia_tao_core.config.common.quantization.default_config import (
 
 
 class QuantizerBase(ABC):
-    """
-    Abstract base class for model quantization.
+    """Abstract interface for quantization backends.
 
-    This class provides an interface for model quantization. Subclasses must implement
-    the `prepare` and `quantize` methods.
-
-    Methods
-    -------
-    prepare(model, config)
-        Insert Observer/FakeQuantize modules based on user-specified config.
-    quantize(model, config)
-        Convert or wrap the model to its quantized form.
+    Subclasses implement the backend-specific logic for inserting observers/fake
+    quantizers and converting a model to its quantized form.
 
     See Also
     --------
     Calibratable
-        Mix-in interface that adds a ``calibrate`` method for PTQ back-ends.
+        Mix-in interface adding ``calibrate`` for PTQ backends.
     """
 
     @abstractmethod
     def prepare(self, model: nn.Module, config: ModelQuantizationConfig) -> nn.Module:
-        """
-        Insert Observer/FakeQuantize modules based on user-specified config.
+        """Insert observers/fake quantizers based on configuration.
 
         Parameters
         ----------
         model : torch.nn.Module
-            The model to prepare for quantization.
+            Model to prepare for quantization.
         config : ModelQuantizationConfig
-            Configuration for quantization.
+            Quantization configuration.
 
         Returns
         -------
         torch.nn.Module
-            The prepared model with observers/fake quantize modules inserted.
+            Prepared model with observers/fake-quant modules inserted.
 
         Raises
         ------
         NotImplementedError
-            If the method is not implemented by a subclass.
+            Always, unless implemented by a subclass.
         """
         raise NotImplementedError("Calling abstract method - prepare. Subclass must implement this method.")
 
     @abstractmethod
     def quantize(self, model: nn.Module, config: ModelQuantizationConfig) -> nn.Module:
-        """
-        Convert or wrap the model to its quantized form.
+        """Convert a prepared model to its quantized form.
 
         Parameters
         ----------
         model : torch.nn.Module
-            The model to quantize.
+            Prepared model to quantize.
         config : ModelQuantizationConfig
-            Configuration for quantization.
+            Quantization configuration.
 
         Returns
         -------
         torch.nn.Module
-            The quantized model.
+            Quantized model.
 
         Raises
         ------
         NotImplementedError
-            If the method is not implemented by a subclass.
+            Always, unless implemented by a subclass.
         """
         raise NotImplementedError("Calling abstract method - quantize. Subclass must implement this method.")

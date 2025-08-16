@@ -26,14 +26,16 @@ def test_get_valid_dtype_options():
     valid_dtypes = get_valid_dtype_options()
 
     # It should return a list...
-    assert isinstance(valid_dtypes, list), "Should return a list"
+    assert isinstance(
+        valid_dtypes, list
+    ), "get_valid_dtype_options should return a list"
     # ...of strings.
-    assert all(isinstance(item, str) for item in valid_dtypes), (
-        "All items should be strings"
-    )
+    assert all(
+        isinstance(item, str) for item in valid_dtypes
+    ), "All returned dtype options should be strings"
 
     # And the content should be exactly what's in our enum
     expected_dtypes = [e.value for e in SupportedDtype]
-    assert sorted(valid_dtypes) == sorted(expected_dtypes), (
-        "The list of dtypes should match the source enum"
-    )
+    assert sorted(valid_dtypes) == sorted(
+        expected_dtypes
+    ), "The dtype options should match values in SupportedDtype enum"
