@@ -20,33 +20,26 @@ from torch.utils.data import DataLoader
 
 
 class Calibratable(ABC):
-    """
-    Calibratable extension for the quantizer, for PTQ calibration.
+    """Abstract interface for PTQ calibration.
 
-    This class provides an abstract interface for post-training quantization
-    calibration. Subclasses must implement the `calibrate` method.
-
-    Methods
-    -------
-    calibrate(model, data_loader)
-        Collect statistics or perform any PTQ-style calibration.
+    Provides the method signature for post-training quantization calibration.
+    Subclasses must implement ``calibrate``.
     """
 
     @abstractmethod
     def calibrate(self, model: nn.Module, data_loader: DataLoader):
-        """
-        Collect statistics or perform any PTQ-style calibration.
+        """Collect statistics or perform PTQ-style calibration.
 
         Parameters
         ----------
         model : torch.nn.Module
-            The model to calibrate.
+            Model to calibrate.
         data_loader : torch.utils.data.DataLoader
-            DataLoader providing calibration data.
+            Data loader providing calibration data.
 
         Raises
         ------
         NotImplementedError
-            If the method is not implemented by a subclass.
+            Always, unless implemented by a subclass.
         """
         raise NotImplementedError("Calling abstract method - calibrate. Subclass must implement this method.")

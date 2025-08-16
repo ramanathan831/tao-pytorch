@@ -15,7 +15,6 @@
 """Unit tests for quantization registry management."""
 
 import pytest
-from unittest.mock import Mock
 
 from nvidia_tao_pytorch.core.quantization.registry import (
     RegistryManager,
@@ -30,8 +29,6 @@ from nvidia_tao_pytorch.core.quantization.registry import (
     get_fake_quant_class,
     get_registry_manager,
 )
-import threading
-import time
 
 
 class MockObserver:
@@ -137,7 +134,7 @@ class TestRegistryManager:
 
     def test_get_available_observers(self):
         """Test getting available observer names."""
-        assert self.registry.get_available_observers() == []
+        assert not self.registry.get_available_observers()
 
         self.registry.register_observer("obs1", MockObserver)
         self.registry.register_observer("obs2", MockObserver)
@@ -149,7 +146,7 @@ class TestRegistryManager:
 
     def test_get_available_fake_quants(self):
         """Test getting available fake quant names."""
-        assert self.registry.get_available_fake_quants() == []
+        assert not self.registry.get_available_fake_quants()
 
         self.registry.register_fake_quant("fq1", MockFakeQuant)
         self.registry.register_fake_quant("fq2", MockFakeQuant)
@@ -161,7 +158,7 @@ class TestRegistryManager:
 
     def test_get_available_backends(self):
         """Test getting available backend names."""
-        assert self.registry.get_available_backends() == []
+        assert not self.registry.get_available_backends()
 
         self.registry.register_backend("backend1", MockBackend)
         self.registry.register_backend("backend2", MockBackend)
@@ -274,15 +271,16 @@ class TestRegistryDecorators:
         """Test that duplicate registration with decorators raises ValueError."""
 
         @register_observer("test_observer")
-        class TestObserver1:
+        class TestObserver1:  # pylint: disable=unused-variable
             pass
+        del TestObserver1
 
         with pytest.raises(
             ValueError, match="Observer 'test_observer' is already registered"
         ):
 
             @register_observer("test_observer")
-            class TestObserver2:
+            class TestObserver2:  # pylint: disable=unused-variable
                 pass
 
 

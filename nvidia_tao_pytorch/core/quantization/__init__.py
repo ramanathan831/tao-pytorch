@@ -15,8 +15,8 @@
 """Quantization core for TAO Toolkit."""
 
 # Core abstract classes
-from .quantizer_base import QuantizerBase
-from .calibratable import Calibratable
+from nvidia_tao_pytorch.core.quantization.quantizer_base import QuantizerBase
+from nvidia_tao_pytorch.core.quantization.calibratable import Calibratable
 
 # Configuration classes
 from nvidia_tao_core.config.common.quantization.default_config import (
@@ -28,15 +28,15 @@ from nvidia_tao_core.config.common.quantization.default_config import (
 )
 
 # Constants and enums
-from .constants import (
+from nvidia_tao_pytorch.core.quantization.constants import (
     QuantizationMode,
 )
 
 # Validation utilities
-from .validation import get_valid_dtype_options
+from nvidia_tao_pytorch.core.quantization.validation import get_valid_dtype_options
 
 # Registry management
-from .registry import (
+from nvidia_tao_pytorch.core.quantization.registry import (
     register_observer,
     register_fake_quant,
     register_backend,
@@ -49,6 +49,8 @@ from .registry import (
     get_registry_manager,
 )
 
+# Quantization main
+from nvidia_tao_pytorch.core.quantization.quantizer import ModelQuantizer
 
 __all__ = [
     # Core abstract classes
@@ -75,4 +77,6 @@ __all__ = [
     "get_observer_class",
     "get_fake_quant_class",
     "get_registry_manager",
+    # Quantization main
+    "ModelQuantizer",
 ]

@@ -14,16 +14,30 @@
 
 """Quantization backends for TAO Toolkit."""
 
-from ..registry import (
+from nvidia_tao_pytorch.core.quantization.registry import (
     register_backend,
     get_available_backends,
     get_backend_class,
 )
-from nvidia_tao_core.config.common.quantization.constants import BACKEND_REGISTRY
+
+# Import concrete backends so they self-register via decorators.
+# These imports are intentionally placed here to provide a seamless user
+# experience – importing the quantization package will make backends
+# available in the registry.
+try:  # pragma: no cover - import side-effect only
+    from nvidia_tao_pytorch.core.quantization.backends.modelopt import ModelOptBackend  # noqa: F401
+except Exception:
+    # ModelOpt is optional; ignore if unavailable at import time
+    pass
+
+# TODO: add TorchAO backend import when implemented
+# try:  # pragma: no cover
+#     from .torchao.torchao import TorchAOBackend  # noqa: F401
+# except Exception:
+#     pass
 
 __all__ = [
     "register_backend",
     "get_available_backends",
     "get_backend_class",
-    "BACKEND_REGISTRY",
 ]
