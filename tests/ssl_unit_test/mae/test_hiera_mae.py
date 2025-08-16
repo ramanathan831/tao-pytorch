@@ -10,7 +10,7 @@ from nvidia_tao_pytorch.ssl.mae.model.hiera_mae import (
 
 @pytest.fixture
 def model():
-    return MaskedAutoencoderHiera(embed_dim=96, num_heads=1, stages=(2, 3, 16, 3), q_pool=2)
+    return MaskedAutoencoderHiera(embed_dim=96, num_heads=1, stages=(2, 3, 16, 3), q_pool=2, mask_ratio=0.5)
 
 @pytest.fixture
 def input_data():
@@ -47,8 +47,7 @@ def test_forward_loss(model, input_data):
     assert label.shape[1:] == (768,)
 
 def test_forward(model, input_data):
-    mask_ratio = 0.6
-    output = model(input_data, mask_ratio)
+    output = model(input_data)
     assert len(output) == 3  # refactoring output to 3 since the forward function was edited.
     loss, pred, mask = output
     assert loss.shape == ()
