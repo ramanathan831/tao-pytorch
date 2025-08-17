@@ -21,17 +21,15 @@ model:
   num_queries: 300
 
 quantize:
-  model_path: ???
-  backend: "modelopt"
+  model_path: "???"
+  results_dir: ${results_dir}
+  backend: "torchao"
   mode: "static_ptq"
-  algorithm: "max"
+  algorithm: "minmax"
+  default_layer_dtype: "native"
+  default_activation_dtype: "native"
   layers:
     - module_name: "Linear"
-      weights:
-        dtype: "float8_e4m3fn"
-      activations:
-        dtype: "float8_e4m3fn"
-    - module_name: "Conv2d"
       weights:
         dtype: "float8_e4m3fn"
       activations:

@@ -38,16 +38,14 @@ model:
       type: CrossEntropyLoss
 quantize:
   model_path: "???"
-  results_dir: "???"
-  backend: "modelopt"
+  results_dir: ${results_dir}
+  backend: "torchao"
   mode: "static_ptq"
+  algorithm: "minmax"
+  default_layer_dtype: "native"
+  default_activation_dtype: "native"
   layers:
     - module_name: "Linear"
-      weights:
-        dtype: "float8_e4m3fn"
-      activations:
-        dtype: "float8_e4m3fn"
-    - module_name: "Conv2d"
       weights:
         dtype: "float8_e4m3fn"
       activations:
