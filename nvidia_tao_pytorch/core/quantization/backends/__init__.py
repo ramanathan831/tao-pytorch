@@ -30,11 +30,12 @@ except Exception:
     # ModelOpt is optional; ignore if unavailable at import time
     pass
 
-# TODO: add TorchAO backend import when implemented
-# try:  # pragma: no cover
-#     from .torchao.torchao import TorchAOBackend  # noqa: F401
-# except Exception:
-#     pass
+# Import TorchAO backend so it self-registers via decorator
+try:  # pragma: no cover - import side-effect only
+    from .torchao.torchao import TorchAOBackend  # noqa: F401
+except Exception:
+    # TorchAO is optional; ignore if unavailable at import time
+    pass
 
 __all__ = [
     "register_backend",

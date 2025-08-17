@@ -35,12 +35,6 @@ try:
 except Exception:
     # Backends are optional; ignore if unavailable at import time
     pass
-
-# TODO: add TorchAO backend import when implemented
-# try:
-#     from .backends.torchao.torchao import TorchAOBackend  # noqa: F401
-# except ImportError:
-#     pass
 from nvidia_tao_core.config.common.quantization.default_config import (
     ModelQuantizationConfig,
 )
