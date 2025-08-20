@@ -140,6 +140,14 @@ class ModelOptBackend(QuantizerBase, Calibratable):
             )
 
         def forward_loop(m: nn.Module) -> None:
+            if len(data_loader) == 0:
+                self._logger.warning(
+                    "No calibration data present in the calibration dataset. "
+                    "Accuracy of the quantized model may degrade if activations are being quantized. "
+                    "Please check the calibration dataset `quant_calibration_dataset` if this is a problem. "
+                    "Weight only quantization will not be affected. "
+                    "Disregard this warning if you are running evaluation, inference, or other non-quantization tasks."
+                )
             m.eval().cuda()
             with torch.no_grad():
                 for batch in tqdm(data_loader, desc="Calibrating model"):
@@ -175,7 +183,18 @@ class ModelOptBackend(QuantizerBase, Calibratable):
 
         modelopt_cfg = convert_tao_to_modelopt_config(config, model)
 
-        forward_loop = self._forward_loop or _default_forward_loop
+        # ModelOpt configuration prepared; proceed to quantization
+
+        if self._forward_loop is None:
+            self._logger.warning(
+                "No calibration dataloader provided; using a no-op forward loop. "
+                "Accuracy of the quantized model may degrade if activations are being quantized"
+                "and no calibration data is provided. Weight only quantization will not be affected. "
+                "Disregard this warning if you are running evaluation, inference, or other non-quantization tasks."
+            )
+            forward_loop = _default_forward_loop
+        else:
+            forward_loop = self._forward_loop
 
         self._logger.info("Invoking ModelOpt quantization")
         quantized_model = mtq.quantize(model, modelopt_cfg, forward_loop)

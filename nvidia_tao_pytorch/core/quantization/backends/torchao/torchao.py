@@ -28,7 +28,6 @@ Notes
 from __future__ import annotations
 
 from typing import Dict
-import logging
 import copy
 
 import torch.nn as nn
@@ -40,6 +39,7 @@ from ...registry import register_backend
 from ...constants import QuantizationMode
 from ...utils import match_layer
 from ...validation import assert_supported_dtype
+from nvidia_tao_pytorch.core.tlt_logging import logger as tlt_logger
 from nvidia_tao_core.config.common.quantization.default_config import (
     ModelQuantizationConfig,
     LayerQuantizationConfig,
@@ -136,7 +136,16 @@ def _build_module_fqn_to_cfg(
             # Weight-only backend: ignore layers without weight settings
             continue
 
-        torchao_cfg = _select_weightonly_cfg(layer.weights.dtype)
+        # Support explicit per-layer opt-out via dtype=="native"
+        weight_dtype = str(getattr(layer.weights, "dtype", "")).lower()
+        if weight_dtype == "native":
+            # Remove any existing mapping for matched modules (disable quantization)
+            for qual_name, module in named_modules:
+                if match_layer(module, qual_name, layer.module_name):
+                    mapping.pop(qual_name, None)
+            continue
+
+        torchao_cfg = _select_weightonly_cfg(weight_dtype)
 
         for qual_name, module in named_modules:
             if match_layer(module, qual_name, layer.module_name):
@@ -165,7 +174,7 @@ class TorchAOBackend(QuantizerBase):
     """
 
     def __init__(self) -> None:
-        self._logger = logging.getLogger(__name__)
+        self._logger = tlt_logger
         self.backend_name = "torchao"
 
     def prepare(self, model: nn.Module, config: ModelQuantizationConfig) -> nn.Module:
@@ -198,6 +207,15 @@ class TorchAOBackend(QuantizerBase):
                 f"Supported modes: {sorted(SUPPORTED_MODES)}"
             )
 
+        # Warn if default dtypes are set to non-native values, which are not supported/used currently.
+        default_layer_dtype = str(getattr(config, "default_layer_dtype", "native")).lower()
+        default_activation_dtype = str(getattr(config, "default_activation_dtype", "native")).lower()
+        if default_layer_dtype != "native" or default_activation_dtype != "native":
+            self._logger.warning(
+                "Non-native default_layer_dtype/default_activation_dtype is currently not supported "
+                "by the torchao backend and will be ignored."
+            )
+
         self._logger.debug("TorchAOBackend.prepare: validation complete; returning model unchanged")
         return model
 
@@ -224,11 +242,16 @@ class TorchAOBackend(QuantizerBase):
         if not isinstance(config, ModelQuantizationConfig):
             raise TypeError("config must be an instance of ModelQuantizationConfig")
 
-        module_map = _build_module_fqn_to_cfg(model, config)
+        # Warn if default dtypes are set to non-native values, which are not supported/used currently.
+        default_layer_dtype = str(getattr(config, "default_layer_dtype", "native")).lower()
+        default_activation_dtype = str(getattr(config, "default_activation_dtype", "native")).lower()
+        if default_layer_dtype != "native" or default_activation_dtype != "native":
+            self._logger.warning(
+                "Non-native default_layer_dtype/default_activation_dtype is currently not supported "
+                "by the torchao backend and will be ignored."
+            )
 
-        self._logger.info(
-            "Invoking TorchAO quantization for %d modules", len(module_map)
-        )
+        module_map = _build_module_fqn_to_cfg(model, config)
 
         ao_cfg = AOPerModuleConfig(module_fqn_to_config=module_map)
 

@@ -51,6 +51,7 @@ from typing import Dict, Any, Tuple
 
 import torch.nn as nn
 from omegaconf import OmegaConf, DictConfig
+from nvidia_tao_pytorch.core.tlt_logging import logger as tlt_logger
 
 from nvidia_tao_pytorch.core.quantization.utils import match_layer
 
@@ -115,6 +116,13 @@ def _build_quantizer_cfg(
     dict
         ModelOpt quantizer attributes dictionary.
     """
+    # Special-case: allow explicit "native" to disable a specific quantizer
+    # instead of erroring. This enables per-quantizer opt-out without relying on
+    # skip patterns.
+    dtype_value = str(getattr(qcfg, "dtype", "")).lower()
+    if dtype_value == "native":
+        return {"enable": False}
+
     # Validate dtype against SupportedDtype for helpful error messages
     assert_supported_dtype(qcfg.dtype)
 
@@ -237,6 +245,15 @@ def convert_tao_to_modelopt_config(
     if config is None:
         raise TypeError("config cannot be None")
 
+    # Warn if default dtypes are set to non-native values; feature not supported yet
+    default_layer_dtype = str(getattr(config, "default_layer_dtype", "native")).lower()
+    default_activation_dtype = str(getattr(config, "default_activation_dtype", "native")).lower()
+    if default_layer_dtype != "native" or default_activation_dtype != "native":
+        tlt_logger.warning(
+            "Non-native default_layer_dtype/default_activation_dtype is currently not supported "
+            "by the modelopt backend and will be ignored."
+        )
+
     quant_cfg: Dict[str, Any] = {}
 
     def _nn_class_key(pattern: str) -> str | None:
@@ -346,9 +363,9 @@ def convert_tao_to_modelopt_config(
     else:
         mode_value = getattr(config, "mode", None)
         mode_str = str(mode_value).lower() if mode_value is not None else "static_ptq"
-        # For PTQ variants, default to "max". For non-PTQ (e.g., QAT), set None.
+        # For PTQ variants, default to "minmax" (matches TAO schema/tests). For non-PTQ, set None.
         if mode_str in {"static_ptq", "weight_only_ptq"}:
-            algorithm = "max"
+            algorithm = "minmax"
         else:
             algorithm = None
 
