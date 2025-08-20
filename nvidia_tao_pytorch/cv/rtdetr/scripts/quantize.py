@@ -14,8 +14,9 @@
 
 """Quantize an RT-DETR model using the configured backend.
 
-This script loads a trained RT-DETR checkpoint, prepares the calibration data loader,
-runs quantization via ``ModelQuantizer``, and saves the quantized model.
+This script loads a trained RT-DETR checkpoint, prepares the calibration data loader
+from the dataset specified in ``quant_calibration_data_sources``, runs quantization via
+``ModelQuantizer``, and saves the quantized model.
 """
 
 import os
@@ -65,11 +66,10 @@ def main(cfg: ExperimentConfig) -> None:
     )
     orig_model = pl_model.model
 
-    # Set up a calibration dataloader using validation data
+    # Prepare calibration dataloader via DataModule
     dm = ODDataModule(cfg.dataset)
-    dm.setup(stage="fit")
-    calibration_loader = dm.val_dataloader()
-    logger.debug("Calibration dataloader prepared from validation split")
+    dm.setup(stage="calibration")
+    calibration_loader = dm.calib_dataloader()
 
     # Create quantizer and quantize the model
     quantizer = ModelQuantizer(cfg.quantize)

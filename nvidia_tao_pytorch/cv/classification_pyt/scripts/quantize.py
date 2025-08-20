@@ -64,10 +64,10 @@ def main(cfg: ExperimentConfig) -> None:
     )
     orig_model = pl_model.model
 
+    # Prepare calibration dataloader via DataModule
     dm = CLDataModule(cfg.dataset)
-    dm.setup(stage="test")
-    calibration_loader = dm.test_dataloader()
-    logger.debug("Calibration dataloader prepared from test split")
+    dm.setup(stage="calibration")
+    calibration_loader = dm.calib_dataloader()
 
     # Create quantizer and quantize the model
     quantizer = ModelQuantizer(cfg.quantize)

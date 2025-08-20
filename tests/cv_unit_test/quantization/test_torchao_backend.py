@@ -141,6 +141,36 @@ def test_torchao_backend_quantize_fp8_and_skip():
 
 
 @pytest.mark.unit
+def test_torchao_backend_weights_native_disables_quantization():
+    # Ensure clean registry across tests
+    get_registry_manager().clear_all()
+
+    with _patch_torchao_imports():
+        _ensure_torchao_registered()
+        backend_cls = get_backend_class("torchao")
+        q = backend_cls()
+
+        model = ToyModel()
+        cfg = build_model_quant_config_from_omegaconf(
+            {
+                "backend": "torchao",
+                "mode": "weight_only_ptq",
+                "layers": [
+                    {
+                        "module_name": "Linear",
+                        "weights": {"dtype": "native"},
+                    }
+                ],
+            }
+        )
+
+        prepared = q.prepare(model, cfg)
+        # With 'native', mapping should be empty and quantize becomes a no-op
+        quantized = q.quantize(prepared, cfg)
+        assert isinstance(quantized, nn.Module)
+
+
+@pytest.mark.unit
 def test_torchao_backend_save_model(tmp_path=None):
     # Ensure clean registry across tests
     get_registry_manager().clear_all()
