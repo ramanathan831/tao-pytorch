@@ -39,6 +39,7 @@ from nvidia_tao_pytorch.core.utils.pos_embed_interpolation import interpolate_pa
 from nvidia_tao_pytorch.core.utils.ptm_utils import load_pretrained_weights
 from nvidia_tao_pytorch.cv.backbone_v2.nn.norm import FrozenBatchNorm2d
 from nvidia_tao_pytorch.cv.visual_changenet.backbone.fan import fan_model_dict
+from nvidia_tao_pytorch.cv.visual_changenet.backbone.utils import ptm_adapter, visual_changenet_parser
 from nvidia_tao_pytorch.cv.visual_changenet.backbone.vit_adapter import vit_adapter_model_dict
 from nvidia_tao_pytorch.cv.visual_changenet.segmentation.models.changenet_utils import (
     MLP,
@@ -365,7 +366,11 @@ class ChangeNetSegment(nn.Module):
             raise NotImplementedError('Bacbkbone name [%s] is not supported' % self.model_name)
 
         if pretrained_backbone_path:
-            pretrained_backbone_ckp = load_pretrained_weights(pretrained_backbone_path)
+            pretrained_backbone_ckp = load_pretrained_weights(
+                pretrained_backbone_path,
+                parser=visual_changenet_parser,
+                ptm_adapter=ptm_adapter,
+            )
             if "vit" in self.model_name and "radio" not in self.model_name:
                 pretrained_backbone_ckp = interpolate_vit_checkpoint(
                     checkpoint=pretrained_backbone_ckp,

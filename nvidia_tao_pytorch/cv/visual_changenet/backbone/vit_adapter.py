@@ -83,7 +83,14 @@ class ViTAdapter(VisionTransformer):
         norm_layer = kwargs.get("norm_layer", None)
         patch_size = kwargs.get("patch_size", 16)
         drop_path_rate = kwargs.get("drop_path_rate", 0.0)
-        super().__init__(num_heads=num_heads, init_values=init_values, export=export, *args, **kwargs)
+        super().__init__(
+            num_classes=0,
+            num_heads=num_heads,
+            init_values=init_values,
+            export=export,
+            *args,
+            **kwargs,
+        )
 
         norm_layer = norm_layer or partial(nn.LayerNorm, eps=1e-6)
 
@@ -327,6 +334,7 @@ class CRADIOAdapter(nn.Module):
         super().__init__()
 
         self.radio: RADIO = RADIO(
+            num_classes=0,
             backbone=model_name,
             export=export,
             **model_cfg,
