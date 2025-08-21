@@ -770,20 +770,16 @@ class RADIO(BackboneBase):
             state_dict (dict): a dict containing parameters and persistent buffers.
             **kwargs: Additional arguments passed to `nn.Module.load_state_dict`.
         """
+        state_dict = remove_state_dict_prefix(
+            remove_state_dict_prefix(remove_state_dict_prefix(state_dict, "radio_model.model."), "base_model."),
+            "radio.radio.model.",
+        )
         if self.radio_version == "CRADIOV1":
-            return self.radio.radio.model.load_state_dict(
-                remove_state_dict_prefix(remove_state_dict_prefix(state_dict, "radio_model.model."), "base_model."),
-                **kwargs,
-            )
+            return self.radio.radio.model.load_state_dict(state_dict, **kwargs)
         elif self.radio_version == "CRADIOV2":
             return self.radio.radio.model.load_state_dict(
-                replace_state_dict_key(
-                    remove_state_dict_prefix(
-                        remove_state_dict_prefix(state_dict, "radio_model.model."), "base_model."
-                    ),
-                    old_key="grandma",  # Typo in the V3 safetensors checkpoint from HF.
-                    new_key="gamma",
-                ),
+                # Typo in the V3 safetensors checkpoint from HF.
+                replace_state_dict_key(state_dict, old_key="grandma", new_key="gamma"),
                 **kwargs,
             )
         else:

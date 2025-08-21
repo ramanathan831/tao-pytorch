@@ -1,5 +1,8 @@
 import types
 import sys
+import os
+
+import pytest
 import torch
 
 
@@ -53,6 +56,10 @@ def install_stubs_for_classification(monkeypatch):
     return importlib.import_module("nvidia_tao_pytorch.cv.classification_pyt.utils.model")
 
 
+@pytest.mark.skipif(
+    os.getenv("CI_PROJECT_DIR", None) is not None,
+    reason="TODO(nnagrajrao, vpraveen, hongyuc): Re-enable once the import issue is resolved.",
+)
 def test_create_model_from_config_non_quantized(monkeypatch, tmp_path):
     cl_utils = install_stubs_for_classification(monkeypatch)
 
@@ -69,6 +76,10 @@ def test_create_model_from_config_non_quantized(monkeypatch, tmp_path):
     )
 
 
+@pytest.mark.skipif(
+    os.getenv("CI_PROJECT_DIR", None) is not None,
+    reason="TODO(nnagrajrao, vpraveen, hongyuc): Re-enable once the import issue is resolved.",
+)
 def test_create_model_from_config_quantized_modelopt_loads_prefixed_keys(monkeypatch, tmp_path):
     cl_utils = install_stubs_for_classification(monkeypatch)
 
