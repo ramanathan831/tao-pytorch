@@ -48,11 +48,31 @@ radio_model_cfg = {
     "vit_large_patch16_224": {"img_size": 224, "patch_size": 16, "embed_dim": 1024, "depth": 24, "num_heads": 16},
     "vit_huge_patch16_224": {"img_size": 224, "patch_size": 16, "embed_dim": 1280, "depth": 32, "num_heads": 16},
     # CRADIOV3.
+    "vit_base_patch16_reg4_dinov2": {
+        "img_size": 518 * 16 // 14,
+        "patch_size": 16,
+        "embed_dim": 768,
+        "depth": 12,
+        "num_heads": 12,
+        "init_values": 1e-5,
+        "reg_tokens": 4,
+        "no_embed_class": True,
+    },
     "vit_large_patch16_reg4_dinov2": {
         "img_size": 518 * 16 // 14,
         "patch_size": 16,
         "embed_dim": 1024,
         "depth": 24,
+        "num_heads": 16,
+        "init_values": 1e-5,
+        "reg_tokens": 4,
+        "no_embed_class": True,
+    },
+    "vit_huge_patch16_reg4_dinov2": {
+        "img_size": 518 * 16 // 14,
+        "patch_size": 16,
+        "embed_dim": 1280,
+        "depth": 32,
         "num_heads": 16,
         "init_values": 1e-5,
         "reg_tokens": 4,
@@ -920,10 +940,38 @@ def c_radio_v2_vit_huge_patch16(**kwargs):
 
 
 @BACKBONE_REGISTRY.register()
+def c_radio_v3_vit_base_patch16_reg4_dinov2(**kwargs):
+    """CRADIOV3 ViT Base Patch16 Reg4."""
+    return RADIO(
+        backbone="vit_base_patch16_reg4_dinov2",
+        summary_idxs=[0, 1, 2],
+        window_size=None,
+        num_teacher=4,
+        cpe_max_size=2048,
+        register_multiple=8,
+        **kwargs,
+    )
+
+
+@BACKBONE_REGISTRY.register()
 def c_radio_v3_vit_large_patch16_reg4_dinov2(**kwargs):
     """CRADIOV3 ViT Large Patch16 Reg4."""
     return RADIO(
         backbone="vit_large_patch16_reg4_dinov2",
+        summary_idxs=[0, 1, 2],
+        window_size=None,
+        num_teacher=4,
+        cpe_max_size=2048,
+        register_multiple=8,
+        **kwargs,
+    )
+
+
+@BACKBONE_REGISTRY.register()
+def c_radio_v3_vit_huge_patch16_reg4_dinov2(**kwargs):
+    """CRADIOV3 ViT Huge Patch16 Reg4."""
+    return RADIO(
+        backbone="vit_huge_patch16_reg4_dinov2",
         summary_idxs=[0, 1, 2],
         window_size=None,
         num_teacher=4,
