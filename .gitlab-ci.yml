@@ -1,7 +1,12 @@
 stages:
   - validate-mr-title
   - check-mr-lines
+  - build-docker-image
   - check-jenkins-status
+
+variables:
+  BASE_IMAGE_REPO: "nvcr.io/nvstaging/tao/tao_pytorch_base_image"
+  BASE_IMAGE_TAG: ""
 
 validate_mr_title:
   stage: validate-mr-title
@@ -38,6 +43,34 @@ check_mr_lines:
     GITLAB_PRIVATE_TOKEN: $GITLAB_PRIVATE_TOKEN
   allow_failure: true
 
+build_and_push:
+  stage: build-docker-image
+  image: docker:27.0
+  services: [ "docker:27.0-dind" ]
+  before_script:
+    - echo "$NGC_PASSWORD" | docker login nvcr.io -u '$oauthtoken' --password-stdin
+  script:
+    - export DOCKER_BUILDKIT=1
+    - DYN_TAG="${CI_COMMIT_REF_SLUG}-${CI_PIPELINE_ID}"
+    - STABLE="${CI_COMMIT_REF_SLUG}-latest"
+    - >
+      docker build
+      --build-arg BUILDKIT_INLINE_CACHE=1
+      --cache-from "$BASE_IMAGE_REPO:$STABLE"
+      -t "$BASE_IMAGE_REPO:$DYN_TAG"
+      -t "$BASE_IMAGE_REPO:$STABLE"
+      -f docker/Dockerfile
+      .
+    - docker push "$BASE_IMAGE_REPO:$DYN_TAG"
+    - docker push "$BASE_IMAGE_REPO:$STABLE"
+    - echo "DYN_TAG=$DYN_TAG" > build.env
+  artifacts:
+    reports:
+      dotenv: build.env
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME =~ /^renovate\// || $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME =~ /^stack\//)'
+  tags: ["type/docker", "os/linux"]
+
 check_jenkins_status:
   stage: check-jenkins-status
   script:
@@ -56,9 +89,18 @@ check_jenkins_status:
         JENKINS_PARAMS="token=$JENKINS_JOB_TOKEN&GITLAB_REPO_URL=$FORKED_REPO_URL&BRANCH_NAME=$FORKED_REPO_BRANCH&RC=true"
       else
         echo "Non-release branch detected: $FORKED_REPO_BRANCH"
-        echo "Triggering tao-pytorch-develop pipeline"
-        JENKINS_JOB="tao-pytorch-develop"
-        JENKINS_PARAMS="token=$JENKINS_JOB_TOKEN&GITLAB_BRANCH=$FORKED_REPO_BRANCH&GITLAB_REPO_URL=$FORKED_REPO_URL"
+        if [[ "$FORKED_REPO_BRANCH" =~ ^renovate/.* ]]; then
+          echo "Renovate branch detected: $FORKED_REPO_BRANCH"
+          echo "Triggering tao-pytorch-base-image-build pipeline"
+          # use DYN_TAG from dotenv or recompute the same way
+          : "${DYN_TAG:=${CI_COMMIT_REF_SLUG}-${CI_PIPELINE_ID}}"
+          JENKINS_JOB="tao-pytorch-base-image-build"
+          JENKINS_PARAMS="token=$JENKINS_JOB_TOKEN&GITLAB_BRANCH=$FORKED_REPO_BRANCH&GITLAB_REPO_URL=$FORKED_REPO_URL&BASE_IMAGE_REPO=$BASE_IMAGE_REPO&BASE_IMAGE_TAG=$DYN_TAG"
+        else
+          echo "Triggering tao-pytorch-develop pipeline"
+          JENKINS_JOB="tao-pytorch-develop"
+          JENKINS_PARAMS="token=$JENKINS_JOB_TOKEN&GITLAB_BRANCH=$FORKED_REPO_BRANCH&GITLAB_REPO_URL=$FORKED_REPO_URL"
+        fi
       fi
       
       echo "Jenkins Job: $JENKINS_JOB"
