@@ -152,7 +152,7 @@ spec:
 
       stage ('static_tests') {
         gitlabCommitStatus(name: "static_tests", connection: gitLabConnection('git-lab-master')) {
-          sh "${command_env} python3 ci/run_static_tests.py"
+          sh "${command_env} python3 ci/run_static_tests.py --changed-files-only"
         }
       }
 
