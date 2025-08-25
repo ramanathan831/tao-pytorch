@@ -1,6 +1,6 @@
 [submodule "tao-converter"]
 	path = tao-converter
-	url = ../tao-converter.git
+	url = https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-converter.git
 [submodule "tao-core"]
 	path = tao-core
-	url = ../tao-core.git
+	url = https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-core.git
