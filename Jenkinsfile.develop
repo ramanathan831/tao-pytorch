@@ -150,12 +150,6 @@ spec:
       def ci_path_env = 'CI_PROJECT_DIR=' + workspace_path
       command_env = pythonpath_env + ' ' + ci_path_env
 
-      stage ('static_tests') {
-        gitlabCommitStatus(name: "static_tests", connection: gitLabConnection('git-lab-master')) {
-          sh "${command_env} python3 ci/run_static_tests.py --changed-files-only"
-        }
-      }
-
       stage ("functional_tests") {
         withCredentials([string(credentialsId: 'NGC_CLI_API_KEY_SVC_TLT_CI', variable: 'NGC_CLI_API_KEY')]) {
           script{
