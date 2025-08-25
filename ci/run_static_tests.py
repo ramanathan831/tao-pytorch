@@ -119,7 +119,8 @@ def get_changed_files(target_branch="origin/main"):
         
         # Log information about what files are being processed
         if deleted_files:
-            print(f"Skipping {len(deleted_files)} deleted Python files: {'\n'.join(deleted_files)}")
+            newline = '\n'
+            print(f"Skipping {len(deleted_files)} deleted Python files: {newline.join(deleted_files)}")
         if changed_files:
             print(f"Found {len(changed_files)} added/modified Python files under nvidia_tao_pytorch directory to test")
         else:
