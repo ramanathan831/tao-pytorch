@@ -3,6 +3,13 @@
     "extends": ["config:recommended"],
     "prTitle": "[TAO-524][Chore] {{title}}",
     "commitMessagePrefix": "[TAO-524][Chore]",
+    "enabledManagers": ["pip_requirements"],
+    "includePaths": [
+        "docker/requirements-pip-odise.txt",
+        "docker/requirements-pip.txt",
+        "docker/requirements-pip-pytorch.txt",
+        "docker/requirements-pip-apt.txt"
+    ],
     "branchPrefix": "renovate/",
     "labels": ["renovate"],
     "prConcurrentLimit": 5,
