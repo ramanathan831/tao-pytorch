@@ -20,7 +20,38 @@ import cv2
 import re
 import torch
 from PIL import Image
+from os.path import splitext
 import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
+
+
+def depth_to_uint8_encoding(depth, scale=1000):
+    """
+    Encodes a floating-point depth map into a 3-channel 8-bit unsigned integer (uint8) image.
+    This method effectively stores a higher precision depth value in 3 bytes per pixel,
+    similar to how some datasets (e.g., Middlebury) encode 16-bit or 24-bit depth.
+
+    The encoding works as:
+    depth_value * scale = R * 255*255 + G * 255 + B
+    where R, G, B are the channel values (0-255).
+
+    Args:
+        depth (numpy.ndarray): The input floating-point depth map (H, W).
+        scale (int, optional): A scaling factor applied to the depth before encoding.
+                               Defaults to 1000.
+
+    Returns:
+        numpy.ndarray: The encoded depth map as a 3-channel uint8 image (H, W, 3).
+    """
+    depth = depth * scale
+    H, W = depth.shape
+    out = np.zeros((H, W, 3), dtype=float)
+    out[..., 0] = depth // (255 * 255)  # Red channel for the most significant part
+    out[..., 1] = (depth - out[..., 0] * 255 * 255) // 255  # Green channel
+    out[..., 2] = depth - out[..., 0] * 255 * 255 - out[..., 1] * 255  # Blue channel
+
+    if not (out[..., 2] <= 255).all():
+        print(f"Warning: Blue channel values exceeded 255 during encoding. Min: {out[..., 2].min()}, Max: {out[..., 2].max()}")
+    return out.astype(np.uint8)
 
 
 def depth_uint8_decoding(depth_uint8, scale=1000):
@@ -188,29 +219,8 @@ def read_pfm(file_name, flip_up_down=False):
     shape = (height, width, 3) if color else (height, width)
     data = np.reshape(data, shape)
     if flip_up_down:
-        data = np.flip(data, axis=0)
+        data = np.flipud(data)  # Flip vertically to match image coordinates
     return data, scale
-
-
-def write_pfm(file_path, array):
-    """ Write PFM files to disk
-
-    Args:
-        file_path (str):   path to save pfm files
-        array (str):       numpy array to save
-
-    Returns:
-        N/A
-    """
-    assert type(file_path) is str and type(array) is np.ndarray and \
-           os.path.splitext(file_path)[1] == ".pfm"
-    with open(file_path, 'wb') as f:
-        H, W = array.shape
-        headers = ["Pf\n", f"{W} {H}\n", "-1\n"]
-        for header in headers:
-            f.write(str.encode(header))
-        array = np.flip(array, axis=0).astype(np.float32)
-        f.write(array.tobytes())
 
 
 def depth_to_disparity(depth, return_mask=False):
@@ -430,3 +440,43 @@ def read_depth(disp_path,  normalize_depth=False):
         disp = (disp - disp.min()) / (disp.max() - disp.min())
 
     return disp
+
+
+def read_disparity(file_name):
+    """
+    Reads a disparity map from a given file path, supporting various formats.
+
+    Handles PNG (encoded disparity) and PFM formats. Sets zero disparity
+    values to infinity (invalid).
+
+    Args:
+        file_name (str): The path to the disparity file.
+
+    Returns:
+        numpy.ndarray: The loaded disparity map as a NumPy array (H, W).
+                       Data type is float32.
+
+    Raises:
+        NotImplementedError: If the file extension is not supported.
+    """
+    ext = splitext(file_name)[-1]
+    if ext.lower() == '.png':
+        disp_uint = cv2.imread(file_name)
+        if len(disp_uint.shape) == 3:
+            disp_uint = disp_uint[..., ::-1]  # Convert BGR to RGB for decoding
+        elif len(disp_uint.shape) == 2:
+            disp_uint = np.tile(disp_uint[..., None], (1, 1, 3))  # Convert grayscale to 3-channel for decoding
+        disp = depth_uint8_decoding(disp_uint)  # Uses the same decoding logic as depth
+        disp[disp == 0] = np.inf  # Set 0 disparity to infinity (invalid)
+        return disp
+    elif ext.lower() == '.pfm':
+        disp = read_pfm(file_name, flip_up_down=True)[0].astype(np.float32)
+        if len(disp.shape) == 2:
+            return disp  # Single channel PFM
+        else:
+            # If PFM is 3-channel, assume disparity is in the first channel or
+            # the last channel is an alpha/mask channel, and we take the disparity channels
+            return disp[:, :, :-1]  # Assuming PFM with (u, v) or (disp, ?) and we want the first channels
+
+    else:
+        raise NotImplementedError(f"Disparity file extension '{ext}' not supported for reading.")
