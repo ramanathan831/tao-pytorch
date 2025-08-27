@@ -160,13 +160,40 @@ spec:
         gitlabCommitStatus(name: "functional_tests", connection: gitLabConnection('git-lab-master')) {
           sh "python setup.py develop"
           sh "CPUCOUNT=1 pip install tao-core/"
-          sh "${command_env} python3 ci/run_functional_tests.py"
+          sh "pip install pytest-cov"
+          sh "${command_env} python3 ci/run_functional_tests.py --cov=nvidia_tao_pytorch --cov-report=xml:coverage.xml --cov-report=term"
+          archiveArtifacts artifacts: 'coverage.xml', fingerprint: true, allowEmptyArchive: true
         }
       }
 
       stage ('cleanup_scratch_space') {
         sh 'umount /home/scratch.metropolis2'
         sh 'ls -l /home/scratch.metropolis2'
+      }
+    }
+
+    container("docker") {
+      stage ('sonarqube_analysis') {
+        gitlabCommitStatus(name: "sonarqube_analysis", connection: gitLabConnection('git-lab-master')) {
+          try {
+            def branchName = params.GITLAB_BRANCH ?: params.BRANCH_NAME ?: env.BRANCH_NAME ?: env.GIT_BRANCH?.replaceFirst(/^origin\//, '') ?: 'main'
+            echo "Analyzing branch: ${branchName}"
+            echo "Available parameters: GITLAB_BRANCH=${params.GITLAB_BRANCH}, BRANCH_NAME=${params.BRANCH_NAME}"
+            echo "Available env vars: BRANCH_NAME=${env.BRANCH_NAME}, GIT_BRANCH=${env.GIT_BRANCH}"
+            
+            docker.image('sonarsource/sonar-scanner-cli:11').inside() {
+              withSonarQubeEnv() {
+                sh "sonar-scanner -Dsonar.python.coverage.reportPaths=coverage.xml -Dsonar.sources=nvidia_tao_pytorch -Dsonar.tests=tests -Dsonar.branch.name=${branchName}"
+              }
+            }
+            echo "SonarQube analysis completed successfully"
+          } catch (Exception e) {
+            echo "SonarQube analysis failed: ${e.message}"
+            echo "Continuing pipeline execution..."
+            // Mark stage as unstable but don't fail the pipeline
+            currentBuild.result = 'UNSTABLE'
+          }
+        }
       }
     }
   }
