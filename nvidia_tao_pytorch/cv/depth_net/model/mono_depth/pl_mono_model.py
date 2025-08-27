@@ -132,7 +132,7 @@ class MonoDepthNetPlModel(TAOLightningModule):
         optim_dict = {}
         optim_dict["optimizer"] = optim
         scheduler_type = self.train_config['optim']['lr_scheduler']
-        lr_scheduler = build_lr_scheduler(optim, scheduler_type, self.train_config, len(self.trainer.datamodule.train_dataloader()))
+        lr_scheduler = build_lr_scheduler(optim, scheduler_type, self.train_config, self.trainer)
 
         optim_dict["lr_scheduler"] = {'scheduler': lr_scheduler, 'interval': 'step'}
         optim_dict['monitor'] = self.train_config['optim']['monitor_name']
@@ -219,7 +219,11 @@ class MonoDepthNetPlModel(TAOLightningModule):
         augmentation configuration for the current epoch.
         """
         self.val_aug_config = self.dataset_config["val_dataset"]["augmentation"]
-        self.val_evaluator = DepthMetric(align_gt=self.align_gt, min_depth=self.min_depth, max_depth=self.max_depth, sync_on_compute=False).to(self.device)
+        self.val_evaluator = DepthMetric(model_type=self.model_type,
+                                         align_gt=self.align_gt,
+                                         min_depth=self.min_depth,
+                                         max_depth=self.max_depth,
+                                         sync_on_compute=False).to(self.device)
 
     def validation_step(self, batch, batch_idx):
         """
@@ -258,7 +262,7 @@ class MonoDepthNetPlModel(TAOLightningModule):
         disp_pred = self.model(image1.contiguous())
         post_processed_results = self.post_processors(image1, disp_pred, image_size, valid,
                                                       resized_size=None, gt_depth=disp_gt, image_names=image_names)
-        self.val_evaluator.update(post_processed_results)
+        self.val_evaluator.update(post_processed_results=post_processed_results)
 
         # disp_pred (B, 1, W, H), dist_gt (B, 1, H, W)
         disp_pred = F.interpolate(disp_pred[:, None], disp_gt.shape[-2:], mode='bilinear', align_corners=True)
@@ -370,7 +374,9 @@ class MonoDepthNetPlModel(TAOLightningModule):
         configuration for the current epoch.
         """
         self.test_aug_config = self.dataset_config["test_dataset"]["augmentation"]
-        self.test_evaluator = DepthMetric(align_gt=self.align_gt, min_depth=self.min_depth, max_depth=self.max_depth, sync_on_compute=False).to(self.device)
+        self.test_evaluator = DepthMetric(model_type=self.model_type,
+                                          align_gt=self.align_gt, min_depth=self.min_depth,
+                                          max_depth=self.max_depth, sync_on_compute=False).to(self.device)
 
     def test_step(self, batch, batch_idx):
         """
@@ -412,7 +418,7 @@ class MonoDepthNetPlModel(TAOLightningModule):
         resized_size = torch.stack(resized_size, dim=0)
         post_processed_results = self.post_processors(image1, disp_pred, image_size, valid_mask, resized_size=resized_size, gt_depth=disp_gt, image_names=image_names)
 
-        self.test_evaluator.update(post_processed_results)
+        self.test_evaluator.update(post_processed_results=post_processed_results)
 
     def on_test_epoch_end(self):
         """

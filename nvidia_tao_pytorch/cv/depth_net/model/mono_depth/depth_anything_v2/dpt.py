@@ -250,7 +250,7 @@ class DPTHead(nn.Module):
             nn.Identity(),
         )
 
-    def forward(self, out_features, patch_h, patch_w):
+    def forward(self, out_features, patch_h, patch_w, normalize_output=False):
         """
         Forward pass for relative depth prediction head.
 
@@ -292,7 +292,15 @@ class DPTHead(nn.Module):
 
         out = self.scratch.output_conv1(path_1)
         out = F.interpolate(out, (int(patch_h * 14), int(patch_w * 14)), mode="bilinear", align_corners=True)
-        out = self.scratch.output_conv2(out)
+        if normalize_output:
+            depth = self.scratch.output_conv2(out)
+            depth = F.relu(depth)
+            disp = 1 / depth
+            disp[depth == 0] = 0
+            disp = disp / disp.max()
+            return out, path_1, path_2, path_3, path_4, disp
+        else:
+            out = self.scratch.output_conv2(out)
 
         return out
 
@@ -317,7 +325,6 @@ class RelativeDepthAnythingV2(nn.Module):
         encoder = model_config['encoder']
         use_bn = model_config['use_bn']
         use_clstoken = model_config['use_clstoken']
-
         self.encoder = encoder
         self.max_depth = max_depth
 

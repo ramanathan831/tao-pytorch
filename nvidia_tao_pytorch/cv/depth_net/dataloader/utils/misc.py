@@ -195,7 +195,7 @@ def vis_disparity(depth, normalize_depth=False, valid_mask=None):
     return vis
 
 
-def parse_mono_depth_checkpoint(model_dict, model_type):
+def parse_checkpoint(model_dict, model_type):
     """
     Parse public DepthAnythingV2 checkpoints.
     Public checkpoints are available from https://github.com/DepthAnything/Depth-Anything-V2

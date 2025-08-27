@@ -16,7 +16,7 @@
 
 import numpy as np
 import torch
-from nvidia_tao_pytorch.cv.depth_net.utils.frame_utils import read_image, read_gt_3dvlm
+from nvidia_tao_pytorch.cv.depth_net.dataloader.utils.frame_utils import read_image, read_gt_3dvlm
 from nvidia_tao_pytorch.cv.depth_net.dataloader.mono_datasets.base_relative_mono import BaseRelativeMonoDataset
 
 

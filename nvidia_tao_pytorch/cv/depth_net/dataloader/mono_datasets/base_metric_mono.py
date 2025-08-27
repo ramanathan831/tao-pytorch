@@ -17,8 +17,8 @@
 import numpy as np
 import torch
 from torch.utils.data import Dataset
-from nvidia_tao_pytorch.cv.depth_net.utils.frame_utils import read_depth, read_image
-from nvidia_tao_pytorch.cv.depth_net.utils.misc import apply_3d_mask
+from nvidia_tao_pytorch.cv.depth_net.dataloader.utils.frame_utils import read_depth, read_image
+from nvidia_tao_pytorch.cv.depth_net.dataloader.utils.misc import apply_3d_mask
 
 
 class BaseMetricMonoDataset(Dataset):
