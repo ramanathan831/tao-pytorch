@@ -131,12 +131,12 @@ spec:
           withCredentials([usernamePassword(credentialsId: 'svc-tlt-ci-mount', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]){
             sh 'mount -t cifs -o "vers=2.0,username=${USERNAME},password=${PASSWORD},dom=nvidia.com,dir_mode=0777,file_mode=0777" //dc2-cdot49-sw-svm02/scratch.metropolis2 /home/scratch.metropolis2'
           }
-          sh 'df -h'
-          sh 'ls -l /home/scratch.metropolis2'
-        }
+                  sh 'df -h'
+        sh 'ls -l /home/scratch.metropolis2'
       }
+    }
       
-      container('base-image') {
+    container('base-image') {
         def workspace_path = pwd()
         def pythonpath_env = 'PYTHONPATH=' + workspace_path + ':$PYTHONPATH'
         def ci_path_env = 'CI_PROJECT_DIR=' + workspace_path
@@ -151,7 +151,7 @@ spec:
           }
           gitlabCommitStatus(name: "functional_tests", connection: gitLabConnection('git-lab-master')) {
             echo "starting functional test . . ."
-            sh "pip install pytest-cov"
+            sh "pip install pytest-cov coverage"
             sh "python setup.py develop"
             sh "CPUCOUNT=1 pip install tao-core/"
             // Running functional tests with coverage reporting.
@@ -160,17 +160,53 @@ spec:
             // 2. sdg_unit
             // 3. distributed
             // 4. ssl_unit_test
+            // Each test module generates separate coverage data that will be combined at the end
             sh "${command_env} python ci/run_functional_tests.py -m 'cv_unit' --cov=nvidia_tao_pytorch --cov-report="
-            sh "cp .coverage /home/scratch.metropolis2/users/release_pipeline_files/coverage_reports/functional_test/.coverage.fn_pyt"
+            sh "mv .coverage .coverage.cv_unit"
             sh "${command_env} python ci/run_functional_tests.py -m 'sdg_unit' --cov=nvidia_tao_pytorch --cov-report="
-            sh "cat .coverage >> /home/scratch.metropolis2/users/release_pipeline_files/coverage_reports/functional_test/.coverage.fn_pyt"
+            sh "mv .coverage .coverage.sdg_unit"
             sh "${command_env} pytest -v --color=yes tests/distributed --cov=nvidia_tao_pytorch --cov-report="
-            sh "cat .coverage >> /home/scratch.metropolis2/users/release_pipeline_files/coverage_reports/functional_test/.coverage.fn_pyt"
+            sh "mv .coverage .coverage.distributed"
             sh "${command_env} pytest -v --color=yes tests/ssl_unit_test --cov=nvidia_tao_pytorch --cov-report="
-            sh "cat .coverage >> /home/scratch.metropolis2/users/release_pipeline_files/coverage_reports/functional_test/.coverage.fn_pyt"
+            sh "mv .coverage .coverage.ssl_unit_test"
+            // Combine all coverage data and generate XML report
+            sh "coverage combine .coverage.cv_unit .coverage.sdg_unit .coverage.distributed .coverage.ssl_unit_test"
+            sh "coverage xml -o coverage.xml"
+            sh "coverage report"
+            // Copy combined coverage for scratch space (maintaining existing functionality)
+            sh "cp .coverage /home/scratch.metropolis2/users/release_pipeline_files/coverage_reports/functional_test/.coverage.fn_pyt"
+            // Archive XML coverage report for SonarQube
+            archiveArtifacts artifacts: 'coverage.xml', fingerprint: true, allowEmptyArchive: true
           }
         }
+      }
 
+      container("docker") {
+        stage ('sonarqube_analysis') {
+          gitlabCommitStatus(name: "sonarqube_analysis", connection: gitLabConnection('git-lab-master')) {
+            try {
+              def branchName = params.GITLAB_BRANCH ?: params.BRANCH_NAME ?: env.BRANCH_NAME ?: env.GIT_BRANCH?.replaceFirst(/^origin\//, '') ?: 'main'
+              echo "Analyzing branch: ${branchName}"
+              echo "Available parameters: GITLAB_BRANCH=${params.GITLAB_BRANCH}, BRANCH_NAME=${params.BRANCH_NAME}"
+              echo "Available env vars: BRANCH_NAME=${env.BRANCH_NAME}, GIT_BRANCH=${env.GIT_BRANCH}"
+              
+              docker.image('sonarsource/sonar-scanner-cli:11').inside() {
+                withSonarQubeEnv() {
+                  sh "sonar-scanner -Dsonar.python.coverage.reportPaths=coverage.xml -Dsonar.sources=nvidia_tao_pytorch -Dsonar.tests=tests -Dsonar.branch.name=${branchName}"
+                }
+              }
+              echo "SonarQube analysis completed successfully"
+            } catch (Exception e) {
+              echo "SonarQube analysis failed: ${e.message}"
+              echo "Continuing pipeline execution..."
+              // Mark stage as unstable but don't fail the pipeline
+              currentBuild.result = 'UNSTABLE'
+            }
+          }
+        }
+      }
+
+      container('base-image') {
         stage ('build_wheel') {
           gitlabCommitStatus(name: "build_wheel", connection: gitLabConnection('git-lab-master')) {
             // Building the wheels for the tao source code.
@@ -346,29 +382,6 @@ spec:
                 sh "python3 ci/update_release_config.py ${config_file_path} '${append_string}'"
                 sh "cat /home/scratch.metropolis2/users/release_pipeline_files/release_items.yml"
               }
-            }
-          }
-        }
-
-        stage ('docker_coverage_build') {
-          retry(count: 3) {
-             // on retries, wait 5 min before re-running
-            script {
-              if (currentBuild.getPreviousBuild()?.getResult() == 'FAILURE') {
-                echo "Previous attempt failed, sleeping 5 minutes before retry..."
-                sleep time: 5, unit: 'MINUTES'
-              }
-            }
-            docker.withRegistry('https://nvcr.io', 'NGC_API_KEY') {
-              sh "cat coverage_build.txt >> ${WORKSPACE}/release/docker/Dockerfile"
-              sh "cat ${WORKSPACE}/release/docker/Dockerfile"
-              sh "docker build -t ${IMAGE_NAME}:main-${BUILD_TYPE}-${BUILD_NUMBER}-cc --network=host -f ${WORKSPACE}/release/docker/Dockerfile ${WORKSPACE}"
-              sh "docker push ${IMAGE_NAME}:main-${BUILD_TYPE}-${BUILD_NUMBER}-cc"
-
-              def append_string="pytorch: ${IMAGE_NAME}:main-${BUILD_TYPE}-${BUILD_NUMBER}-cc"
-              def config_file_path = "/home/scratch.metropolis2/users/release_pipeline_files/coverage_tags.yml"
-              sh "python3 ci/update_release_config.py ${config_file_path} '${append_string}'"
-              sh "cat /home/scratch.metropolis2/users/release_pipeline_files/coverage_tags.yml"
             }
           }
         }

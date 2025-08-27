@@ -1,5 +1,5 @@
 // Global variables - Version is passed to release/update_version.py to patch build files
-def TAO_VERSION = "6.25.7"
+def TAO_VERSION = "6.25.9"
 def BUILD_TYPE = "rc"
 
 def getPulseToken() {
@@ -143,8 +143,59 @@ spec:
         def ci_path_env = 'CI_PROJECT_DIR=' + workspace_path
         command_env = pythonpath_env + ' ' + ci_path_env
 
+        stage ("functional_tests") {
+          // Only run functional tests for RC builds
+          withCredentials([string(credentialsId: 'NGC_CLI_API_KEY_SVC_TLT_CI', variable: 'NGC_CLI_API_KEY')]) {
+            script{
+              env.NGC_KEY=NGC_CLI_API_KEY
+              env.NGC_PATH='ea-tlt/tao_ea/pretrained_dino_imagenet:fan_hybrid_tiny'
+            }
+          }
+          gitlabCommitStatus(name: "functional_tests", connection: gitLabConnection('git-lab-master')) {
+            if (params.RC) {
+              sh "python setup.py develop"
+              sh "CPUCOUNT=1 pip install tao-core/"
+              sh "pip install pytest-cov"
+              sh "${command_env} python3 ci/run_functional_tests.py --cov=nvidia_tao_pytorch --cov-report=xml:coverage.xml --cov-report=term"
+              archiveArtifacts artifacts: 'coverage.xml', fingerprint: true, allowEmptyArchive: true
+            } else {
+              echo "Skipping functional tests for non-RC build"
+            }
+          }
+        }
+      }
 
+      container("docker") {
+        stage ('sonarqube_analysis') {
+          // Only run SonarQube analysis for RC builds
+          gitlabCommitStatus(name: "sonarqube_analysis", connection: gitLabConnection('git-lab-master')) {
+            if (params.RC) {
+              try {
+                def branchName = params.GITLAB_BRANCH ?: params.BRANCH_NAME ?: env.BRANCH_NAME ?: env.GIT_BRANCH?.replaceFirst(/^origin\//, '') ?: 'main'
+                echo "Analyzing branch: ${branchName}"
+                echo "Available parameters: GITLAB_BRANCH=${params.GITLAB_BRANCH}, BRANCH_NAME=${params.BRANCH_NAME}"
+                echo "Available env vars: BRANCH_NAME=${env.BRANCH_NAME}, GIT_BRANCH=${env.GIT_BRANCH}"
+                
+                docker.image('sonarsource/sonar-scanner-cli:11').inside() {
+                  withSonarQubeEnv() {
+                    sh "sonar-scanner -Dsonar.python.coverage.reportPaths=coverage.xml -Dsonar.sources=nvidia_tao_pytorch -Dsonar.tests=tests -Dsonar.branch.name=${branchName}"
+                  }
+                }
+                echo "SonarQube analysis completed successfully"
+              } catch (Exception e) {
+                echo "SonarQube analysis failed: ${e.message}"
+                echo "Continuing pipeline execution..."
+                // Mark stage as unstable but don't fail the pipeline
+                currentBuild.result = 'UNSTABLE'
+              }
+            } else {
+              echo "Skipping SonarQube analysis for non-RC build"
+            }
+          }
+        }
+      }
 
+      container('base-image') {
         stage ('build_wheel') {
           gitlabCommitStatus(name: "build_wheel", connection: gitLabConnection('git-lab-master')) {
 
@@ -292,18 +343,39 @@ spec:
                   
                   sh "docker build -t ${UNIFIED_IMAGE_NAME}:${UNIFIED_IMAGE_TAG} --network=host -f ${WORKSPACE}/release/docker/Dockerfile ${WORKSPACE}"
                   sh "docker push ${UNIFIED_IMAGE_NAME}:${UNIFIED_IMAGE_TAG}"
-
-                  def append_string="pytorch: ${UNIFIED_IMAGE_NAME}:${UNIFIED_IMAGE_TAG}"
-                  def config_file_path = "/home/scratch.metropolis2/users/release_pipeline_files/release_items.yml"
-                  sh "python3 ci/update_release_config.py ${config_file_path} '${append_string}'"
-                  sh "cat /home/scratch.metropolis2/users/release_pipeline_files/release_items.yml"
                 }
               }
             }
           }
         }
 
-
+        stage ('docker_coverage_build') {
+          // Only build coverage docker image for RC builds
+          script {
+            if (params.RC) {
+              retry(count: 3) {
+                // on retries, wait 5 min before re-running
+                script {
+                  if (currentBuild.getPreviousBuild()?.getResult() == 'FAILURE') {
+                    echo "Previous attempt failed, sleeping 5 minutes before retry..."
+                    sleep time: 5, unit: 'MINUTES'
+                  }
+                }
+                gitlabCommitStatus(name: "docker_coverage_build", connection: gitLabConnection('git-lab-master')) {
+                  docker.withRegistry('https://nvcr.io', 'NGC_API_KEY') {
+                    def RC_IMAGE_TAG = "${TAO_VERSION}-${BUILD_TYPE}-${BUILD_NUMBER}"
+                    sh "cat coverage_build.txt >> ${WORKSPACE}/release/docker/Dockerfile"
+                    sh "cat ${WORKSPACE}/release/docker/Dockerfile"
+                    sh "docker build -t ${IMAGE_NAME}:${RC_IMAGE_TAG}-cc --network=host -f ${WORKSPACE}/release/docker/Dockerfile ${WORKSPACE}"
+                    sh "docker push ${IMAGE_NAME}:${RC_IMAGE_TAG}-cc"
+                  }
+                }
+              }
+            } else {
+              echo "Skipping coverage docker build for non-RC build"
+            }
+          }
+        }
 
         stage ('create_manifest') {
           gitlabCommitStatus(name: "create_manifest", connection: gitLabConnection('git-lab-master')) {
