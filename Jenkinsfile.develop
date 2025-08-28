@@ -76,9 +76,7 @@ spec:
             - A100_PCIE_40GB
             - A40
             - L40
-            - H100_PCIe
             - A100_80GB_PCIe
-            - H100_80GB_HBM3
             - NVIDIA_GH200_480GB
           - key: nvidia.com/driver_version
             operator: In
