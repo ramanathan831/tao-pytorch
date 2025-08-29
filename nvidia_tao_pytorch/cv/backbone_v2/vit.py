@@ -435,6 +435,7 @@ def vit_base_patch16(**kwargs):
         medium-scale vision tasks.
     """
     return VisionTransformer(
+        dynamic_img_size=True,
         patch_size=16,
         embed_dim=768,
         depth=12,
@@ -477,6 +478,7 @@ def vit_base_patch16_mae(**kwargs):
         and uses different pooling strategy compared to standard ViT.
     """
     return VisionTransformerMAE(
+        dynamic_img_size=True,
         patch_size=16,
         embed_dim=768,
         depth=12,
@@ -525,6 +527,7 @@ def vit_large_patch16(**kwargs):
         large-scale vision tasks requiring high accuracy.
     """
     return VisionTransformer(
+        dynamic_img_size=True,
         patch_size=16,
         embed_dim=1024,
         depth=24,
@@ -567,6 +570,7 @@ def vit_large_patch16_mae(**kwargs):
         self-supervised learning with MAE.
     """
     return VisionTransformerMAE(
+        dynamic_img_size=True,
         patch_size=16,
         embed_dim=1024,
         depth=24,
@@ -616,6 +620,7 @@ def vit_huge_patch14(**kwargs):
         patch size provides finer spatial resolution compared to 16x16 patches.
     """
     return VisionTransformer(
+        dynamic_img_size=True,
         patch_size=14,
         embed_dim=1280,
         depth=32,
@@ -659,6 +664,7 @@ def vit_huge_patch14_mae(**kwargs):
         finer spatial resolution for better reconstruction quality.
     """
     return VisionTransformerMAE(
+        dynamic_img_size=True,
         patch_size=14,
         embed_dim=1280,
         depth=32,
