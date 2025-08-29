@@ -8,7 +8,7 @@
         "docker/requirements-pip-odise.txt",
         "docker/requirements-pip.txt",
         "docker/requirements-pip-pytorch.txt",
-        "docker/requirements-pip-apt.txt"
+        "docker/requirements-apt.txt"
     ],
     "branchPrefix": "renovate/",
     "labels": ["renovate"],

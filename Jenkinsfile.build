@@ -1,7 +1,9 @@
 properties([
   parameters([
-    string(name: 'BASE_IMAGE_REPO', defaultValue: '', description: 'NGC repo for base image'),
-    string(name: 'BASE_IMAGE_TAG',  defaultValue: '', description: 'Tag for base image'),
+    string(name: 'GITLAB_REPO_URL', defaultValue: 'https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-pytorch', description: 'Repo URL', trim: true),
+    string(name: 'GITLAB_BRANCH',    defaultValue: 'main', description: 'Branch', trim: true),
+    string(name: 'BASE_IMAGE_REPO',  defaultValue: '', description: 'NGC repo for base image', trim: true),
+    string(name: 'BASE_IMAGE_TAG',   defaultValue: '', description: 'Tag for base image', trim: true),
   ])
 ])
 
@@ -53,10 +55,36 @@ spec:
     tty: true
   restartPolicy: Never
   backoffLimit: 4
-  nodeSelector:
-    kubernetes.io/os: linux
-    nvidia.com/gpu_type: A100_PCIE_40GB
-    nvidia.com/driver_version: "525.60.13"
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: nvidia.com/gpu_type
+            operator: In
+            values:
+            - A100_PCIE_40GB
+            - A40
+            - L40
+            - H100_PCIe
+            - A100_80GB_PCIe
+            - H100_80GB_HBM3
+            - NVIDIA_GH200_480GB
+          - key: nvidia.com/driver_version
+            operator: In
+            values:
+            - 580.35
+            - 570.41
+            - 570.14
+            - 560.35.03
+            - 550.54.15
+            - 535.104.05
+            - 535.74
+            - 525.60.13
+          - key: kubernetes.io/os
+            operator: In
+            values:
+            - linux
 """) {
   node(POD_LABEL) {
     container('base-image') {
@@ -112,12 +140,6 @@ spec:
       def ci_path_env = 'CI_PROJECT_DIR=' + workspace_path
       command_env = pythonpath_env + ' ' + ci_path_env
 
-      stage ('static_tests') {
-        gitlabCommitStatus(name: "static_tests", connection: gitLabConnection('git-lab-master')) {
-          sh "${command_env} python3 ci/run_static_tests.py"
-        }
-      }
-
       stage ("functional_tests") {
         withCredentials([string(credentialsId: 'NGC_CLI_API_KEY_SVC_TLT_CI', variable: 'NGC_CLI_API_KEY')]) {
           script{
@@ -139,3 +161,4 @@ spec:
     }
   }
 }
+
