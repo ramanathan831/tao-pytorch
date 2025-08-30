@@ -92,7 +92,10 @@ spec:
 
       stage ('checkout') {
         gitlabCommitStatus(name: "checkout", connection: gitLabConnection('git-lab-master')) {
-          checkout scm
+          checkout([$class: 'GitSCM',
+            branches: [[name: params.GITLAB_BRANCH]],
+            userRemoteConfigs: [[url: params.GITLAB_REPO_URL, credentialsId: 'nvidia-tao-toolkit-read-api-gat']]
+          ])
           // Adding this since 22.05+ containers need this in git.
           sh "git config --global --add safe.directory $WORKSPACE && ls -lrt"
         }
@@ -107,7 +110,10 @@ spec:
 
       stage ('smi') {
         gitlabCommitStatus(name: "smi", connection: gitLabConnection('git-lab-master')) {
-          checkout scm
+          checkout([$class: 'GitSCM',
+            branches: [[name: params.GITLAB_BRANCH]],
+            userRemoteConfigs: [[url: params.GITLAB_REPO_URL, credentialsId: 'nvidia-tao-toolkit-read-api-gat']]
+          ])
           // Adding this since 22.05+ containers need this in git.
           sh "nvidia-smi"
         }
