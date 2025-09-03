@@ -102,7 +102,7 @@ def test_changenet_model_from_classification(_test_experiment_spec, classificati
     classification_experiment_config.dataset.classes_file = classes_file
     classification_model = ClassifierPlModel(classification_experiment_config)
     torch.save(
-        {"state_dict": classification_model.model.state_dict(), "tao_model": "classification"},
+        {"state_dict": classification_model.state_dict(), "tao_model": "classification"},
         pretrained_backbone_path,
     )
 
@@ -153,7 +153,7 @@ def test_changenet_model_segment_from_classification(_test_experiment_spec, clas
     classification_experiment_config.dataset.classes_file = classes_file
     classification_model = ClassifierPlModel(classification_experiment_config)
     torch.save(
-        {"state_dict": classification_model.model.state_dict(), "tao_model": "classification"},
+        {"state_dict": classification_model.state_dict(), "tao_model": "classification"},
         pretrained_backbone_path,
     )
 
