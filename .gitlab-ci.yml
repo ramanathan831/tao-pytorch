@@ -104,10 +104,10 @@ check_jenkins_status:
         echo "Non-release branch detected: $FORKED_REPO_BRANCH"
         if [[ "$FORKED_REPO_BRANCH" =~ ^renovate/.* ]]; then
           echo "Renovate branch detected: $FORKED_REPO_BRANCH"
-          echo "Triggering tao-pytorch-base-image-build pipeline"
+          echo "Triggering tao-pytorch-develop pipeline with BASE_IMAGE_REPO and BASE_IMAGE_TAG params"
           # use DYN_TAG from dotenv or recompute the same way
           : "${DYN_TAG:=${CI_COMMIT_REF_SLUG}-${CI_PIPELINE_ID}}"
-          JENKINS_JOB="tao-pytorch-base-image-build"
+          JENKINS_JOB="tao-pytorch-develop"
           JENKINS_PARAMS="token=$JENKINS_JOB_TOKEN&GITLAB_BRANCH=$FORKED_REPO_BRANCH&GITLAB_REPO_URL=$FORKED_REPO_URL&BASE_IMAGE_REPO=$BASE_IMAGE_REPO&BASE_IMAGE_TAG=$DYN_TAG"
         elif [[ "$FORKED_REPO_BRANCH" =~ ^dev/.* ]]; then
           echo "Dev branch detected: $FORKED_REPO_BRANCH"
