@@ -89,6 +89,7 @@ class TAOLightningModule(pl.LightningModule):
         # This is called when trainer.fit() is called
 
         results_dir = self.experiment_spec["results_dir"]
+        checkpoint_interval_unit = self.experiment_spec["train"].get("checkpoint_interval_unit", "epoch")
         checkpoint_interval = self.experiment_spec["train"]["checkpoint_interval"]
 
         status_logger_callback = TAOStatusLogger(
@@ -103,7 +104,8 @@ class TAOLightningModule(pl.LightningModule):
             raise NotImplementedError("checkpoint_filename not set in __init__() of model")
         ModelCheckpoint.CHECKPOINT_NAME_LAST = f"{self.checkpoint_filename}_latest"
 
-        checkpoint_callback = ModelCheckpoint(every_n_epochs=checkpoint_interval,
+        checkpoint_callback = ModelCheckpoint(every_n_epochs=checkpoint_interval if checkpoint_interval_unit == "epoch" else None,
+                                              every_n_train_steps=checkpoint_interval if checkpoint_interval_unit == "step" else None,
                                               dirpath=results_dir,
                                               save_on_train_epoch_end=True,
                                               monitor=None,
