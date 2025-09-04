@@ -337,7 +337,6 @@ class ChangeNetSegment(nn.Module):
 
         if 'fan' in self.model_name:
             self.backbone = fan_model_dict[self.model_name](
-                num_classes=output_nc,
                 img_size=img_size,
                 feat_downsample=feat_downsample,
                 freeze_at=freeze_at,

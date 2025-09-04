@@ -445,7 +445,6 @@ class ChangeNetClassify(nn.Module):
             assert (output_shape[0] % feature_strides[-1] == 0) and (output_shape[1] % feature_strides[-1] == 0), 'Input image size must be a multiple of 16'
             assert num_golden == 1, f"Multiple golden samples is not supported for backbone [{self.model_name}]"
             self.backbone = fan_model_dict[self.model_name](
-                num_classes=output_nc,
                 feat_downsample=feat_downsample,
                 freeze_at=freeze_at,
                 export=export,

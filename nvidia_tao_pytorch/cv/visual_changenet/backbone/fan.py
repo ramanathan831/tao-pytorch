@@ -133,6 +133,7 @@ def fan_tiny_8_p4_hybrid(out_indices=[0, 1, 2, 3], activation_checkpoint=False, 
     return FANFPN(
         patch_size=16,
         in_chans=3,
+        num_classes=0,
         embed_dim=192,
         depth=depth,
         backbone=backbone,
@@ -170,6 +171,7 @@ def fan_small_12_p4_hybrid(out_indices=[0, 1, 2, 3], activation_checkpoint=False
     return FANFPN(
         patch_size=16,
         in_chans=3,
+        num_classes=0,
         embed_dim=384,
         depth=depth,
         backbone=backbone,
@@ -207,6 +209,7 @@ def fan_base_16_p4_hybrid(out_indices=[0, 1, 2, 3], activation_checkpoint=False,
     return FANFPN(
         patch_size=16,
         in_chans=3,
+        num_classes=0,
         embed_dim=448,
         depth=depth,
         backbone=backbone,
@@ -244,6 +247,7 @@ def fan_large_16_p4_hybrid(out_indices=[0, 1, 2, 3], activation_checkpoint=False
     return FANFPN(
         patch_size=16,
         in_chans=3,
+        num_classes=0,
         embed_dim=480,
         depth=depth,
         backbone=backbone,
