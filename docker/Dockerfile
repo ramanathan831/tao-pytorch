@@ -55,7 +55,7 @@ RUN mkdir trt_oss_src && \
     -DTRT_OUT_DIR=`pwd`/out \
     -DCUDA_VERSION=$CUDA_VERSION_MAJOR_MINOR \
     -DCUDNN_VERSION=$CUDNN_VERSION && \
-  make -j$(nproc) nvinfer_plugin nvinfer_plugin_static && \
+  make -j16 nvinfer_plugin nvinfer_plugin_static && \
   cp out/libnvinfer_plugin.so.$TRT_VERSION_MAJOR_MINOR_PATCH /usr/lib/$(uname -p)-linux-gnu/libnvinfer_plugin.so.$TRT_VERSION_MAJOR_MINOR_PATCH && \
   cp out/libnvinfer_plugin_static.a /usr/lib/$(uname -p)-linux-gnu/libnvinfer_plugin_static.a && \
   cd ../../../ && \
@@ -83,7 +83,7 @@ RUN mkdir xformers_src && \
   git checkout v0.0.29.post2 && \
   git submodule update --init --recursive && \
   echo '' > requirements.txt && \
-  MAX_JOBS=$(nproc || echo 1) pip install . && \
+  MAX_JOBS=16 pip install . && \
   cd ../../ && \
   rm -rf xformers_src
 
