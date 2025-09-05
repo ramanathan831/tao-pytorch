@@ -122,7 +122,13 @@ def mono_onnx_export(model, batch_size, input_shape, input_batch_size, output_fi
         raise e
 
 
-def stereo_onnx_export(model, input_shape, input_batch_size, output_file, on_cpu, opset_version):
+def stereo_onnx_export(model,
+                       input_shape,
+                       input_batch_size,
+                       output_file,
+                       on_cpu,
+                       opset_version,
+                       valid_iters):
     """
     Exports a stereo depth estimation model to the ONNX format.
 
@@ -180,7 +186,7 @@ def stereo_onnx_export(model, input_shape, input_batch_size, output_file, on_cpu
             dummy_input2 = torch.rand(input_shape, device='cuda')
     try:
         torch.onnx.export(model,
-                          args=(dummy_input1, dummy_input2, 4, None, True, False, None),
+                          args=(dummy_input1, dummy_input2, valid_iters, None, True, False, None),
                           f=output_file,
                           input_names=input_names,
                           opset_version=opset_version,
@@ -238,6 +244,7 @@ def run_export(experiment_config: ExperimentConfig) -> None:
             - export.opset_version: ONNX opset version for export
             - export.batch_size: Batch size for export (defaults to 1 if None or -1)
             - export.on_cpu: Whether to perform export on CPU instead of GPU
+            - export.valid_iters: Number of GPU valid iterations to refine disparity
 
     Raises:
         AssertionError: If the output ONNX file already exists at the specified path.
@@ -275,6 +282,8 @@ def run_export(experiment_config: ExperimentConfig) -> None:
     opset_version = experiment_config.export.opset_version
     batch_size = experiment_config.export.batch_size
     on_cpu = experiment_config.export.on_cpu
+    valid_iters = experiment_config.export.valid_iters
+
     if batch_size is None or batch_size == -1:
         input_batch_size = 1
     else:
@@ -308,7 +317,8 @@ def run_export(experiment_config: ExperimentConfig) -> None:
                                                           input_batch_size,
                                                           output_file,
                                                           on_cpu,
-                                                          opset_version)
+                                                          opset_version,
+                                                          valid_iters)
 
 
 if __name__ == "__main__":

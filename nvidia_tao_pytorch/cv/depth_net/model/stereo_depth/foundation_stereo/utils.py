@@ -533,9 +533,10 @@ def get_middlebury_filenames(full_path):
     set_name = None
 
     # Iterate through the known file names to find if any are present in the full path
+    full_path_check = full_path.split('/')[-3:]  # check the last three path names
     for name in file_names:
-        if name in full_path:
-            set_name = name + '.png'  # If a known scene name is found, use it and add .png
+        if name in full_path_check:
+            set_name = name + full_path_check[-1].split('.')[-1]  # If a known scene name is found
             break  # Once a match is found, no need to check further
 
     # If no specific Middlebury scene name was found in the path,

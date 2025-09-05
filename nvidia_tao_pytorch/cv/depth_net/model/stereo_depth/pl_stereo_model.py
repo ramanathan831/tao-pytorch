@@ -512,7 +512,7 @@ class StereoDepthNetPlModel(TAOLightningModule):
             self.test_evaluator.update(disp_pred, disp_gt)
 
         index = get_dataset_index(image_names[0], self.dataset_config["test_dataset"])
-        if self.experiment_spec["inference"]["dump_raw_output"]:
+        if self.experiment_spec["inference"]["save_raw_pfm"]:
             filename = get_filename_from_path(
                 image_names[0],
                 self.dataset_config["infer_dataset"]["data_sources"][index]['dataset_name'])
