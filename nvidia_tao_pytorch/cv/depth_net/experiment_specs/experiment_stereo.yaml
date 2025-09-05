@@ -68,13 +68,14 @@ evaluate:
   batch_size: 1
   checkpoint: /data/checkpoints/model_epoch_003_step_21600.pth
 inference:
-  dump_raw_output: True
+  save_raw_pfm: True
   num_gpus: 1
   num_nodes: 1
   checkpoint: /data/checkpoints/model_epoch_003_step_21600.pth
 export:
  checkpoint: /data/checkpoints/model_epoch_003_step_21600.pth
  onnx_file: /data/checkpoints/model_onnx.onnx
+ valid_iters: 22
  input_channel: 3
  input_width: 416
  input_height: 768
