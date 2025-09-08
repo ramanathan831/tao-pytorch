@@ -167,10 +167,10 @@ spec:
 
       container("docker") {
         stage ('sonarqube_analysis') {
-          // Only run SonarQube analysis for RC builds
-          gitlabCommitStatus(name: "sonarqube_analysis", connection: gitLabConnection('git-lab-master')) {
-            if (params.RC) {
-              try {
+          catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+            // Only run SonarQube analysis for RC builds
+            gitlabCommitStatus(name: "sonarqube_analysis", connection: gitLabConnection('git-lab-master')) {
+              if (params.RC) {
                 def branchName = params.GITLAB_BRANCH ?: params.BRANCH_NAME ?: env.BRANCH_NAME ?: env.GIT_BRANCH?.replaceFirst(/^origin\//, '') ?: 'main'
                 echo "Analyzing branch: ${branchName}"
                 echo "Available parameters: GITLAB_BRANCH=${params.GITLAB_BRANCH}, BRANCH_NAME=${params.BRANCH_NAME}"
@@ -182,14 +182,9 @@ spec:
                   }
                 }
                 echo "SonarQube analysis completed successfully"
-              } catch (Exception e) {
-                echo "SonarQube analysis failed: ${e.message}"
-                echo "Continuing pipeline execution..."
-                // Mark stage as unstable but don't fail the pipeline
-                currentBuild.result = 'UNSTABLE'
+              } else {
+                echo "Skipping SonarQube analysis for non-RC build"
               }
-            } else {
-              echo "Skipping SonarQube analysis for non-RC build"
             }
           }
         }
