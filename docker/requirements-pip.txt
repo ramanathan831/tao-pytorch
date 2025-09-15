@@ -79,3 +79,4 @@ yapf==0.43.0
 memoizer==0.0.1
 git+https://github.com/lilohuang/PyTurboJPEG.git
 git+https://github.com/facebookresearch/pytorch3d.git
+pytest-testmon==2.1.3
