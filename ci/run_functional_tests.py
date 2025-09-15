@@ -26,7 +26,7 @@ from utils import (
 
 from utils import get_docker_command
 
-TESTS = f"pytest -v --color=yes {os.path.join(ROOT_DIR, 'tests')}" # -ss
+TESTS = f"pytest -v --color=yes --testmon {os.path.join(ROOT_DIR, 'tests')}" # -ss
 
 
 def parse_command_line(args=sys.argv[1:]):
