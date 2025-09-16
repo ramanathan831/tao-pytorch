@@ -53,7 +53,7 @@ def _test_experiment_spec():
 @pytest.mark.cv_unit
 @pytest.mark.parametrize("backbone", TEST_TOPOLOGIES)
 @pytest.mark.parametrize("export", [False, True])
-def test_changenet_model_segment(_test_experiment_spec, backbone, export):
+def test_segformer_model(_test_experiment_spec, backbone, export):
     _test_experiment_spec["model"].backbone['type'] = backbone
     _test_experiment_spec["dataset"]['segment']["img_size"] = OUTPUT_SHAPE
 
