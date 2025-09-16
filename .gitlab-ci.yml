@@ -81,7 +81,7 @@ build_and_push:
     reports:
       dotenv: build.env
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME =~ /^renovate\// || $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME =~ /^stack\//)'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME =~ /^renovate\// || $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME =~ /^build-base-image\//)'
   tags: ["type/docker", "os/linux"]
 
 check_jenkins_status:
@@ -102,7 +102,7 @@ check_jenkins_status:
         JENKINS_PARAMS="token=$JENKINS_JOB_TOKEN&GITLAB_REPO_URL=$FORKED_REPO_URL&BRANCH_NAME=$FORKED_REPO_BRANCH&RC=true"
       else
         echo "Non-release branch detected: $FORKED_REPO_BRANCH"
-        if [[ "$FORKED_REPO_BRANCH" =~ ^renovate/.* ]]; then
+        if [[ "$FORKED_REPO_BRANCH" =~ ^renovate/.* ]] || [[ "$FORKED_REPO_BRANCH" =~ ^build-base-image/.* ]]; then
           echo "Renovate branch detected: $FORKED_REPO_BRANCH"
           echo "Triggering tao-pytorch-develop pipeline with BASE_IMAGE_REPO and BASE_IMAGE_TAG params"
           # use DYN_TAG from dotenv or recompute the same way
