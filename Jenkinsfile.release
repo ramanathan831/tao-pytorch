@@ -1,5 +1,5 @@
 // Global variables - Version is passed to release/update_version.py to patch build files
-def TAO_VERSION = "6.25.9"
+def TAO_VERSION = params.TAO_VERSION ?: "6.25.9"
 def BUILD_TYPE = "rc"
 
 def getPulseToken() {
