@@ -28,7 +28,7 @@ from nvidia_tao_pytorch.core.lightning.tao_lightning_module import TAOLightningM
 import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
 from nvidia_tao_pytorch.cv.depth_net.model.stereo_depth import StereoDepthNet
 from nvidia_tao_pytorch.cv.depth_net.model.stereo_depth.loss import SequenceLoss
-from nvidia_tao_pytorch.cv.depth_net.evaluation.evaluator import DepthMetric
+from nvidia_tao_pytorch.cv.depth_net.evaluation.stereo_evaluator import StereoDepthEvaluator
 from nvidia_tao_pytorch.cv.depth_net.utils.frame_utils import write_pfm
 from nvidia_tao_pytorch.cv.depth_net.model.stereo_depth.foundation_stereo.utils import InputPadder
 from nvidia_tao_pytorch.cv.depth_net.model.stereo_depth.foundation_stereo.utils import write_image, unnormalize
@@ -63,13 +63,13 @@ class StereoDepthNetPlModel(TAOLightningModule):
         self.min_depth = self.dataset_config["min_depth"]
         self.max_disparity = self.dataset_config["max_disparity"]
         self.model_type = self.model_config["model_type"]
-        self._build_model_criterion()
+        self._build_model_criterion(export)
         self.criterion = SequenceLoss(max_disparity=self.max_disparity)
         self.vis_step_interval = self.experiment_spec.train["vis_step_interval"]
         self.count = 0
         self.is_valid_disparity_gt = True
 
-    def _build_model_criterion(self):
+    def _build_model_criterion(self, export=False):
         """
         Internal function to build the stereo depth estimation model.
 
@@ -77,7 +77,7 @@ class StereoDepthNetPlModel(TAOLightningModule):
         specified in the model configuration and initializes the model.
         """
         self.model_class, self.loss_class = StereoDepthNet.get_model()[self.model_type.lower()]
-        self.model = self.model_class(self.model_config)
+        self.model = self.model_class(self.model_config, export=export)
         self._build_criterion()
 
     def _build_criterion(self):
@@ -237,8 +237,8 @@ class StereoDepthNetPlModel(TAOLightningModule):
         Resets the depth metric evaluator for accurate epoch-level evaluation.
         """
         self.val_aug_config = self.dataset_config["val_dataset"]["augmentation"]
-        self.val_evaluator = DepthMetric(self.model_config.model_type, sync_on_compute=False,
-                                         max_disparity=self.dataset_config.max_disparity).to(self.device)
+        self.val_evaluator = StereoDepthEvaluator(sync_on_compute=False,
+                                                  max_disparity=self.dataset_config.max_disparity).to(self.device)
 
     def validation_step(self, batch, batch_idx):
         """
@@ -395,8 +395,7 @@ class StereoDepthNetPlModel(TAOLightningModule):
         Initializes the depth metric evaluator and a dictionary to
         collect prediction results.
         """
-        self.pred_evaluator = DepthMetric(
-            self.model_config.model_type,
+        self.pred_evaluator = StereoDepthEvaluator(
             sync_on_compute=False,
             max_disparity=self.dataset_config.max_disparity).to(
                 self.device)
@@ -476,9 +475,8 @@ class StereoDepthNetPlModel(TAOLightningModule):
 
         Initializes the depth metric evaluator for testing.
         """
-        self.test_evaluator = DepthMetric(self.model_config.model_type,
-                                          sync_on_compute=False,
-                                          max_disparity=self.dataset_config.max_disparity).to(self.device)
+        self.test_evaluator = StereoDepthEvaluator(sync_on_compute=False,
+                                                   max_disparity=self.dataset_config.max_disparity).to(self.device)
         self.collate_results = {}
 
     def test_step(self, batch, batch_idx):

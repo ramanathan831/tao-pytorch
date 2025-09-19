@@ -14,73 +14,13 @@
 
 """ Depth Net Evaluator in distributed mode. """
 
-from typing import Tuple, List, Dict
+from typing import Tuple
 
 import torch
 from torch import Tensor, tensor
 
 from torchmetrics import Metric
 from torchmetrics.utilities.checks import _check_same_shape
-
-
-def align_depth_least_square(
-    gt: Tensor,
-    pred: Tensor,
-):
-    """Align depth using least square method.
-    Args:
-        gt (torch.Tensor): Ground truth disparity/depth tensor
-        pred (torch.Tensor): Predicted disparity/depth tensor
-    Returns:
-        aligned_pred (torch.Tensor): Aligned disparity/depth tensor
-    """
-    ori_shape = pred.shape  # input shape
-    gt = gt.squeeze()  # [H, W]
-    pred = pred.squeeze()
-    assert (
-        gt.shape == pred.shape
-    ), f"GT shape: {gt.shape}, Pred shape: {pred.shape} are not matched."
-
-    gt_masked = gt.reshape((-1, 1))
-    pred_masked = pred.reshape((-1, 1))
-
-    # numpy solver
-    _ones = torch.ones_like(pred_masked)
-    A = torch.cat([pred_masked, _ones], dim=-1)
-    X = torch.linalg.lstsq(A, gt_masked, rcond=None)[0]
-    scale, shift = X
-
-    aligned_pred = pred * scale + shift
-
-    # restore dimensions
-    aligned_pred = aligned_pred.reshape(ori_shape)
-    return aligned_pred
-
-
-def _delta_log_update(preds: Tensor, target: Tensor) -> Tuple[Tensor, Tensor, Tensor, int]:
-    """Update and returns variables required to compute Mean Absolute Error.
-
-    Check for same shape of input tensors.
-
-    Args:
-        preds (torch.Tensor): Predicted tensor
-        target (torch.Tensor): Ground truth tensor
-    Returns:
-        d1 (torch.Tensor): Delta 1
-        d2 (torch.Tensor): Delta 2
-        d3 (torch.Tensor): Delta 3
-    """
-    _check_same_shape(preds, target)
-    preds = preds if preds.is_floating_point else preds.float()  # type: ignore[truthy-function] # todo
-    target = target if target.is_floating_point else target.float()  # type: ignore[truthy-function] # todo
-
-    thresh = torch.max((target / preds), (preds / target))
-
-    d1 = torch.sum(thresh < 1.25, dim=0)
-    d2 = torch.sum(thresh < 1.25 ** 2, dim=0)
-    d3 = torch.sum(thresh < 1.25 ** 3, dim=0)
-
-    return d1, d2, d3, target.shape[0]
 
 
 def _rmse_update(preds: Tensor, target: Tensor, max_disparity: int = None) -> Tuple[Tensor, int]:
@@ -230,28 +170,18 @@ def _epe_error(preds: Tensor, target: Tensor, max_disparity: int = None) -> Tupl
     return d1, bp1, bp2, bp3, epe_val, target.shape[0]
 
 
-class DepthMetric(Metric):
+class StereoDepthEvaluator(Metric):
     """Depth Evaluation Metric Class."""
 
-    def __init__(self, model_type: str, align_gt: bool = True, num_outputs: int = 1,
-                 min_depth: float = 0.001, max_depth: float = 10, max_disparity=416, **kwargs):
+    def __init__(self, max_disparity=416, **kwargs):
         """Initialize for Depth Metric Class.
         Args:
-            align_gt (bool): Whether to align the ground truth disparity/depth tensor.
-            num_outputs (int): Number of outputs in multioutput setting.
-            min_depth (float): Minimum depth value.
-            max_depth (float): Maximum depth value.
+            max_disparity (float): Maximum disparity value.
             **kwargs: Additional keyword arguments.
         """
         super().__init__(**kwargs)
-        if not (isinstance(num_outputs, int) and num_outputs > 0):
-            raise ValueError(f"Expected num_outputs to be a positive integer but got {num_outputs}")
-        self.align_gt = align_gt
-        self.num_outputs = num_outputs
-        self.min_depth = min_depth
-        self.max_depth = max_depth
-        self.model_type = model_type
         self.max_disparity = max_disparity
+        num_outputs = 1
         self.add_state("sum_abs_rel", default=torch.zeros(num_outputs), dist_reduce_fx="sum")
         self.add_state("sum_sq_rel", default=torch.zeros(num_outputs), dist_reduce_fx="sum")
         self.add_state("sum_rmse", default=torch.zeros(num_outputs), dist_reduce_fx="sum")
@@ -275,66 +205,7 @@ class DepthMetric(Metric):
         self.epe = 0.
         self.kwargs = kwargs
 
-    def update_mono(self, post_processed_results: List[Dict]) -> None:
-        """Updates and accumulates monocular depth estimation metrics.
-
-        This function processes a list of post-processed results from a monocular
-        depth estimation model. It aligns predictions to ground truth depths if
-        `self.align_gt` is True, then calculates and accumulates various metrics
-        including absolute relative error, squared relative error, RMSE, log RMSE,
-        and Delta accuracy metrics.
-
-        Args:
-            post_processed_results (List[Dict]): A list of dictionaries, where
-                each dictionary contains the results for a single image from the
-                model. Each dictionary is expected to have the following keys:
-                - 'depth_pred' (torch.Tensor): The predicted depth map.
-                - 'disp_gt' (torch.Tensor): The ground truth disparity map.
-                - 'valid_mask' (torch.Tensor): A boolean mask indicating valid
-                pixels for metric calculation.
-
-        Returns:
-            None: This function modifies the object's state in-place by updating
-                the accumulated metric sums and the total number of observations.
-        """
-        pred_list = []
-        target_list = []
-        for result in post_processed_results:
-            pred_i = result['depth_pred']
-            gt_i = result['disp_gt']
-            valid_mask_i = result['valid_mask']
-            if self.align_gt:
-                pred_aligned = align_depth_least_square(
-                    gt=gt_i[valid_mask_i],
-                    pred=pred_i[valid_mask_i],
-                )
-                pred_aligned = torch.clip(pred_aligned, min=1e-8, max=None)  # avoid 0 disparity
-                target = torch.clip(gt_i[valid_mask_i], min=1e-8, max=None)  # avoid 0 disparity
-            else:
-                pred_aligned = torch.clip(pred_i[valid_mask_i], min=self.min_depth, max=self.max_depth)  # avoid 0 disparity
-                target = torch.clip(gt_i[valid_mask_i], min=self.min_depth, max=self.max_depth)
-            pred_list.append(pred_aligned)
-            target_list.append(target)
-        pred_aligned = torch.concat(pred_list, dim=0)
-        target = torch.concat(target_list, dim=0)
-        sum_abs_rel, num_obs = _abs_rel_update(pred_aligned, target)
-
-        sum_sq_rel, _ = _sq_rel_update(pred_aligned, target)
-        sum_rmse, _ = _rmse_update(pred_aligned, target)
-        sum_rmse_log, _ = _rmse_log_update(pred_aligned, target)
-        sum_d1, sum_d2, sum_d3, _ = _delta_log_update(pred_aligned, target)
-
-        self.sum_abs_rel += sum_abs_rel
-        self.sum_sq_rel += sum_sq_rel
-        self.sum_rmse += sum_rmse
-        self.sum_rmse_log += sum_rmse_log
-        self.sum_d1 += sum_d1
-        self.sum_d2 += sum_d2
-        self.sum_d3 += sum_d3
-
-        self.total += num_obs
-
-    def update_stereo(self, preds: Tensor, target: Tensor) -> None:
+    def update(self, preds: Tensor = None, target: Tensor = None):
         """Updates the metric results for a stereo estimation model.
 
         This function calculates various stereo metrics such as D1-metric, EPE,
@@ -377,36 +248,6 @@ class DepthMetric(Metric):
         self.bp2 = sum_bp2
         self.bp3 = sum_bp3
         self.epe = sum_epe_val
-
-    def update(self, preds: Tensor = None, target: Tensor = None, post_processed_results=None):
-        """Updates the metric results based on the model type.
-
-        This function serves as a dispatcher to the appropriate metric update
-        method (`update_stereo` or `update_mono`) based on the `self.model_type`
-        attribute. It is designed to handle different types of models (e.g.,
-        stereo and monocular depth estimation) by routing the input data to the
-        correct processing logic.
-
-        Args:
-            preds (torch.Tensor, optional): The predicted disparity or depth maps.
-                This argument is used for stereo models. Defaults to None.
-            target (torch.Tensor, optional): The ground truth disparity or depth maps.
-                This argument is used for stereo models. Defaults to None.
-            post_processed_results (list of dict, optional): A list of dictionaries
-                containing post-processed results. This argument is used for
-                monocular models. Defaults to None.
-
-        Raises:
-            IndexError: If `self.model_type` does not match any of the
-                implemented model types ('foundationstereo', 'metricdepthanything',
-                'relativedepthanything').
-        """
-        if self.model_type.lower() == 'foundationstereo':
-            self.update_stereo(preds, target)
-        elif self.model_type.lower() in ['metricdepthanything', 'relativedepthanything']:
-            self.update_mono(post_processed_results)
-        else:
-            raise IndexError('evaluation metric not implemented for model: {self.model_type}')
 
     def get_single_update(self):
         """Retrieves the most recently calculated metric values as a dictionary.

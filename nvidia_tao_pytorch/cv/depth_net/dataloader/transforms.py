@@ -258,11 +258,13 @@ class SpatialTransform(object):
         max_stretch (float): Maximum factor for stretching in either x or y direction.
         crop_min_valid_disp_ratio (float): Minimum ratio of valid disparity pixels required within a crop.
                                            If a random crop has fewer valid pixels, it will try again.
+        h_flip_prob (float): Probability of applying horizontal flip. Default is 0.5.
+        v_flip_prob (float): Probability of applying vertical flip. Default is 0.1.
     """
 
     def __init__(self, do_flip, crop_size, min_scale, max_scale, max_disparity,
                  stretch_prob, spatial_aug_prob, yjitter_prob, max_stretch,
-                 crop_min_valid_disp_ratio):
+                 crop_min_valid_disp_ratio, h_flip_prob=0.5, v_flip_prob=0.1):
         self.crop_size = crop_size
         self.do_flip = do_flip
         self.min_scale = min_scale
@@ -273,6 +275,8 @@ class SpatialTransform(object):
         self.max_disparity = max_disparity
         self.max_stretch = max_stretch
         self.crop_min_valid_disp_ratio = crop_min_valid_disp_ratio
+        self.h_flip_prob = h_flip_prob
+        self.v_flip_prob = v_flip_prob
 
     def __call__(self, sample):
         """
@@ -295,6 +299,31 @@ class SpatialTransform(object):
             raise NotImplementedError('SpatialTransorm requires a right stereo image pair!')
 
         flow = sample['disparity']
+
+        # Ensure images are large enough for cropping by padding if necessary
+        min_height_needed = self.crop_size[0] + 8  # +8 for jittering buffer
+        min_width_needed = self.crop_size[1] + 8
+
+        if ht < min_height_needed or wd < min_width_needed:
+            pad_top = max(0, (min_height_needed - ht) // 2)
+            pad_bottom = max(0, min_height_needed - ht - pad_top)
+            pad_left = max(0, (min_width_needed - wd) // 2)
+            pad_right = max(0, min_width_needed - wd - pad_left)
+
+            # Pad images with reflection to avoid introducing artifacts
+            img1 = np.pad(img1, ((pad_top, pad_bottom), (pad_left, pad_right), (0, 0)), mode='reflect')
+            img2 = np.pad(img2, ((pad_top, pad_bottom), (pad_left, pad_right), (0, 0)), mode='reflect')
+
+            # Pad disparity/flow with zeros (invalid disparity)
+            if flow.ndim == 2:
+                flow = np.pad(flow, ((pad_top, pad_bottom), (pad_left, pad_right)), mode='constant', constant_values=0)
+            elif flow.ndim == 3:
+                flow = np.pad(flow, ((pad_top, pad_bottom), (pad_left, pad_right), (0, 0)), mode='constant', constant_values=0)
+            else:
+                raise ValueError(f"Unexpected flow array dimensions: {flow.shape}")
+
+            # Update dimensions
+            ht, wd = img1.shape[:2]
 
         min_scale = np.maximum(
             (self.crop_size[0] + 8) / float(ht),
@@ -348,12 +377,23 @@ class SpatialTransform(object):
                 break
 
             if np.random.uniform(0, 1) < self.yjitter_prob:
-                y0 = np.random.randint(2, img1.shape[0] - self.crop_size[0] - 2)
-                x0 = np.random.randint(2, img1.shape[1] - self.crop_size[1] - 2)
-                y1 = y0 + np.random.randint(-2, 2 + 1)
+                # Check if we have enough space for jittering (need at least 4 pixels buffer)
+                y_max = img1.shape[0] - self.crop_size[0] - 2
+                x_max = img1.shape[1] - self.crop_size[1] - 2
+
+                if y_max > 2 and x_max > 2:
+                    # We have enough space for jittering
+                    y0 = np.random.randint(2, y_max)
+                    x0 = np.random.randint(2, x_max)
+                    y1 = y0 + np.random.randint(-2, 2 + 1)
+                else:
+                    # Fall back to regular cropping without jittering
+                    y0 = np.random.randint(0, max(1, img1.shape[0] - self.crop_size[0]))
+                    x0 = np.random.randint(0, max(1, img1.shape[1] - self.crop_size[1]))
+                    y1 = y0
             else:
-                y0 = np.random.randint(0, img1.shape[0] - self.crop_size[0])
-                x0 = np.random.randint(0, img1.shape[1] - self.crop_size[1])
+                y0 = np.random.randint(0, max(1, img1.shape[0] - self.crop_size[0]))
+                x0 = np.random.randint(0, max(1, img1.shape[1] - self.crop_size[1]))
                 y1 = y0
 
             flow_crop = flow[y0: y0 + self.crop_size[0], x0: x0 + self.crop_size[1]]

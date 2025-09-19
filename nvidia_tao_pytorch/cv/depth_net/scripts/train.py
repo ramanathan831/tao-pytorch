@@ -44,24 +44,17 @@ def run_experiment(experiment_config, key):
     # Load pretrained model as starting point if pretrained path is provided,
     if pretrained_path:
         model_dict = torch.load(pretrained_path, map_location="cpu")
-        is_strict = experiment_config.model.load_checkpoint_strict
-        if "pytorch-lightning_version" not in model_dict:
-            if experiment_config.model.model_type in ['MetricDepthAnything', 'RelativeDepthAnything']:
-                # parse public checkpoint
-                modified_dict = parse_mono_depth_checkpoint(model_dict, experiment_config.model.model_type)
-            pt_model.load_state_dict(modified_dict, strict=is_strict)
+        if "pytorch-lightning_version" not in model_dict and experiment_config.model.model_type in ['MetricDepthAnything', 'RelativeDepthAnything']:
+            # parse public checkpoint
+            modified_dict = parse_mono_depth_checkpoint(model_dict, experiment_config.model.model_type)
+            pt_model.load_state_dict(modified_dict, strict=True)
         else:
             pt_model = get_pl_module(experiment_config).load_from_checkpoint(
                 pretrained_path,
                 map_location="cpu",
                 experiment_spec=experiment_config,
-                strict=is_strict
+                strict=True
             )
-            if not is_strict:
-                logging.info(f"strict loading is disabled for pretrained backbone {pretrained_path}")
-
-        if not is_strict:
-            logging.info(f"strict loading is disabled for pretrained backbone {pretrained_path}")
 
     print('model params', sum(p.numel() for p in pt_model.parameters()), flush=True)
     num_nodes = experiment_config.train.num_nodes

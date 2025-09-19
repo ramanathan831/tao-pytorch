@@ -178,25 +178,25 @@ TEST_CONFIG_BLOCKS = [
     (sample_experiment_config, ExperimentConfig)
 ]
 
-# @pytest.mark.cv_unit
-# @pytest.mark.config
-# @pytest.mark.schema_validation
-# @pytest.mark.parametrize(
-#     "yaml_string, dataclass_class_name",
-#     TEST_CONFIG_BLOCKS                   
-# )
-# def test_load_experiment_spec(
-#     yaml_string,
-#     dataclass_class_name,
-# ):
-#     """Simple function to load and validate the structure config from a yaml file."""
-#     schema = OmegaConf.structured(dataclass_class_name)
-#     config = OmegaConf.create(yaml_string)
-#     assert OmegaConf.merge(schema, config), (
-#         "Json schema loading failed."
-#     )
-#     json_schema = generate_json_schema(dataclass_class_name())
-#     validation_status = validate_jsonschema(config, json_schema["properties"])
-#     assert not(validation_status), (
-#         f"Json schema validation failed with error: {validation_status}"
-#     )
+@pytest.mark.cv_unit
+@pytest.mark.config
+@pytest.mark.schema_validation
+@pytest.mark.parametrize(
+    "yaml_string, dataclass_class_name",
+    TEST_CONFIG_BLOCKS                   
+)
+def test_load_experiment_spec(
+    yaml_string,
+    dataclass_class_name,
+):
+    """Simple function to load and validate the structure config from a yaml file."""
+    schema = OmegaConf.structured(dataclass_class_name)
+    config = OmegaConf.create(yaml_string)
+    assert OmegaConf.merge(schema, config), (
+        "Json schema loading failed."
+    )
+    json_schema = generate_json_schema(dataclass_class_name())
+    validation_status = validate_jsonschema(config, json_schema["properties"])
+    assert not(validation_status), (
+        f"Json schema validation failed with error: {validation_status}"
+    )

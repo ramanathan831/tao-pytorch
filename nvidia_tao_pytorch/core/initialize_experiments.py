@@ -81,6 +81,7 @@ def initialize_train_experiment(cfg, key=None):
                 project=wandb_config.project,
                 entity=wandb_config.entity,
                 name=wandb_config.name,
+                run_id=wandb_config.run_id,
                 results_dir=results_dir,
                 wandb_logged_in=wandb_logged_in,
                 tags=wandb_config.tags,

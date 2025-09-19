@@ -61,7 +61,6 @@ model:
     edgenext_pretrained_path: /data/checkpoints/model_epoch_edgenext.pth
     use_bn: False
     use_clstoken: False
-  load_checkpoint_strict: True
   encoder: vits
 evaluate:
   num_gpus: 1

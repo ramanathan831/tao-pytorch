@@ -84,7 +84,6 @@ class BaseRelativeMonoDataset(Dataset):
             sample = {'image': left_image, **depth_dict}
 
         sample['image'] = torch.from_numpy(sample['image'])
-        # Height,
         sample['image_size'] = torch.tensor([image_size[0], image_size[1]])
 
         if "disparity" in sample:
@@ -93,7 +92,8 @@ class BaseRelativeMonoDataset(Dataset):
             sample['disparity'][valid_mask == 0] = 0
             sample['valid_mask'] = valid_mask.squeeze(0)  # (B, H, W)
         else:
-            valid_mask = torch.ones(sample['disparity'].shape[1], sample['disparity'].shape[2]).bool()
+            # No GT provided, set valid mask to all 1s
+            valid_mask = torch.ones(image_size[0], image_size[1]).bool()
             sample['valid_mask'] = valid_mask  # (B, H, W)  # (B, H, W)
 
         sample['image_path'] = left_img_path
