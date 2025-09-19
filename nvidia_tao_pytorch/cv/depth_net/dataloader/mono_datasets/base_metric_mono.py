@@ -97,7 +97,7 @@ class BaseMetricMonoDataset(Dataset):
             sample['depth'] = apply_3d_mask(depth, valid_mask)
             sample['valid_mask'] = valid_mask.squeeze(0)  # (B, H, W)
         else:
-            valid_mask = torch.ones(sample['depth'].shape[1], sample['depth'].shape[2]).bool()
+            valid_mask = torch.ones(image_size[0], image_size[1]).bool()
             sample['valid_mask'] = valid_mask  # (B, H, W)
         sample['image_path'] = left_img_path
         return sample

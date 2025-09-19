@@ -599,14 +599,12 @@ class DepthAnythingFeature(nn.Module):
 
     # Configuration for different ViT encoder variants
     model_configs = {
-        'vitl': {'encoder': 'vitl', 'features': 256, 'out_channels': [256, 512, 1024, 1024],
-                 'use_bn': False, 'use_clstoken': False, 'max_depth': 20},
-        'vitb': {'encoder': 'vitb', 'features': 128, 'out_channels': [96, 192, 384, 768],
-                 'use_bn': False, 'use_clstoken': False, 'max_depth': 20},
-        'vits': {'encoder': 'vits', 'features': 64, 'out_channels': [48, 96, 192, 384],
-                 'use_bn': False, 'use_clstoken': False, 'max_depth': 20}}
+        'vitl': {'encoder': 'vitl', 'features': 256, 'out_channels': [256, 512, 1024, 1024]},
+        'vitb': {'encoder': 'vitb', 'features': 128, 'out_channels': [96, 192, 384, 768]},
+        'vits': {'encoder': 'vits', 'features': 64, 'out_channels': [48, 96, 192, 384]}
+    }
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, export=False):
         """
         Constructor for DepthAnythingFeature class.
 
@@ -620,31 +618,31 @@ class DepthAnythingFeature(nn.Module):
         encoder = cfg.encoder
 
         # Initialize the DepthAnythingV2 model with the specified configuration
-        depth_anything = RelativeDepthAnythingV2(DepthAnythingFeature.model_configs[encoder], max_depth=10.0)
+        depth_anything_config = {'encoder': encoder}
+        depth_anything_config.update({'mono_backbone': {'use_bn': cfg.stereo_backbone.use_bn,
+                                                        'use_clstoken': cfg.stereo_backbone.use_clstoken,
+                                                        'pretrained_path': None}})
+
+        depth_anything = RelativeDepthAnythingV2(depth_anything_config, max_depth=None, export=export)
 
         # Load pretrained weights from a checkpoint file
         # when the module is a pytorch lightning module,
         # we load with strict=False otherwise, we set strict to True.
-        checkpoint_weight = load_pretrained_weights(pretrained_path, map_location='cpu')
-        if "pytorch-lightning_version" not in checkpoint_weight:
-            depth_anything.load_state_dict(checkpoint_weight, strict=False)
-        else:
-            MonoDepthNetPlModel(cfg).load_from_checkpoint(
-                pretrained_path,
-                map_location="cpu",
-                experiment_spec=cfg,
-                strict=True)
+        if pretrained_path:
+            checkpoint_weight = load_pretrained_weights(pretrained_path, map_location='cpu')
+            if "pytorch-lightning_version" not in checkpoint_weight:
+                depth_anything.load_state_dict(checkpoint_weight, strict=False)
+            else:
+                MonoDepthNetPlModel(cfg).load_from_checkpoint(
+                    pretrained_path,
+                    map_location="cpu",
+                    experiment_spec=cfg,
+                    strict=True)
 
         self.depth_anything = depth_anything
 
         # Define the indices of the intermediate layers to extract features from
-        intermediate_layer_idx = {
-            'vits': [2, 5, 8, 11],
-            'vitb': [2, 5, 8, 11],
-            'vitl': [4, 11, 17, 23],
-            'vitg': [9, 19, 29, 39]
-        }
-        self.encoder = intermediate_layer_idx[encoder]
+        self.encoder = depth_anything.model_configs[encoder]['intermediate_layer_idx']
 
     def forward(self, x):
         """
@@ -698,7 +696,7 @@ class Feature(nn.Module):
     upsample these features, resulting in multi-scale output feature maps.
     """
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, export=False):
         """
         Constructor for the Feature class.
 
@@ -732,7 +730,7 @@ class Feature(nn.Module):
         self.channel = [48, 96, 160, 304]   # channel sizes hardcoded for decoder design
 
         # Initialize and freeze the DepthAnythingV2 feature extractor
-        self.dino = DepthAnythingFeature(cfg)
+        self.dino = DepthAnythingFeature(cfg, export=export)
         self.dino = utils.freeze_model(self.dino)
         vit_feat_dim = DepthAnythingFeature.model_configs[cfg.encoder]['features'] // 2
         extra_channel_boost = 0

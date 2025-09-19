@@ -36,7 +36,7 @@ AUTOCAST = torch.amp.autocast
 class FoundationStereo(nn.Module):
     """Foundation Stereo model for disparity estimation."""
 
-    def __init__(self, args):
+    def __init__(self, args, export=False):
         """Initializes the FoundationStereo model.
 
         Args:
@@ -44,6 +44,7 @@ class FoundationStereo(nn.Module):
         """
         super().__init__()
         self.args = args
+        self.export = export
 
         context_dims = args.hidden_dims
         self.cv_group = 8
@@ -62,7 +63,7 @@ class FoundationStereo(nn.Module):
             for i in range(self.args.n_gru_layers)
         ])
 
-        self.feature = Feature(args)
+        self.feature = Feature(args, export=self.export)
 
         self.proj_cmb = nn.Conv2d(self.feature.d_out[0], 12, kernel_size=1, padding=0)
 

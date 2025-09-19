@@ -62,7 +62,14 @@ def main(cfg: ExperimentConfig) -> None:
     run_export(cfg)
 
 
-def mono_onnx_export(model, batch_size, input_shape, input_batch_size, output_file, on_cpu, opset_version):
+def mono_onnx_export(model,
+                     input_shape,
+                     input_batch_size,
+                     output_file,
+                     on_cpu,
+                     opset_version,
+                     valid_iters=22,
+                     dynamic_axis=False):
     """
     Exports a monocular depth estimation model to the ONNX format.
 
@@ -77,10 +84,6 @@ def mono_onnx_export(model, batch_size, input_shape, input_batch_size, output_fi
     Args:
         model (torch.nn.Module): The PyTorch monocular depth estimation model to
                                   be exported.
-        batch_size (int): The desired batch size for the exported ONNX model.
-                          If `batch_size` is set to -1, the function enables
-                          dynamic batch sizing, meaning the model can accept
-                          any batch size at inference.
         input_shape (list or tuple): The shape of a single input image tensor,
                                      excluding the batch dimension. Example:
                                      `[3, 256, 256]` for a 256x256 color image.
@@ -102,9 +105,6 @@ def mono_onnx_export(model, batch_size, input_shape, input_batch_size, output_fi
     input_names = ['images']
     output_names = ['outputs']
     try:
-        dynamic_axis = False
-        if batch_size == -1:
-            dynamic_axis = True
         create_onnx_model(
             model,
             input_shape,
@@ -128,7 +128,8 @@ def stereo_onnx_export(model,
                        output_file,
                        on_cpu,
                        opset_version,
-                       valid_iters):
+                       valid_iters=22,
+                       dynamic_axis=True):
     """
     Exports a stereo depth estimation model to the ONNX format.
 
@@ -185,6 +186,13 @@ def stereo_onnx_export(model,
             dummy_input1 = torch.rand(input_shape, device='cuda')
             dummy_input2 = torch.rand(input_shape, device='cuda')
     try:
+        # Only use dynamic_axes if dynamic_axis is True
+        axes_config = None
+        if dynamic_axis:
+            axes_config = {'left_image': {0: 'batch_size', 2: 'height', 3: 'width'},
+                           'right_image': {0: 'batch_size', 2: 'height', 3: 'width'},
+                           'disparity': {0: 'batch_size'}}
+
         torch.onnx.export(model,
                           args=(dummy_input1, dummy_input2, valid_iters, None, True, False, None),
                           f=output_file,
@@ -193,9 +201,7 @@ def stereo_onnx_export(model,
                           output_names=output_names,
                           do_constant_folding=True,
                           verbose=True,
-                          dynamic_axes={'left_image': {0: 'batch_size', 2: 'height', 3: 'width'},
-                                        'right_image': {0: 'batch_size', 2: 'height', 3: 'width'},
-                                        'disparity': {0: 'batch_size'}})
+                          dynamic_axes=axes_config)
 
         # Verify ONNX exported correctly.
         loaded_model = onnx.load(output_file)
@@ -286,8 +292,13 @@ def run_export(experiment_config: ExperimentConfig) -> None:
 
     if batch_size is None or batch_size == -1:
         input_batch_size = 1
+        dynamic_axis = True
     else:
         input_batch_size = batch_size
+        dynamic_axis = False
+
+    logging.info(f"Input batch size: {input_batch_size}")
+    logging.info(f"Dynamic axis: {dynamic_axis}")
 
     device = 'cpu'
     if not on_cpu:
@@ -318,7 +329,8 @@ def run_export(experiment_config: ExperimentConfig) -> None:
                                                           output_file,
                                                           on_cpu,
                                                           opset_version,
-                                                          valid_iters)
+                                                          valid_iters=valid_iters,
+                                                          dynamic_axis=dynamic_axis)
 
 
 if __name__ == "__main__":
