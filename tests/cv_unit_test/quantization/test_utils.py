@@ -15,14 +15,51 @@
 """Unit tests for quantization utility functions."""
 
 import pytest
+import torch
 import torch.nn as nn
+from unittest.mock import Mock, patch
 
-from nvidia_tao_pytorch.core.quantization.utils import match_layer
+from nvidia_tao_pytorch.core.quantization.utils import match_layer, create_quantized_model_from_config
 
 
 # A couple of common layer types to use in our tests
 conv_layer = nn.Conv2d(3, 64, 3)
 linear_layer = nn.Linear(10, 20)
+
+
+@pytest.fixture(autouse=True)
+def mock_all_backend_dependencies():
+    """Automatically mock all backend dependencies for all tests."""
+    with patch.dict('sys.modules', {
+        'torchao': Mock(),
+        'torchao.quantization': Mock(),
+        'modelopt': Mock(),
+        'modelopt.torch': Mock(),
+        'modelopt.torch.quantization': Mock(),
+        'modelopt.torch.opt': Mock(),
+        'nvidia_tao_core.config.common.quantization.default_config': Mock(),
+    }), patch('nvidia_tao_pytorch.core.tlt_logging.logging') as mock_logging:
+        mock_logging.info.return_value = None
+        mock_logging.debug.return_value = None
+        mock_logging.warning.return_value = None
+        yield
+
+
+@pytest.fixture
+def mock_model_quantizer():
+    """Mock ModelQuantizer to avoid backend dependencies."""
+    mock_quantizer = Mock()
+    # The quantizer should return the model unchanged (it's already quantized)
+    mock_quantizer.quantize_model.side_effect = lambda model: model
+    return mock_quantizer
+
+
+@pytest.fixture
+def mock_torch_load():
+    """Mock torch.load to avoid file system dependencies."""
+    with patch('torch.load') as mock_load:
+        mock_load.return_value = {"weight": torch.tensor(42)}
+        yield mock_load
 
 
 @pytest.mark.parametrize(
@@ -106,3 +143,286 @@ def test_match_layer_input_validation():
 
     with pytest.raises(ValueError, match="pattern cannot be empty"):
         match_layer(conv_layer, "some_name", "")
+
+
+def test_match_layer_with_mocked_dependencies():
+    """Test that match_layer works correctly with mocked backend dependencies."""
+    # This test ensures that the match_layer function works independently
+    # of any backend dependencies that might be imported elsewhere
+    assert match_layer(conv_layer, "features.conv1", "features.conv1")
+    assert match_layer(linear_layer, "classifier.fc", "Linear")
+    assert not match_layer(conv_layer, "features.conv1", "Linear")
+
+
+# Test classes for create_quantized_model_from_config
+class DummyLightning(nn.Module):
+    def __init__(self, experiment_config, **kwargs):
+        super().__init__()
+        self.experiment_config = experiment_config
+        self.kwargs = kwargs
+        self.loaded_state_dict = None
+        # Add a simple layer to make it a valid PyTorch module
+        self.linear = nn.Linear(10, 1)
+
+    def forward(self, x):
+        return self.linear(x)
+
+    def load_state_dict(self, state_dict):
+        self.loaded_state_dict = state_dict
+
+
+class MockConfig:
+    """Mock config that supports both dot notation and dictionary access using proper mocking."""
+    def __init__(self, **kwargs):
+        self._data = {}
+        for key, value in kwargs.items():
+            self._data[key] = value
+
+    def __getattr__(self, name):
+        """Handle attribute access using the internal data dictionary."""
+        if name in self._data:
+            return self._data[name]
+        # Return a default MockConfig for missing keys to avoid KeyError
+        return MockConfig()
+
+    def __getitem__(self, key):
+        """Handle dictionary-style access."""
+        if key in self._data:
+            return self._data[key]
+        # Return a default MockConfig for missing keys to avoid KeyError
+        return MockConfig()
+
+    def __setitem__(self, key, value):
+        """Handle dictionary-style assignment."""
+        self._data[key] = value
+
+    def __setattr__(self, name, value):
+        """Handle attribute assignment."""
+        if name.startswith('_'):
+            super().__setattr__(name, value)
+        else:
+            if not hasattr(self, '_data'):
+                super().__setattr__('_data', {})
+            self._data[name] = value
+
+    def get(self, key, default=None):
+        """Dictionary-style get method."""
+        return self._data.get(key, default)
+
+    def __contains__(self, key):
+        """Support 'in' operator."""
+        return key in self._data
+
+    def __iter__(self):
+        """Support iteration over keys."""
+        return iter(self._data.keys())
+
+    def keys(self):
+        """Dictionary-style keys method."""
+        return list(self._data.keys())
+
+    def values(self):
+        """Dictionary-style values method."""
+        return list(self._data.values())
+
+    def items(self):
+        """Dictionary-style items method."""
+        return list(self._data.items())
+
+    def __eq__(self, other):
+        """Support equality comparison."""
+        if not isinstance(other, MockConfig):
+            return False
+        return self._data == other._data
+
+
+def make_experiment_config(backend="torchao"):
+    """Create a mock experiment config for testing."""
+    if backend == "torchao":
+        quantize = MockConfig(
+            backend=backend,
+            mode="weight_only_ptq",
+            layers=[]
+        )
+    else:
+        quantize = MockConfig(
+            backend=backend,
+            mode="static_ptq",
+            algorithm="max",
+            layers=[]
+        )
+    return MockConfig(quantize=quantize)
+
+
+@patch('nvidia_tao_pytorch.core.quantization.quantizer.ModelQuantizer')
+def test_create_quantized_model_from_config_basic(mock_quantizer_class, tmp_path, mock_torch_load):
+    """Test basic functionality of create_quantized_model_from_config."""
+    # Setup mock quantizer
+    mock_quantizer = Mock()
+    # The quantizer should return the model unchanged (it's already quantized)
+    mock_quantizer.quantize_model.side_effect = lambda model: model
+    mock_quantizer_class.return_value = mock_quantizer
+
+    exp_cfg = make_experiment_config()
+    ckpt_path = tmp_path / "model.pth"
+    torch.save({"weight": torch.tensor(42)}, ckpt_path)
+
+    model = create_quantized_model_from_config(
+        str(ckpt_path),
+        DummyLightning,
+        experiment_config=exp_cfg
+    )
+
+    assert isinstance(model, DummyLightning), f"Expected DummyLightning, got {type(model).__name__}"
+    assert model.experiment_config == exp_cfg, "Experiment config not passed correctly"
+    assert model.loaded_state_dict is not None, "State dict should be loaded"
+    assert "model.weight" in model.loaded_state_dict, "State dict keys should be prefixed with 'model.'"
+
+    # Verify ModelQuantizer was called correctly
+    mock_quantizer_class.assert_called_once_with(exp_cfg.quantize)
+    mock_quantizer.quantize_model.assert_called_once()
+
+
+@patch('nvidia_tao_pytorch.core.quantization.quantizer.ModelQuantizer')
+def test_create_quantized_model_from_config_with_kwargs(mock_quantizer_class, tmp_path, mock_torch_load):
+    """Test create_quantized_model_from_config with additional kwargs."""
+    # Setup mock quantizer
+    mock_quantizer = Mock()
+    # The quantizer should return the model unchanged (it's already quantized)
+    mock_quantizer.quantize_model.side_effect = lambda model: model
+    mock_quantizer_class.return_value = mock_quantizer
+
+    exp_cfg = make_experiment_config()
+    ckpt_path = tmp_path / "model.pth"
+    torch.save({"weight": torch.tensor(42)}, ckpt_path)
+
+    model = create_quantized_model_from_config(
+        str(ckpt_path),
+        DummyLightning,
+        experiment_config=exp_cfg,
+        export=True,
+        some_other_param="test"
+    )
+
+    assert isinstance(model, DummyLightning), f"Expected DummyLightning, got {type(model).__name__}"
+    assert model.kwargs.get("export") is True, "Export flag should be passed"
+    assert model.kwargs.get("some_other_param") == "test", "Additional kwargs should be passed"
+
+    # Verify ModelQuantizer was called correctly
+    mock_quantizer_class.assert_called_once_with(exp_cfg.quantize)
+    mock_quantizer.quantize_model.assert_called_once()
+
+
+def test_create_quantized_model_from_config_missing_experiment_config(tmp_path):
+    """Test create_quantized_model_from_config with missing experiment_config."""
+    ckpt_path = tmp_path / "model.pth"
+    torch.save({"weight": torch.tensor(42)}, ckpt_path)
+
+    with pytest.raises(KeyError, match="experiment_config"):
+        create_quantized_model_from_config(str(ckpt_path), DummyLightning)
+
+
+@patch('nvidia_tao_pytorch.core.quantization.quantizer.ModelQuantizer')
+def test_create_quantized_model_from_config_modelopt_backend(mock_quantizer_class, tmp_path):
+    """Test create_quantized_model_from_config with modelopt backend and model_state_dict."""
+    # Setup mock quantizer
+    mock_quantizer = Mock()
+    # The quantizer should return the model unchanged (it's already quantized)
+    mock_quantizer.quantize_model.side_effect = lambda model: model
+    mock_quantizer_class.return_value = mock_quantizer
+
+    # Create config with modelopt backend
+    exp_cfg = make_experiment_config(backend="modelopt")
+    ckpt_path = tmp_path / "model.pth"
+
+    # Mock torch.load to return modelopt-style state dict
+    with patch('torch.load') as mock_load:
+        mock_load.return_value = {"model_state_dict": {"weight": torch.tensor(42)}}
+
+        model = create_quantized_model_from_config(
+            str(ckpt_path),
+            DummyLightning,
+            experiment_config=exp_cfg
+        )
+
+        assert isinstance(model, DummyLightning), f"Expected DummyLightning, got {type(model).__name__}"
+        assert model.experiment_config == exp_cfg, "Experiment config not passed correctly"
+        assert model.loaded_state_dict is not None, "State dict should be loaded"
+        assert "model.weight" in model.loaded_state_dict, "State dict keys should be prefixed with 'model.'"
+
+        # Verify ModelQuantizer was called correctly
+        mock_quantizer_class.assert_called_once_with(exp_cfg.quantize)
+        mock_quantizer.quantize_model.assert_called_once()
+
+
+@patch('nvidia_tao_pytorch.core.quantization.quantizer.ModelQuantizer')
+def test_create_quantized_model_from_config_torchao_backend(mock_quantizer_class, tmp_path):
+    """Test create_quantized_model_from_config with torchao backend."""
+    # Setup mock quantizer
+    mock_quantizer = Mock()
+    # The quantizer should return the model unchanged (it's already quantized)
+    mock_quantizer.quantize_model.side_effect = lambda model: model
+    mock_quantizer_class.return_value = mock_quantizer
+
+    # Create config with torchao backend
+    exp_cfg = make_experiment_config(backend="torchao")
+    ckpt_path = tmp_path / "model.pth"
+
+    # Mock torch.load to return regular state dict
+    with patch('torch.load') as mock_load:
+        mock_load.return_value = {"weight": torch.tensor(42)}
+
+        model = create_quantized_model_from_config(
+            str(ckpt_path),
+            DummyLightning,
+            experiment_config=exp_cfg
+        )
+
+        assert isinstance(model, DummyLightning), f"Expected DummyLightning, got {type(model).__name__}"
+        assert model.experiment_config == exp_cfg, "Experiment config not passed correctly"
+        assert model.loaded_state_dict is not None, "State dict should be loaded"
+        assert "model.weight" in model.loaded_state_dict, "State dict keys should be prefixed with 'model.'"
+
+        # Verify ModelQuantizer was called correctly
+        mock_quantizer_class.assert_called_once_with(exp_cfg.quantize)
+        mock_quantizer.quantize_model.assert_called_once()
+
+
+@patch('nvidia_tao_pytorch.core.quantization.quantizer.ModelQuantizer')
+def test_create_quantized_model_from_config_error_handling(mock_quantizer_class, tmp_path):
+    """Test create_quantized_model_from_config error handling."""
+    # Setup mock quantizer to raise an exception
+    mock_quantizer = Mock()
+    mock_quantizer.quantize_model.side_effect = RuntimeError("Quantization failed")
+    mock_quantizer_class.return_value = mock_quantizer
+
+    exp_cfg = make_experiment_config()
+    ckpt_path = tmp_path / "model.pth"
+    torch.save({"weight": torch.tensor(42)}, ckpt_path)
+
+    with pytest.raises(RuntimeError, match="Quantization failed"):
+        create_quantized_model_from_config(
+            str(ckpt_path),
+            DummyLightning,
+            experiment_config=exp_cfg
+        )
+
+
+@patch('nvidia_tao_pytorch.core.quantization.quantizer.ModelQuantizer')
+def test_create_quantized_model_from_config_file_not_found(mock_quantizer_class, tmp_path):
+    """Test create_quantized_model_from_config with non-existent file."""
+    # Setup mock quantizer
+    mock_quantizer = Mock()
+    # The quantizer should return the model unchanged (it's already quantized)
+    mock_quantizer.quantize_model.side_effect = lambda model: model
+    mock_quantizer_class.return_value = mock_quantizer
+
+    exp_cfg = make_experiment_config()
+    ckpt_path = tmp_path / "nonexistent.pth"
+
+    with pytest.raises(FileNotFoundError):
+        create_quantized_model_from_config(
+            str(ckpt_path),
+            DummyLightning,
+            experiment_config=exp_cfg
+        )

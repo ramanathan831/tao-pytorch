@@ -16,7 +16,6 @@
 
 from __future__ import annotations
 
-import types
 from unittest.mock import patch, MagicMock
 import pytest
 import torch
@@ -45,33 +44,21 @@ class _DummyMtqModule:
         return model
 
 
-def _patch_mtq():
-    """Patch the entire modelopt module - BROAD AND SLOW"""
+def _create_modelopt_mocks():
+    """Create mock objects for modelopt modules."""
     dummy = _DummyMtqModule()
-    mtq_mod = types.SimpleNamespace(quantize=dummy.quantize)
-    return patch.dict(
-        "sys.modules",
-        {
-            "modelopt": types.SimpleNamespace(
-                torch=types.SimpleNamespace(quantization=mtq_mod)
-            ),
-            "modelopt.torch": types.SimpleNamespace(quantization=mtq_mod),
-            "modelopt.torch.quantization": mtq_mod,
-        },
-    )
+    return {
+        "mtq": MagicMock(quantize=dummy.quantize),
+        "mto": MagicMock(save=MagicMock()),
+    }
 
 
 def _patch_modelopt_imports():
     """Targeted patch for modelopt imports - FAST"""
-
-    def mock_quantize(model, cfg, forward_loop):
-        # Return the actual model instead of a MagicMock
-        return model
-
+    modelopt_mocks = _create_modelopt_mocks()
     return patch.multiple(
         "nvidia_tao_pytorch.core.quantization.backends.modelopt.modelopt",
-        mtq=MagicMock(quantize=mock_quantize),
-        mto=MagicMock(save=MagicMock()),
+        **modelopt_mocks
     )
 
 

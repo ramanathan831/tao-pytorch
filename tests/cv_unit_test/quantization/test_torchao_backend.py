@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import types
 from unittest.mock import patch
 import os
 import tempfile
-import importlib
-import sys
 import pytest
 import torch.nn as nn
 
@@ -20,8 +17,8 @@ from nvidia_tao_pytorch.core.quantization.backends.modelopt.utils import (
 )
 
 
-def _patch_torchao_imports():
-    """Patch torchao.quantization symbols used by the backend.
+def _create_torchao_mocks():
+    """Create mock objects for torchao.quantization symbols.
 
     Creates light-weight stand-ins for ``Float8WeightOnlyConfig``, ``Int8WeightOnlyConfig``,
     ``AOPerModuleConfig`` and ``quantize_``. The dummy ``quantize_`` returns the model passed in
@@ -40,33 +37,24 @@ def _patch_torchao_imports():
         # In-place no-op; return the model
         return model
 
-    taq_mod = types.SimpleNamespace(
-        Float8WeightOnlyConfig=lambda: _DummyCfg("fp8"),
-        Int8WeightOnlyConfig=lambda: _DummyCfg("int8"),
-        AOPerModuleConfig=_DummyAOPerModuleConfig,
-        quantize_=_dummy_quantize_,
-    )
-    return patch.dict(
-        "sys.modules",
-        {
-            "torchao": types.SimpleNamespace(quantization=taq_mod),
-            "torchao.quantization": taq_mod,
-        },
-    )
+    return {
+        "Float8WeightOnlyConfig": lambda: _DummyCfg("fp8"),
+        "Int8WeightOnlyConfig": lambda: _DummyCfg("int8"),
+        "AOPerModuleConfig": _DummyAOPerModuleConfig,
+        "quantize_": _dummy_quantize_,
+    }
 
 
 def _ensure_torchao_registered():
     """Ensure torchao backend module executes decorator to register backend.
 
-    Reloads the module if it's already imported to re-run the decorator after a
-    registry clear.
+    Uses proper module patching and manual registration instead of reloading.
     """
-    mod_name = "nvidia_tao_pytorch.core.quantization.backends.torchao.torchao"
-    mod = sys.modules.get(mod_name)
-    if mod is None:
-        importlib.import_module(mod_name)
-    else:
-        importlib.reload(mod)
+    from nvidia_tao_pytorch.core.quantization.backends.torchao.torchao import TorchAOBackend
+    from nvidia_tao_pytorch.core.quantization import register_backend
+
+    # Manually register the backend to avoid module reloading
+    register_backend("torchao")(TorchAOBackend)
 
 
 class ToyModel(nn.Module):
@@ -83,7 +71,11 @@ def test_torchao_backend_prepare_and_quantize_int8():
     # Ensure clean registry across tests
     get_registry_manager().clear_all()
 
-    with _patch_torchao_imports():
+    torchao_mocks = _create_torchao_mocks()
+    with patch.multiple(
+        "nvidia_tao_pytorch.core.quantization.backends.torchao.torchao",
+        **torchao_mocks
+    ):
         _ensure_torchao_registered()
         backend_cls = get_backend_class("torchao")
         q = backend_cls()
@@ -108,13 +100,20 @@ def test_torchao_backend_prepare_and_quantize_int8():
         quantized = q.quantize(prepared, cfg)
         assert isinstance(quantized, nn.Module), "quantize should return a torch.nn.Module"
 
+    # Clean up registry after test
+    get_registry_manager().clear_all()
+
 
 @pytest.mark.unit
 def test_torchao_backend_quantize_fp8_and_skip():
     # Ensure clean registry across tests
     get_registry_manager().clear_all()
 
-    with _patch_torchao_imports():
+    torchao_mocks = _create_torchao_mocks()
+    with patch.multiple(
+        "nvidia_tao_pytorch.core.quantization.backends.torchao.torchao",
+        **torchao_mocks
+    ):
         _ensure_torchao_registered()
         backend_cls = get_backend_class("torchao")
         q = backend_cls()
@@ -139,13 +138,20 @@ def test_torchao_backend_quantize_fp8_and_skip():
         quantized = q.quantize(prepared, cfg)
         assert isinstance(quantized, nn.Module)
 
+    # Clean up registry after test
+    get_registry_manager().clear_all()
+
 
 @pytest.mark.unit
 def test_torchao_backend_weights_native_disables_quantization():
     # Ensure clean registry across tests
     get_registry_manager().clear_all()
 
-    with _patch_torchao_imports():
+    torchao_mocks = _create_torchao_mocks()
+    with patch.multiple(
+        "nvidia_tao_pytorch.core.quantization.backends.torchao.torchao",
+        **torchao_mocks
+    ):
         _ensure_torchao_registered()
         backend_cls = get_backend_class("torchao")
         q = backend_cls()
@@ -169,13 +175,20 @@ def test_torchao_backend_weights_native_disables_quantization():
         quantized = q.quantize(prepared, cfg)
         assert isinstance(quantized, nn.Module)
 
+    # Clean up registry after test
+    get_registry_manager().clear_all()
+
 
 @pytest.mark.unit
 def test_torchao_backend_save_model(tmp_path=None):
     # Ensure clean registry across tests
     get_registry_manager().clear_all()
 
-    with _patch_torchao_imports():
+    torchao_mocks = _create_torchao_mocks()
+    with patch.multiple(
+        "nvidia_tao_pytorch.core.quantization.backends.torchao.torchao",
+        **torchao_mocks
+    ):
         _ensure_torchao_registered()
         backend_cls = get_backend_class("torchao")
         q = backend_cls()
@@ -202,3 +215,6 @@ def test_torchao_backend_save_model(tmp_path=None):
         q.save_model(quantized, str(save_dir))
         expected_path = os.path.join(str(save_dir), "quantized_model_torchao.pth")
         assert os.path.exists(expected_path), "Expected saved file was not created"
+
+    # Clean up registry after test
+    get_registry_manager().clear_all()
