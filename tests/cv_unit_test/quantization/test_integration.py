@@ -66,16 +66,15 @@ class DummyBackend(QuantizerBase, Calibratable):
 
     def prepare(self, model: nn.Module, config: ModelQuantizationConfig) -> nn.Module:
         """Replace Linear layers with a placeholder for quantization."""
-        # More efficient: only iterate once and collect changes
-        replacements = {}
-        for name, module in model.named_children():
+        # Create a new model with replaced layers instead of modifying in place
+        # For Sequential models, create a new Sequential with replacements
+        new_modules = []
+        for module in model:
             if isinstance(module, nn.Linear):
-                replacements[name] = QuantizedLinear(module)
-
-        # Apply all replacements at once
-        for name, replacement in replacements.items():
-            setattr(model, name, replacement)
-        return model
+                new_modules.append(QuantizedLinear(module))
+            else:
+                new_modules.append(module)
+        return nn.Sequential(*new_modules)
 
     def quantize(self, model: nn.Module, config: ModelQuantizationConfig) -> nn.Module:
         """Return the model unmodified as a no-op."""
