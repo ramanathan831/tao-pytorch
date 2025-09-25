@@ -14,6 +14,7 @@
 
 """Extractor module consists of various encoder architectures"""
 
+import os
 import numpy as np
 import torch
 from torch import nn
@@ -716,13 +717,14 @@ class Feature(nn.Module):
                          d2_scales=[2, 2, 3, 4],
                          classifier_dropout=0.0)
 
-        state_dict = load_dict = torch.load(cfg.stereo_backbone.edgenext_pretrained_path,
-                                            weights_only=False)
-        state_dict = load_dict['state_dict']
+        if os.path.isfile(cfg.stereo_backbone.edgenext_pretrained_path):
+            load_dict = torch.load(cfg.stereo_backbone.edgenext_pretrained_path,
+                                   weights_only=False)
+            state_dict = load_dict['state_dict']
 
-        # Adjust state_dict keys to match the model's structure
-        state_dict = utils.process_edgenext_state_dict(state_dict)
-        model.load_state_dict(state_dict, strict=True)
+            # Adjust state_dict keys to match the model's structure
+            state_dict = utils.process_edgenext_state_dict(state_dict)
+            model.load_state_dict(state_dict, strict=True)
 
         self.downsample_layers = model.downsample_layers
         self.stages = model.stages
