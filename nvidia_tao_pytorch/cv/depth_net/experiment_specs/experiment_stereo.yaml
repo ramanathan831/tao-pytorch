@@ -58,7 +58,7 @@ model:
   model_type: FoundationStereo
   stereo_backbone:
     depth_anything_v2_pretrained_path: /data/checkpoints/depth_anything_v2_vits.pth
-    edgenext_pretrained_path: /data/checkpoints/model_epoch_edgenext.pth
+    #edgenext_pretrained_path: /data/checkpoints/model_epoch_edgenext.pth
     use_bn: False
     use_clstoken: False
   encoder: vits
