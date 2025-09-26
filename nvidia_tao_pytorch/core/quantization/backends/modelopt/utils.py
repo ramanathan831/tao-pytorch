@@ -70,7 +70,7 @@ __all__ = [
 ]
 
 
-def _dtype_to_num_bits(dtype: str) -> int | Tuple[int, int]:
+def _dtype_to_num_bits(dtype: str, mode: str | None = None) -> int | Tuple[int, int]:
     """Translate TAO ``dtype`` strings to ModelOpt ``num_bits`` values.
 
     Parameters
@@ -78,6 +78,8 @@ def _dtype_to_num_bits(dtype: str) -> int | Tuple[int, int]:
     dtype : str
         Dtype string from TAO configuration (e.g., "int8", "fp8_e4m3fn", "fp8_e5m2"). The mapping
         is not exhaustive; extend as the TAO side gains support for more formats.
+    mode : str | None, optional
+        Quantization mode (e.g., "static_ptq"). Used to determine if fallback is needed for e5m2.
 
     Returns
     -------
@@ -98,11 +100,21 @@ def _dtype_to_num_bits(dtype: str) -> int | Tuple[int, int]:
         raise ValueError(
             f"Unsupported dtype '{dtype}'. Supported dtypes: {list(_mapping.keys())}."
         )
+
+    # Check if e5m2 is being used with static mode and fall back to e4m3
+    if key == "fp8_e5m2" and mode and "static" in mode.lower():
+        tlt_logger.warning(
+            f"Static mode is unsupported for float8 e5m2 dtype. Falling back to e4m3. "
+            f"Original dtype: {dtype}, mode: {mode}"
+        )
+        return _mapping["fp8_e4m3fn"]
+
     return _mapping[key]
 
 
 def _build_quantizer_cfg(
     qcfg: WeightQuantizationConfig | ActivationQuantizationConfig,
+    mode: str | None = None,
 ) -> Dict[str, Any]:
     """Convert TAO weight/activation config to a ModelOpt quantizer dictionary.
 
@@ -110,6 +122,8 @@ def _build_quantizer_cfg(
     ----------
     qcfg : WeightQuantizationConfig | ActivationQuantizationConfig
         TAO configuration for weights or activations.
+    mode : str | None, optional
+        Quantization mode (e.g., "static_ptq"). Used to determine if fallback is needed for e5m2.
 
     Returns
     -------
@@ -127,7 +141,7 @@ def _build_quantizer_cfg(
     assert_supported_dtype(qcfg.dtype)
 
     cfg: Dict[str, Any] = {
-        "num_bits": _dtype_to_num_bits(qcfg.dtype),
+        "num_bits": _dtype_to_num_bits(qcfg.dtype, mode),
     }
     if qcfg.quant_axis is not None:
         cfg["axis"] = qcfg.quant_axis
@@ -311,8 +325,8 @@ def convert_tao_to_modelopt_config(
                     patterns_matched = True
                     _add_module_rules(
                         qual_name,
-                        _build_quantizer_cfg(layer.weights) if layer.weights is not None else None,
-                        _build_quantizer_cfg(layer.activations) if layer.activations is not None else None,
+                        _build_quantizer_cfg(layer.weights, config.mode) if layer.weights is not None else None,
+                        _build_quantizer_cfg(layer.activations, config.mode) if layer.activations is not None else None,
                     )
         # If we did not find a match (e.g., model not provided or pattern unmatched),
         # translate the original pattern into ModelOpt-compliant keys.
@@ -321,14 +335,14 @@ def convert_tao_to_modelopt_config(
             if class_key is not None:
                 _add_class_rules(
                     class_key,
-                    _build_quantizer_cfg(layer.weights) if layer.weights is not None else None,
-                    _build_quantizer_cfg(layer.activations) if layer.activations is not None else None,
+                    _build_quantizer_cfg(layer.weights, config.mode) if layer.weights is not None else None,
+                    _build_quantizer_cfg(layer.activations, config.mode) if layer.activations is not None else None,
                 )
             else:
                 _add_module_rules(
                     layer.module_name,
-                    _build_quantizer_cfg(layer.weights) if layer.weights is not None else None,
-                    _build_quantizer_cfg(layer.activations) if layer.activations is not None else None,
+                    _build_quantizer_cfg(layer.weights, config.mode) if layer.weights is not None else None,
+                    _build_quantizer_cfg(layer.activations, config.mode) if layer.activations is not None else None,
                 )
 
     # Second pass – skip patterns override previously defined rules

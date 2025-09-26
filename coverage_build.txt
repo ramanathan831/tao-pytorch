@@ -11,4 +11,6 @@ RUN echo "import coverage; coverage.process_startup()" > ${hook_file}
 RUN mkdir -p /workspace/code_coverage
 COPY coveragerc /workspace/code_coverage/
 ENV COVERAGE_PROCESS_START="/workspace/code_coverage/coveragerc"
+# Keep container alive in coverage images; tao-launcher will exec into it
+CMD ["tail", "-f", "/dev/null"]
 # ================================================================================================

@@ -65,9 +65,12 @@ def main(cfg: ExperimentConfig) -> None:
     orig_model = pl_model.model
 
     # Prepare calibration dataloader via DataModule
-    dm = CLDataModule(cfg.dataset)
-    dm.setup(stage="calibration")
-    calibration_loader = dm.calib_dataloader()
+    if cfg.quantize.mode != "weight_only_ptq":
+        dm = CLDataModule(cfg.dataset)
+        dm.setup(stage="calibration")
+        calibration_loader = dm.calib_dataloader()
+    else:
+        calibration_loader = None
 
     # Create quantizer and quantize the model
     quantizer = ModelQuantizer(cfg.quantize)

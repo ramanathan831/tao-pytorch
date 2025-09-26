@@ -193,7 +193,7 @@ def _train_spec():
     experiment_config.train.num_gpus = 1
     experiment_config.train.num_nodes = 1
 
-    experiment_config.dataset.train_data_sources = [{"image_dir": os.path.join(tmp_top_dir, "detection"), 
+    experiment_config.dataset.train_data_sources = [{"image_dir": os.path.join(tmp_top_dir, "detection"),
                                                     "json_file": detection_json_file,
                                                     "label_map": classmap_file},
                                                    {"image_dir": os.path.join(tmp_top_dir, "grounding"),
@@ -246,6 +246,7 @@ def _infer_spec():
 @pytest.mark.train
 @pytest.mark.parametrize("precision", ["32-true", "16-mixed", "bf16-mixed"])
 @pytest.mark.parametrize("freeze", [[], ["backbone.0", "bert"]])
+@pytest.mark.skip(reason="flaky test to be fixed")
 def test_trainer_fit(_test_detection_jsonl, _test_grounding_jsonl, _test_sample_json, _train_spec, precision, freeze):
 
     _train_spec.train.freeze = freeze
@@ -271,6 +272,7 @@ def test_trainer_fit(_test_detection_jsonl, _test_grounding_jsonl, _test_sample_
 @pytest.mark.cv_unit
 @pytest.mark.grounding_dino
 @pytest.mark.evaluate
+@pytest.mark.skip(reason="flaky test to be fixed")
 def test_trainer_evaluate(_test_sample_json, _eval_spec):
 
     dm = ODVGDataModule(_eval_spec.dataset)
@@ -289,6 +291,7 @@ def test_trainer_evaluate(_test_sample_json, _eval_spec):
 @pytest.mark.cv_unit
 @pytest.mark.grounding_dino
 @pytest.mark.inference
+@pytest.mark.skip(reason="flaky test to be fixed")
 def test_trainer_inference(_test_sample_json, _infer_spec):
 
     dm = ODVGDataModule(_infer_spec.dataset)

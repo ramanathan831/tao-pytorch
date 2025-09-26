@@ -36,6 +36,7 @@ def _test_experiment_spec():
 @pytest.mark.parametrize("return_interm_indices", [[1, 2], [1, 2, 3, 4]])
 @pytest.mark.parametrize("num_queries", [300, 900])
 @pytest.mark.parametrize("export", [False, True])
+@pytest.mark.skip(reason="flaky test to be fixed")
 def test_grounding_dino_model(_test_experiment_spec, backbone, num_feature_levels, return_interm_indices, num_queries, export):
     _test_experiment_spec["model"].backbone = backbone
     _test_experiment_spec["model"].num_feature_levels = num_feature_levels

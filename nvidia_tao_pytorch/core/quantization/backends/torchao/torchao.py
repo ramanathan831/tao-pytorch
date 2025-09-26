@@ -86,6 +86,13 @@ def _select_weightonly_cfg(dtype: str):
     key = str(dtype).lower()
     # Validate dtype against TAO SupportedDtype for helpful messages first
     assert_supported_dtype(key)
+
+    # Warn when e5m2 is used
+    if key == "fp8_e5m2":
+        tlt_logger.warning(
+            "Float8 e5m2 dtype is being used. Note that weight-only PTQ only supports e4m3 and will fall back to it."
+        )
+
     if key == "int8":
         return Int8WeightOnlyConfig()
     # Both FP8 variants map to Float8WeightOnlyConfig in TorchAO
