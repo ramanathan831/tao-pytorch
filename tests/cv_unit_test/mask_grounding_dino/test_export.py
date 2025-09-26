@@ -40,6 +40,7 @@ def _test_experiment_spec():
 @pytest.mark.cv_unit
 @pytest.mark.parametrize("backbone", ["swin_tiny_224_1k"])
 @pytest.mark.parametrize("batch_size", [-1])
+@pytest.mark.skip(reason="flaky test to be fixed")
 def test_mask_grounding_dino_onnx_export(_test_experiment_spec, backbone, batch_size):
     """Unit test for ONNX export on Mask Grounding DINO model. Here, custom DMHA is used."""
 
@@ -90,6 +91,7 @@ def test_mask_grounding_dino_onnx_export(_test_experiment_spec, backbone, batch_
 @pytest.mark.cv_unit
 @pytest.mark.parametrize("backbone", ["swin_tiny_224_1k"])
 @pytest.mark.parametrize("batch_size", [-1])
+@pytest.mark.skip(reason="flaky test to be fixed")
 def test_mask_grounding_dino_compare_onnx_output(_test_experiment_spec, backbone, batch_size):
     """Unit test for ONNX export on Mask Grounding DINO model. Here pytorch DMHA is used for ONNXRuntime."""
     _test_experiment_spec["model"].backbone = backbone

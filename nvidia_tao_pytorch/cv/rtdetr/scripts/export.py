@@ -148,7 +148,7 @@ def run_export(experiment_config):
 
         # Write classes file
         classes_file = os.path.join(output_root, "labels.txt")
-        write_classes_file(classes_file, class_names)
+        write_classes_file(classes_file, class_names, delimiter='\n')
 
         # Generate nvdsinfer yaml
         nvdsinfer_yaml_file = os.path.join(output_root, "nvdsinfer_config.yaml")
