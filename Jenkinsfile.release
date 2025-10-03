@@ -1,5 +1,5 @@
 // Global variables - Version is passed to release/update_version.py to patch build files
-def TAO_VERSION = params.TAO_VERSION ?: "6.25.9"
+def TAO_VERSION = params.TAO_VERSION ?: "6.25.10"
 def BUILD_TYPE = "rc"
 
 // Normalize patch segment if TAO_VERSION is provided via params (e.g., 6.25.09 -> 6.25.9)
