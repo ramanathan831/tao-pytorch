@@ -23,13 +23,12 @@ from nvidia_tao_pytorch.core.utilities import update_results_dir
 
 # Import Hydra exception classes for config error handling
 try:
-    from hydra.errors import ConfigCompositionException, MissingConfigException, HydraError
+    from hydra.errors import ConfigCompositionException, MissingConfigException
     from omegaconf.errors import ConfigKeyError, MissingMandatoryValue, UnsupportedInterpolationType
 except ImportError:
     # Fallback for older versions or if imports fail
     ConfigCompositionException = Exception
     MissingConfigException = Exception
-    HydraError = Exception
     ConfigKeyError = Exception
     MissingMandatoryValue = Exception
     UnsupportedInterpolationType = Exception
@@ -86,7 +85,6 @@ def monitor_status(name='module name', mode='train'):
             except (
                 ConfigCompositionException,
                 MissingConfigException,
-                HydraError,
                 ConfigKeyError,
                 MissingMandatoryValue,
                 UnsupportedInterpolationType,
