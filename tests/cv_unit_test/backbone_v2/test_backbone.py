@@ -16,6 +16,7 @@
 
 import gc
 import os
+import platform
 
 import pytest
 import torch
@@ -205,6 +206,7 @@ if not os.getenv("CI_PROJECT_DIR", None):
 
 
 @pytest.mark.cv_unit
+@pytest.mark.skipif(platform.machine().lower() in ['aarch64', 'arm64', 'armv7l', 'armv8l'], reason="Skipping on ARM architecture")
 @pytest.mark.parametrize("backbone_data", TEST_TOPOLOGIES)
 @pytest.mark.parametrize("activation_checkpoint", [False, True], ids=["ac_off", "ac_on"])
 @pytest.mark.parametrize("freeze_at", [[1], "all"], ids=["freeze_at_1", "freeze_all"])

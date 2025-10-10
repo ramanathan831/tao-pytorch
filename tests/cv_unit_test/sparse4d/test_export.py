@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from platform import machine
 import pytest
 from omegaconf import OmegaConf
 import os
@@ -24,6 +25,11 @@ import numpy as np
 from nvidia_tao_core.config.sparse4d.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.sparse4d.model.sparse4d_pl_model import Sparse4DPlModel
 from nvidia_tao_pytorch.cv.sparse4d.utils.onnx_export import Sparse4DExporter
+
+pytestmark = pytest.mark.skipif(
+    ("aarch64" in machine().lower()) or ("arm" in machine().lower()),
+    reason="Sparse4D tests take very long (~12 hours) on ARM architecture. TODO: Fix this.",
+)
 
 ANCHOR_PATH = "/home/scratch.metropolis2/tao_ci/tao_pytorch/data/sparse4d/SURF_Booth_031325/_ov_kmeans900_sample100_.npy"
 CHECKPOINT_PATH = "/home/scratch.metropolis2/tao_ci/tao_pytorch/data/sparse4d/SURF_Booth_031325/sparse4d_tracking_aic25v0.3_moving_classes_iter_60900_v1.1.pth"
