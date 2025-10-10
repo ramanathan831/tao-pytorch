@@ -12,10 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from platform import machine
 import pytest
 from omegaconf import OmegaConf
 from nvidia_tao_core.config.sparse4d.default_config import ExperimentConfig, Omniverse3DDetTrackDatasetConfig, Sparse4DModelConfig
 from nvidia_tao_pytorch.cv.sparse4d.model.sparse4d_pl_model import Sparse4DPlModel
+
+# Skip Sparse4D tests on ARM due to extremely long runtime
+pytestmark = pytest.mark.skipif(
+    ("aarch64" in machine().lower()) or ("arm" in machine().lower()),
+    reason="Sparse4D tests take very long (~12 hours) on ARM architecture. TODO: Fix this.",
+)
 
 @pytest.fixture
 def _test_experiment_spec():

@@ -1,4 +1,4 @@
-ARG PYTORCH_BASE_IMAGE=nvcr.io/nvidia/pytorch:25.01-py3
+ARG PYTORCH_BASE_IMAGE=nvcr.io/nvidia/pytorch:25.09-py3
 FROM ${PYTORCH_BASE_IMAGE}
 
 # Ensure apt-get won't prompt for selecting options
@@ -18,48 +18,6 @@ RUN wget https://github.com/kubernetes-client/python/archive/refs/tags/v23.6.0.z
     pip install --disable-pip-version-check -r requirements.txt && \
     python setup.py install
 
-ARG TRT_VERSION_MAJOR=10
-ARG TRT_VERSION_MINOR=8
-ARG TRT_VERSION_PATCH=0
-ARG TRT_VERSION_BUILD=40
-
-ARG TRT_VERSION_MAJOR_MINOR=$TRT_VERSION_MAJOR.$TRT_VERSION_MINOR
-ARG TRT_VERSION_MAJOR_MINOR_PATCH=$TRT_VERSION_MAJOR.$TRT_VERSION_MINOR.$TRT_VERSION_PATCH
-ARG TRT_VERSION_FULL=$TRT_VERSION_MAJOR_MINOR_PATCH.$TRT_VERSION_BUILD
-
-ARG CUDA_VERSION_MAJOR=12
-ARG CUDA_VERSION_MINOR=8
-ARG CUDA_VERSION_PATCH=0
-ARG CUDA_VERSION_BUILD=038
-ARG CUDA_VERSION_MAJOR_MINOR=$CUDA_VERSION_MAJOR.$CUDA_VERSION_MINOR
-ARG CUDA_VERSION_FULL=$CUDA_VERSION_MAJOR_MINOR.$CUDA_VERSION_PATCH.$CUDA_VERSION_BUILD
-ARG CUDNN_VERSION=9.7.0.66
-
-ENV TRT_VERSION=$TRT_VERSION_FULL+cuda$CUDA_VERSION_FULL
-
-# Installing custom packages in /opt.
-WORKDIR /opt
-
-# Clone and checkout TensorRT OSS
-ENV TRT_TAG="release/$TRT_VERSION_MAJOR_MINOR"
-# Install TRT OSS
-RUN mkdir trt_oss_src && \
-  cd trt_oss_src && \
-  echo "$PWD Building TRT OSS..." && \
-  git clone -b $TRT_TAG https://github.com/NVIDIA/TensorRT.git TensorRT && \
-  cd TensorRT && \
-  git submodule update --init --recursive && \
-  mkdir -p build && cd build  && \
-  cmake .. \
-    -DTRT_LIB_DIR=/usr/lib/$(uname -p)-linux-gnu \
-    -DTRT_OUT_DIR=`pwd`/out \
-    -DCUDA_VERSION=$CUDA_VERSION_MAJOR_MINOR \
-    -DCUDNN_VERSION=$CUDNN_VERSION && \
-  make -j16 nvinfer_plugin nvinfer_plugin_static && \
-  cp out/libnvinfer_plugin.so.$TRT_VERSION_MAJOR_MINOR_PATCH /usr/lib/$(uname -p)-linux-gnu/libnvinfer_plugin.so.$TRT_VERSION_MAJOR_MINOR_PATCH && \
-  cp out/libnvinfer_plugin_static.a /usr/lib/$(uname -p)-linux-gnu/libnvinfer_plugin_static.a && \
-  cd ../../../ && \
-  rm -rf trt_oss_src
 
 COPY docker/requirements-pip.txt requirements-pip.txt
 RUN  pip install --upgrade pip \
@@ -74,18 +32,36 @@ COPY docker/requirements-pip-odise.txt requirements-pip-odise.txt
 RUN pip install --ignore-installed --no-deps -r requirements-pip-odise.txt \
   && rm requirements-pip-odise.txt
 
+##################
+## build xformers
+##################
+
 # Adding 9.0a to the list of supported architectures.
 ENV TORCH_CUDA_ARCH_LIST="7.5 8.0 8.6 9.0 9.0a 10.0 12.0+PTX"
-RUN mkdir xformers_src && \
+ENV GPU_ARCHS="75 80 86 90 90a 100 120"
+
+
+# flash attention issue: https://nvbugspro.nvidia.com/bug/5440235
+ENV NVCC_FLAGS="--ptxas-options=-O2 --ptxas-options=-v"
+
+COPY docker/xformers xformers_src
+
+RUN echo "======Start building xformers from vllm gitlab repository======" && \
   cd xformers_src && \
-  git clone --recursive https://github.com/facebookresearch/xformers.git && \
-  cd xformers && \
-  git checkout v0.0.29.post2 && \
-  git submodule update --init --recursive && \
-  echo '' > requirements.txt && \
-  MAX_JOBS=16 pip install . && \
-  cd ../../ && \
-  rm -rf xformers_src
+  echo "======Calculating MAX_JOBS to build xformers parallelly======" && \
+  # TLT-5330: 90 GB overhead, 20 GB/job, 4 job min and ${max_cpu} job max
+  total_mem_gb=$(grep MemFree /proc/meminfo | awk '{print int($2 / 1024 / 1024)}'); \
+  max_jobs=$(( (total_mem_gb - 90) / 20 )); \
+  max_jobs=$(( max_jobs < 4 ? 4 : max_jobs )); \
+  max_jobs=$(( max_jobs > $(nproc) ? $(nproc) : max_jobs )); \
+  echo "======Using MAX_JOBS=${max_jobs} to build xformers======" && \
+  MAX_JOBS=${max_jobs} python setup.py bdist_wheel -d build/ && \
+  pip install --no-deps build/xformers*.whl && \
+  cd ../ && \
+  rm -rf xformers_src && \
+  echo "======Xformers built and installed successfully======"
+
+
 
 # Setup user account
 ARG uid=1000
