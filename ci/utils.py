@@ -17,6 +17,8 @@
 import json
 import os
 
+from nvidia_tao_pytorch.core.platform_utils import get_platform_digest
+
 
 def configure_env():
     """Get the env configuration."""
@@ -57,7 +59,8 @@ def get_docker_information(manifest_file):
     with open(manifest_file, "r") as m_file:
         docker_config = json.load(m_file)
 
-    return docker_config["registry"], docker_config["repository"], docker_config["digest"]
+    digest = get_platform_digest(docker_config)
+    return docker_config["registry"], docker_config["repository"], digest
 
 
 def get_docker_command(manifest_file, tag):
