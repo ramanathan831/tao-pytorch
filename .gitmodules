@@ -4,6 +4,3 @@
 [submodule "tao-core"]
 	path = tao-core
 	url = ../tao-core.git
-[submodule "docker/xformers"]
-	path = docker/xformers
-	url = https://gitlab-master.nvidia.com/dl/vllm/xformers.git
