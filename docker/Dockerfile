@@ -36,6 +36,9 @@ RUN pip install --ignore-installed --no-deps -r requirements-pip-odise.txt \
 ## build xformers
 ##################
 
+# Xformers commit hash
+ARG XFORMERS_COMMIT_HASH=c0eb310a0afbf782b8947501e4f835e30b5a47b1
+
 # Adding 9.0a to the list of supported architectures.
 ENV TORCH_CUDA_ARCH_LIST="7.5 8.0 8.6 9.0 9.0a 10.0 12.0+PTX"
 ENV GPU_ARCHS="75 80 86 90 90a 100 120"

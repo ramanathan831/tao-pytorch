@@ -3,6 +3,23 @@
 set -eo pipefail
 cd "$( dirname "${BASH_SOURCE[0]}" )"
 
+# Set up a trap to clean up the xformers directory on exit
+trap 'rm -rf xformers' EXIT
+
+# Extract xformers commit hash from Dockerfile
+XFORMERS_COMMIT=$(grep "ARG XFORMERS_COMMIT_HASH=" Dockerfile | cut -d'=' -f2)
+echo "Using xformers commit: $XFORMERS_COMMIT"
+
+# Clone xformers
+echo "Cloning xformers..."
+git clone https://gitlab-master.nvidia.com/dl/vllm/xformers.git xformers
+cd xformers
+git checkout $XFORMERS_COMMIT
+git submodule update --init --recursive
+cd ..
+echo "Cloning xformers complete."
+
+
 registry="nvcr.io"
 repository="nvstaging/tao/tao_pytorch_base_image"
 
