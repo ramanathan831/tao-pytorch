@@ -18,7 +18,6 @@ from torch import nn
 from torch.nn import functional as F
 from einops import rearrange
 from nvidia_tao_pytorch.cv.oneformer.model.backbone.swin import D2SwinTransformer
-from nvidia_tao_pytorch.cv.oneformer.model.backbone.dinat import D2DiNAT
 from nvidia_tao_pytorch.cv.oneformer.model.transformer_decoder.text_transformer import (
     TextTransformer,
 )
@@ -313,9 +312,6 @@ class OneFormerModel(nn.Module):
 
         if backbone_type == "D2SwinTransformer":
             backbone = D2SwinTransformer(cfg, input_shape=None)
-            self.backbone_feature_shape = backbone.output_shape()
-        elif backbone_type == "D2DiNAT":
-            backbone = D2DiNAT(cfg, input_shape=None)
             self.backbone_feature_shape = backbone.output_shape()
         # elif backbone_type == "D2RADIO":
         #     backbone = D2RADIO(cfg, input_shape=None)

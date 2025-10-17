@@ -161,7 +161,7 @@ def build_pixel_decoder(cfg, input_shape):
             transformer_in_features=cfg.model.sem_seg_head.in_features,
             common_stride=cfg.model.sem_seg_head.common_stride,
             norm=cfg.model.sem_seg_head.norm,
-            export=getattr(cfg, "export", False),
+            export=cfg.model.export,
         )
     else:
         raise ValueError(f"Unknown pixel decoder: {name}")
