@@ -24,7 +24,7 @@ from nvidia_tao_pytorch.cv.oneformer.model.transformer_decoder.text_transformer 
 from nvidia_tao_pytorch.cv.oneformer.model.transformer_decoder.oneformer_transformer_decoder import (
     MLP,
 )
-from nvidia_tao_pytorch.cv.oneformer.model.tokenizer import SimpleTokenizer, Tokenize
+from nvidia_tao_pytorch.cv.oneformer.model.tokenizer import Tokenize
 
 
 class Postprocessor(nn.Module):
@@ -287,12 +287,8 @@ class OneFormerModel(nn.Module):
             self.prompt_ctx = None
 
         # Tokenizers
-        self.text_tokenizer = Tokenize(
-            SimpleTokenizer(), max_seq_len=cfg.dataset.max_seq_len
-        )
-        self.task_tokenizer = Tokenize(
-            SimpleTokenizer(), max_seq_len=cfg.dataset.task_seq_len
-        )
+        self.text_tokenizer = Tokenize(max_seq_len=cfg.dataset.max_seq_len)
+        self.task_tokenizer = Tokenize(max_seq_len=cfg.dataset.task_seq_len)
 
         # Postprocessor
         use_post_processor = getattr(cfg.model, "export", False)
