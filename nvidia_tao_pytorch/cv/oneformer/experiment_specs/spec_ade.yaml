@@ -1,4 +1,4 @@
-results_dir: nvidia_tao_pytorch/cv/oneformer/checkpoints/coco/swin
+results_dir: nvidia_tao_pytorch/cv/oneformer/checkpoints/ade/swin
 
 dataset:
   train:
@@ -19,6 +19,7 @@ dataset:
     panoptic: /workspace/datasets/ADEChallengeData2016/ade20k_panoptic_val
     batch_size: 4
     num_workers: 4
+  label_map: /workspace/datasets/coco/label_map.json
   image_size: 1024
   cutmix_prob: 0.0
 
@@ -53,8 +54,7 @@ train:
   num_epochs: 100
   num_gpus: 8
   num_nodes: 1
-  resume: nvidia_tao_pytorch/cv/oneformer/checkpoints/ade/swin/train/last.ckpt
-  pretrained_model: nvidia_tao_pytorch/cv/oneformer/checkpoints/ade/swin/pretrained_weight.pth
+  pretrained_model: nvidia_tao_pytorch/cv/oneformer/checkpoints/ade/swin/896x896_250_16_swin_l_oneformer_ade20k_160k.pth
   pretrained_backbone:
-  precision: '16-mixed'
+  precision: 16-mixed
   iters_per_epoch: 15000
