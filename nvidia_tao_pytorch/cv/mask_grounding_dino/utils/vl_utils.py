@@ -32,7 +32,8 @@ def create_positive_map(tokenized, tokens_positive, cat_list, caption, empty=Fal
     if empty:
         return positive_map
 
-    tokens = tokenized.tokens  # list of wordpiece tokens like ['[CLS]', 'dolls', ',', 'book', ...]
+    # Handle Encoding (has .tokens as list property), list of wordpiece tokens like ['[CLS]', 'dolls', ',', 'book', ...]
+    tokens = tokenized.tokens  # Encoding: direct property access
     lowered_tokens = [t.lower() for t in tokens]
 
     for j, label_idx in enumerate(tokens_positive):
