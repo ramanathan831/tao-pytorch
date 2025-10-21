@@ -27,9 +27,9 @@ conv_layer = nn.Conv2d(3, 64, 3)
 linear_layer = nn.Linear(10, 20)
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(autouse=False)
 def mock_all_backend_dependencies():
-    """Automatically mock all backend dependencies for all tests."""
+    """Mock all backend dependencies for tests that need quantization imports."""
     with patch.dict('sys.modules', {
         'torchao': Mock(),
         'torchao.quantization': Mock(),
@@ -38,11 +38,12 @@ def mock_all_backend_dependencies():
         'modelopt.torch.quantization': Mock(),
         'modelopt.torch.opt': Mock(),
         'nvidia_tao_core.config.common.quantization.default_config': Mock(),
-    }), patch('nvidia_tao_pytorch.core.tlt_logging.logging') as mock_logging:
+    }, clear=False), patch('nvidia_tao_pytorch.core.tlt_logging.logging') as mock_logging:
         mock_logging.info.return_value = None
         mock_logging.debug.return_value = None
         mock_logging.warning.return_value = None
         yield
+        # Explicit cleanup is handled by context manager exit
 
 
 @pytest.fixture
@@ -145,7 +146,7 @@ def test_match_layer_input_validation():
         match_layer(conv_layer, "some_name", "")
 
 
-def test_match_layer_with_mocked_dependencies():
+def test_match_layer_with_mocked_dependencies(mock_all_backend_dependencies):
     """Test that match_layer works correctly with mocked backend dependencies."""
     # This test ensures that the match_layer function works independently
     # of any backend dependencies that might be imported elsewhere
@@ -255,7 +256,7 @@ def make_experiment_config(backend="torchao"):
 
 
 @patch('nvidia_tao_pytorch.core.quantization.quantizer.ModelQuantizer')
-def test_create_quantized_model_from_config_basic(mock_quantizer_class, tmp_path, mock_torch_load):
+def test_create_quantized_model_from_config_basic(mock_quantizer_class, tmp_path, mock_torch_load, mock_all_backend_dependencies):
     """Test basic functionality of create_quantized_model_from_config."""
     # Setup mock quantizer
     mock_quantizer = Mock()
@@ -284,7 +285,7 @@ def test_create_quantized_model_from_config_basic(mock_quantizer_class, tmp_path
 
 
 @patch('nvidia_tao_pytorch.core.quantization.quantizer.ModelQuantizer')
-def test_create_quantized_model_from_config_with_kwargs(mock_quantizer_class, tmp_path, mock_torch_load):
+def test_create_quantized_model_from_config_with_kwargs(mock_quantizer_class, tmp_path, mock_torch_load, mock_all_backend_dependencies):
     """Test create_quantized_model_from_config with additional kwargs."""
     # Setup mock quantizer
     mock_quantizer = Mock()
@@ -313,7 +314,7 @@ def test_create_quantized_model_from_config_with_kwargs(mock_quantizer_class, tm
     mock_quantizer.quantize_model.assert_called_once()
 
 
-def test_create_quantized_model_from_config_missing_experiment_config(tmp_path):
+def test_create_quantized_model_from_config_missing_experiment_config(tmp_path, mock_all_backend_dependencies):
     """Test create_quantized_model_from_config with missing experiment_config."""
     ckpt_path = tmp_path / "model.pth"
     torch.save({"weight": torch.tensor(42)}, ckpt_path)
@@ -323,7 +324,7 @@ def test_create_quantized_model_from_config_missing_experiment_config(tmp_path):
 
 
 @patch('nvidia_tao_pytorch.core.quantization.quantizer.ModelQuantizer')
-def test_create_quantized_model_from_config_modelopt_backend(mock_quantizer_class, tmp_path):
+def test_create_quantized_model_from_config_modelopt_backend(mock_quantizer_class, tmp_path, mock_all_backend_dependencies):
     """Test create_quantized_model_from_config with modelopt backend and model_state_dict."""
     # Setup mock quantizer
     mock_quantizer = Mock()
@@ -356,7 +357,7 @@ def test_create_quantized_model_from_config_modelopt_backend(mock_quantizer_clas
 
 
 @patch('nvidia_tao_pytorch.core.quantization.quantizer.ModelQuantizer')
-def test_create_quantized_model_from_config_torchao_backend(mock_quantizer_class, tmp_path):
+def test_create_quantized_model_from_config_torchao_backend(mock_quantizer_class, tmp_path, mock_all_backend_dependencies):
     """Test create_quantized_model_from_config with torchao backend."""
     # Setup mock quantizer
     mock_quantizer = Mock()
@@ -389,7 +390,7 @@ def test_create_quantized_model_from_config_torchao_backend(mock_quantizer_class
 
 
 @patch('nvidia_tao_pytorch.core.quantization.quantizer.ModelQuantizer')
-def test_create_quantized_model_from_config_error_handling(mock_quantizer_class, tmp_path):
+def test_create_quantized_model_from_config_error_handling(mock_quantizer_class, tmp_path, mock_all_backend_dependencies):
     """Test create_quantized_model_from_config error handling."""
     # Setup mock quantizer to raise an exception
     mock_quantizer = Mock()
@@ -409,7 +410,7 @@ def test_create_quantized_model_from_config_error_handling(mock_quantizer_class,
 
 
 @patch('nvidia_tao_pytorch.core.quantization.quantizer.ModelQuantizer')
-def test_create_quantized_model_from_config_file_not_found(mock_quantizer_class, tmp_path):
+def test_create_quantized_model_from_config_file_not_found(mock_quantizer_class, tmp_path, mock_all_backend_dependencies):
     """Test create_quantized_model_from_config with non-existent file."""
     # Setup mock quantizer
     mock_quantizer = Mock()

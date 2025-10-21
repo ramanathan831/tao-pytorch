@@ -26,7 +26,7 @@ from nvidia_tao_pytorch.core.quantization import (  # noqa: E402
     get_backend_class,
     register_backend,
 )
-from nvidia_tao_pytorch.core.quantization.backends.modelopt.utils import (  # noqa: E402
+from nvidia_tao_pytorch.core.quantization.utils import (  # noqa: E402
     build_model_quant_config_from_omegaconf,
 )
 from nvidia_tao_pytorch.core.quantization.backends.modelopt.utils import (  # noqa: E402

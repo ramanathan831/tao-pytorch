@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 import os
 import tempfile
 import pytest
@@ -12,7 +12,7 @@ from nvidia_tao_pytorch.core.quantization import (
     get_registry_manager,
     get_backend_class,
 )
-from nvidia_tao_pytorch.core.quantization.backends.modelopt.utils import (
+from nvidia_tao_pytorch.core.quantization.utils import (
     build_model_quant_config_from_omegaconf,
 )
 
@@ -50,11 +50,19 @@ def _ensure_torchao_registered():
 
     Uses proper module patching and manual registration instead of reloading.
     """
-    from nvidia_tao_pytorch.core.quantization.backends.torchao.torchao import TorchAOBackend
-    from nvidia_tao_pytorch.core.quantization import register_backend
+    # Mock the torchao imports before importing the backend
+    with patch.multiple(
+        "torchao.quantization",
+        Float8WeightOnlyConfig=lambda: MagicMock(),
+        Int8WeightOnlyConfig=lambda: MagicMock(),
+        AOPerModuleConfig=MagicMock,
+        quantize_=MagicMock(return_value=MagicMock()),
+    ):
+        from nvidia_tao_pytorch.core.quantization.backends.torchao.torchao import TorchAOBackend
+        from nvidia_tao_pytorch.core.quantization import register_backend
 
-    # Manually register the backend to avoid module reloading
-    register_backend("torchao")(TorchAOBackend)
+        # Manually register the backend to avoid module reloading
+        register_backend("torchao")(TorchAOBackend)
 
 
 class ToyModel(nn.Module):
@@ -73,7 +81,7 @@ def test_torchao_backend_prepare_and_quantize_int8():
 
     torchao_mocks = _create_torchao_mocks()
     with patch.multiple(
-        "nvidia_tao_pytorch.core.quantization.backends.torchao.torchao",
+        "torchao.quantization",
         **torchao_mocks
     ):
         _ensure_torchao_registered()
@@ -111,7 +119,7 @@ def test_torchao_backend_quantize_fp8_and_skip():
 
     torchao_mocks = _create_torchao_mocks()
     with patch.multiple(
-        "nvidia_tao_pytorch.core.quantization.backends.torchao.torchao",
+        "torchao.quantization",
         **torchao_mocks
     ):
         _ensure_torchao_registered()
@@ -149,7 +157,7 @@ def test_torchao_backend_weights_native_disables_quantization():
 
     torchao_mocks = _create_torchao_mocks()
     with patch.multiple(
-        "nvidia_tao_pytorch.core.quantization.backends.torchao.torchao",
+        "torchao.quantization",
         **torchao_mocks
     ):
         _ensure_torchao_registered()
@@ -186,7 +194,7 @@ def test_torchao_backend_save_model(tmp_path=None):
 
     torchao_mocks = _create_torchao_mocks()
     with patch.multiple(
-        "nvidia_tao_pytorch.core.quantization.backends.torchao.torchao",
+        "torchao.quantization",
         **torchao_mocks
     ):
         _ensure_torchao_registered()

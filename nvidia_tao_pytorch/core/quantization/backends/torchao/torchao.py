@@ -27,7 +27,7 @@ Notes
 
 from __future__ import annotations
 
-from typing import Dict
+from typing import Dict, Optional, Any
 import copy
 
 import torch.nn as nn
@@ -178,11 +178,41 @@ class TorchAOBackend(QuantizerBase):
     This backend constructs a per-module weight-only quantization configuration
     for TorchAO and invokes ``quantize_`` to perform in-place quantization on a
     deep-copied model instance.
+
+    Parameters
+    ----------
+    backend_kwargs : dict, optional
+        Additional keyword arguments to pass to the TorchAO backend.
+        These parameters will be merged with the TorchAO configuration
+        before calling TorchAO quantization.
+
+    Attributes
+    ----------
+    backend_name : str
+        Name identifier for this backend ("torchao").
+    _logger : Logger
+        TAO logging instance for this backend.
+    _backend_kwargs : dict
+        Additional backend-specific parameters.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, backend_kwargs: Optional[Dict[str, Any]] = None) -> None:
+        """Initialize the TorchAO backend.
+
+        Parameters
+        ----------
+        backend_kwargs : dict, optional
+            Additional keyword arguments to pass to the TorchAO backend.
+            These parameters will be merged with the TorchAO configuration
+            before calling TorchAO quantization.
+
+        Returns
+        -------
+        None
+        """
         self._logger = tlt_logger
         self.backend_name = "torchao"
+        self._backend_kwargs = backend_kwargs or {}
 
     def prepare(self, model: nn.Module, config: ModelQuantizationConfig) -> nn.Module:
         """Validate inputs and return the model unchanged.
@@ -223,14 +253,14 @@ class TorchAOBackend(QuantizerBase):
                 "by the torchao backend and will be ignored."
             )
 
-        self._logger.debug("TorchAOBackend.prepare: validation complete; returning model unchanged")
         return model
 
     def quantize(self, model: nn.Module, config: ModelQuantizationConfig) -> nn.Module:
         """Quantize a model using TorchAO weight-only APIs.
 
         Translates the TAO configuration into an ``AOPerModuleConfig`` mapping
-        and invokes ``torchao.quantization.quantize_``.
+        and invokes ``torchao.quantization.quantize_``. Additional backend-specific
+        parameters from backend_kwargs are merged with the TorchAO configuration.
 
         Parameters
         ----------
@@ -243,6 +273,11 @@ class TorchAOBackend(QuantizerBase):
         -------
         torch.nn.Module
             Quantized model (a deep copy of the input model).
+
+        Notes
+        -----
+        The backend_kwargs are passed directly to the TorchAO quantize_ function.
+        Any parameters in backend_kwargs will be forwarded to the underlying TorchAO call.
         """
         if not isinstance(model, nn.Module):
             raise TypeError("model must be an instance of torch.nn.Module")
@@ -260,11 +295,13 @@ class TorchAOBackend(QuantizerBase):
 
         module_map = _build_module_fqn_to_cfg(model, config)
 
+        # Create AOPerModuleConfig with module mapping
         ao_cfg = AOPerModuleConfig(module_fqn_to_config=module_map)
 
         quantized_model = copy.deepcopy(model)
-        quantize_(quantized_model, ao_cfg)
-        self._logger.info("TorchAO quantization complete")
+
+        quantize_(quantized_model, ao_cfg, **self._backend_kwargs)
+
         return quantized_model
 
     def save_model(self, model: nn.Module, path: str) -> None:
@@ -287,7 +324,7 @@ class TorchAOBackend(QuantizerBase):
 
         # Save state_dict for portability
         torch.save(model.state_dict(), save_path)
-        self._logger.info("Quantized model state_dict saved to: %s", save_path)
+        self._logger.info("Model saved to: %s", save_path)
 
 
 __all__ = ["TorchAOBackend"]

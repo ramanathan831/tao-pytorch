@@ -50,7 +50,6 @@ from __future__ import annotations
 from typing import Dict, Any, Tuple
 
 import torch.nn as nn
-from omegaconf import OmegaConf, DictConfig
 from nvidia_tao_pytorch.core.tlt_logging import logger as tlt_logger
 
 from nvidia_tao_pytorch.core.quantization.utils import match_layer
@@ -61,12 +60,10 @@ from nvidia_tao_pytorch.core.quantization import (
     WeightQuantizationConfig,
     ActivationQuantizationConfig,
 )
-from nvidia_tao_pytorch.core.quantization.constants import QuantizationMode
 from nvidia_tao_pytorch.core.quantization.validation import assert_supported_dtype
 
 __all__ = [
     "convert_tao_to_modelopt_config",
-    "build_model_quant_config_from_omegaconf",
 ]
 
 
@@ -146,92 +143,6 @@ def _build_quantizer_cfg(
     if qcfg.quant_axis is not None:
         cfg["axis"] = qcfg.quant_axis
     return cfg
-
-
-def _normalize_dtype(dtype: str) -> str:
-    """Normalize dtype strings from YAML/OmegaConf.
-
-    Converts the prefix "float8_" to "fp8_" to match internal expectations.
-
-    Parameters
-    ----------
-    dtype : str
-        Input dtype string.
-
-    Returns
-    -------
-    str
-        Normalized dtype string.
-    """
-    return dtype.replace("float8_", "fp8_") if isinstance(dtype, str) else dtype
-
-
-def build_model_quant_config_from_omegaconf(qcfg: DictConfig | dict) -> ModelQuantizationConfig:
-    """Construct a ``ModelQuantizationConfig`` from an OmegaConf config or dict.
-
-    Normalizes dtype strings (e.g., "float8_*" -> "fp8_*") and builds the corresponding TAO
-    dataclasses.
-
-    Parameters
-    ----------
-    qcfg : omegaconf.DictConfig | dict
-        User-provided configuration.
-
-    Returns
-    -------
-    ModelQuantizationConfig
-        Normalized TAO quantization configuration object.
-    """
-    cfg_dict = (
-        OmegaConf.to_container(qcfg, resolve=True)
-        if hasattr(qcfg, "_get_full_key")
-        else dict(qcfg)
-    )
-
-    layers: list[LayerQuantizationConfig] = []
-    for layer in cfg_dict.get("layers", []) or []:
-        weights_cfg = None
-        if isinstance(layer.get("weights"), dict):
-            w = dict(layer["weights"])  # shallow copy
-            if "dtype" in w:
-                w["dtype"] = _normalize_dtype(w["dtype"])
-            weights_cfg = WeightQuantizationConfig(**w)
-
-        activations_cfg = None
-        if isinstance(layer.get("activations"), dict):
-            a = dict(layer["activations"])  # shallow copy
-            if "dtype" in a:
-                a["dtype"] = _normalize_dtype(a["dtype"])
-            activations_cfg = ActivationQuantizationConfig(**a)
-
-        layers.append(
-            LayerQuantizationConfig(
-                module_name=layer["module_name"],
-                weights=weights_cfg,
-                activations=activations_cfg,
-            )
-        )
-
-    # Normalize/validate mode: accept enum name or string
-    mode_value = cfg_dict.get("mode", "static_ptq")
-    if isinstance(mode_value, QuantizationMode):
-        normalized_mode = mode_value.name.lower()
-    else:
-        normalized_mode = str(mode_value).lower()
-
-    # Normalise algorithm, if provided. Keep None if unspecified to allow defaults downstream.
-    algorithm_value = cfg_dict.get("algorithm", None)
-    normalized_algorithm = None
-    if algorithm_value is not None:
-        normalized_algorithm = str(algorithm_value).lower()
-
-    return ModelQuantizationConfig(
-        backend=cfg_dict.get("backend", "modelopt"),
-        layers=layers,
-        skip_names=cfg_dict.get("skip_names", []) or [],
-        mode=normalized_mode,
-        algorithm=normalized_algorithm,
-    )
 
 
 def convert_tao_to_modelopt_config(

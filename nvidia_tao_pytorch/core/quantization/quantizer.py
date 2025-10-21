@@ -38,7 +38,7 @@ except Exception:
 from nvidia_tao_core.config.common.quantization.default_config import (
     ModelQuantizationConfig,
 )
-from nvidia_tao_pytorch.core.quantization.backends.modelopt.utils import build_model_quant_config_from_omegaconf
+from nvidia_tao_pytorch.core.quantization.utils import build_model_quant_config_from_omegaconf
 from torch.utils.data import DataLoader
 
 
@@ -103,11 +103,11 @@ class ModelQuantizer:
                 f"Backend '{self.config.backend}' must be a subclass of QuantizerBase, "
                 f"but got {self.backend_class}"
             )
-        self.quantizer: QuantizerBase = self.backend_class()
+        self.quantizer: QuantizerBase = self.backend_class(self.config.backend_kwargs)
         self.prepared_model: Optional[nn.Module] = None
         self.quantized_model: Optional[nn.Module] = None
 
-        logger.info(f"Quantization backend selected: {self.config.backend}")
+        logger.info(f"Initialized quantization with backend: {self.config.backend}")
 
     def prepare(self, model: nn.Module) -> nn.Module:
         """Prepare the model for quantization.
@@ -122,12 +122,10 @@ class ModelQuantizer:
         torch.nn.Module
             Prepared model (e.g., after observer/fake-quant insertion depending on backend).
         """
-        if not isinstance(model, nn.Module):
+        if not isinstance(model, nn.Module) and model is not None:
             raise TypeError("model must be an instance of torch.nn.Module")
 
-        logger.debug("Preparing model for quantization...")
         self.prepared_model = self.quantizer.prepare(model, self.config)
-        logger.info("Model preparation complete")
         return self.prepared_model
 
     def calibrate(self, model: nn.Module, dataloader: DataLoader) -> None:
@@ -145,9 +143,7 @@ class ModelQuantizer:
         If the selected backend does not support calibration, this call is a no-op with a warning.
         """
         if isinstance(self.quantizer, Calibratable):
-            logger.info("Starting calibration phase")
             self.quantizer.calibrate(model, dataloader)
-            logger.info("Calibration setup complete")
         else:
             logger.warning(
                 f"Backend '{self.config.backend}' does not support calibration; skipping calibration phase"
@@ -167,13 +163,9 @@ class ModelQuantizer:
             Quantized model.
         """
         if model is None:
-            if self.prepared_model is None:
-                raise ValueError("No model has been prepared. Call prepare() first.")
             model = self.prepared_model
 
-        logger.info("Quantizing model...")
         self.quantized_model = self.quantizer.quantize(model, self.config)
-        logger.info("Quantization complete")
         return self.quantized_model
 
     def save_model(self, model: Optional[nn.Module] = None, path: str = "") -> None:
@@ -191,16 +183,14 @@ class ModelQuantizer:
         None
         """
         if model is None:
-            if self.quantized_model is None:
+            if self.quantized_model is None and self.config.backend != "modelopt_onnx":
                 raise ValueError("No model has been quantized. Call quantize() first.")
             model = self.quantized_model
 
         if hasattr(self.quantizer, 'save_model'):
-            logger.info(f"Saving quantized model to directory: {path}")
             self.quantizer.save_model(model, path)
         else:
             # Fallback to torch.save if backend doesn't provide save_model
-            logger.info(f"Saving quantized model state_dict to path: {path}")
             torch.save(model.state_dict(), path)
 
     def quantize_model(self, model: nn.Module, calibration_loader: Optional[DataLoader] = None) -> nn.Module:

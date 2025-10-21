@@ -37,6 +37,13 @@ except Exception:
     # TorchAO is optional; ignore if unavailable at import time
     pass
 
+# Import ModelOpt ONNX backend so it self-registers via decorator
+try:  # pragma: no cover - import side-effect only
+    from .modelopt_onnx.modelopt_onnx import ModelOptONNXBackend  # noqa: F401
+except Exception:
+    # ModelOpt ONNX is optional; ignore if unavailable at import time
+    pass
+
 __all__ = [
     "register_backend",
     "get_available_backends",
