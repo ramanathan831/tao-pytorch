@@ -59,7 +59,7 @@ NOTES:
     Multi-platform builds REQUIRE the --push flag (buildx limitation)
     Docker buildx cannot load multiple architectures to local Docker
     For local testing, build a single platform at a time (use --x86 or --arm)
-    Default platform is linux/amd64 (x86_64) when no platform flag is specified
+    Default platform is auto-detected based on host architecture (native build)
     
     Cross-platform builds (e.g., ARM on x86) automatically setup QEMU emulation
     QEMU setup persists on the host and is reused across builds
@@ -126,11 +126,21 @@ repository="nvstaging/tao/tao_pytorch_base_image"
 tag="$USER-$(date +%Y%m%d%H%M)"
 local_tag="$USER"
 
+# Detect native platform
+HOST_ARCH=$(uname -m)
+if [[ "$HOST_ARCH" == "x86_64" ]]; then
+    DEFAULT_PLATFORM="linux/amd64"
+elif [[ "$HOST_ARCH" == "aarch64" ]]; then
+    DEFAULT_PLATFORM="linux/arm64"
+else
+    DEFAULT_PLATFORM="linux/amd64"  # Fallback to amd64
+fi
+
 # Build parameters.
 BUILD_DOCKER="0"
 PUSH_DOCKER="0"
 FORCE="0"
-PLATFORM="linux/amd64"  # Default to amd64, can be overridden
+PLATFORM="$DEFAULT_PLATFORM"  # Default to native platform, can be overridden
 
 
 # Parse command line.
@@ -244,9 +254,9 @@ if [ $BUILD_DOCKER = "1" ]; then
     # Check if building for multiple platforms
     if [[ "$PLATFORM" == *","* ]]; then
         log_info "Multi-platform build detected - building and pushing for: $PLATFORM"
-        log_info "Executing: DOCKER_BUILDKIT=1 docker buildx build --progress=plain --platform $PLATFORM -f $NV_TAO_PYTORCH_TOP/docker/Dockerfile -t $registry/$repository:$local_tag -t $registry/$repository:$tag $NO_CACHE --push $NV_TAO_PYTORCH_TOP/."
+        log_info "Executing: DOCKER_BUILDKIT=1 docker buildx build --platform $PLATFORM -f $NV_TAO_PYTORCH_TOP/docker/Dockerfile -t $registry/$repository:$local_tag -t $registry/$repository:$tag $NO_CACHE --push $NV_TAO_PYTORCH_TOP/."
         
-        DOCKER_BUILDKIT=1 docker buildx build --progress=plain --platform $PLATFORM \
+        DOCKER_BUILDKIT=1 docker buildx build --platform $PLATFORM \
             -f $NV_TAO_PYTORCH_TOP/docker/Dockerfile \
             -t $registry/$repository:$local_tag \
             -t $registry/$repository:$tag \
@@ -263,9 +273,9 @@ if [ $BUILD_DOCKER = "1" ]; then
     else
         # Single platform build
         log_info "Building for single platform: $PLATFORM"
-        log_info "Executing: DOCKER_BUILDKIT=1 docker buildx build --progress=plain --platform $PLATFORM -f $NV_TAO_PYTORCH_TOP/docker/Dockerfile -t $registry/$repository:$local_tag $NO_CACHE --load $NV_TAO_PYTORCH_TOP/."
+        log_info "Executing: DOCKER_BUILDKIT=0 docker buildx build --platform $PLATFORM -f $NV_TAO_PYTORCH_TOP/docker/Dockerfile -t $registry/$repository:$local_tag $NO_CACHE --load $NV_TAO_PYTORCH_TOP/."
         
-        DOCKER_BUILDKIT=1 docker buildx build --progress=plain --platform $PLATFORM \
+        DOCKER_BUILDKIT=0 docker buildx build --platform $PLATFORM \
             -f $NV_TAO_PYTORCH_TOP/docker/Dockerfile \
             -t $registry/$repository:$local_tag \
             $NO_CACHE \

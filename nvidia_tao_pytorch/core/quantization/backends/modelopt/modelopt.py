@@ -21,7 +21,7 @@ APIs for calibration and quantization.
 
 from __future__ import annotations
 
-from typing import Callable, Optional
+from typing import Callable, Optional, Dict, Any
 from nvidia_tao_pytorch.core.tlt_logging import logger as tlt_logger
 
 import torch
@@ -73,10 +73,11 @@ class ModelOptBackend(QuantizerBase, Calibratable):
     ``modelopt.torch.quantization`` APIs.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, backend_kwargs: Optional[Dict[str, Any]] = None) -> None:
         self._forward_loop: Optional[Callable[[nn.Module], None]] = None
         self.backend_name = "modelopt"  # Store the backend name as an instance attribute
         self._logger = tlt_logger
+        self._backend_kwargs = backend_kwargs or {}
 
     def prepare(self, model: nn.Module, config: ModelQuantizationConfig) -> nn.Module:
         """Validate inputs and return the model unchanged.
@@ -109,7 +110,6 @@ class ModelOptBackend(QuantizerBase, Calibratable):
                 f"Unsupported mode '{config.mode}' for backend '{self.backend_name}'. "
                 f"Supported modes: {sorted(SUPPORTED_MODES)}"
             )
-        self._logger.debug("ModelOptBackend.prepare: input validation complete; returning model unchanged")
         return model
 
     def calibrate(self, model: nn.Module, data_loader) -> None:
@@ -155,7 +155,6 @@ class ModelOptBackend(QuantizerBase, Calibratable):
                     m(x)
                     # break
         self._forward_loop = forward_loop
-        self._logger.debug("Calibration forward loop has been set")
 
     def quantize(self, model: nn.Module, config: ModelQuantizationConfig) -> nn.Module:
         """Quantize a model using ModelOpt APIs.
@@ -196,9 +195,7 @@ class ModelOptBackend(QuantizerBase, Calibratable):
         else:
             forward_loop = self._forward_loop
 
-        self._logger.info("Invoking ModelOpt quantization")
         quantized_model = mtq.quantize(model, modelopt_cfg, forward_loop)
-        self._logger.info("ModelOpt quantization complete")
         return quantized_model
 
     def save_model(self, model: nn.Module, path: str) -> None:
@@ -215,7 +212,7 @@ class ModelOptBackend(QuantizerBase, Calibratable):
 
         quantized_model_path = os.path.join(path, f"quantized_model_{self.backend_name}.pth")
         mto.save(model, quantized_model_path)
-        self._logger.info(f"Quantized model saved to: {quantized_model_path}")
+        self._logger.info(f"Model saved to: {quantized_model_path}")
 
 
 __all__ = [
