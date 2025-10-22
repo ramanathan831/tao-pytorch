@@ -24,11 +24,13 @@ from nvidia_tao_pytorch.core.quantization import (
     LayerQuantizationConfig,
     WeightQuantizationConfig,
     ActivationQuantizationConfig,
+    get_backend_class,
+    get_registry_manager,
+)
+from nvidia_tao_pytorch.core.quantization.registry import (
     register_observer,
     register_fake_quant,
     register_backend,
-    get_backend_class,
-    get_registry_manager,
 )
 
 

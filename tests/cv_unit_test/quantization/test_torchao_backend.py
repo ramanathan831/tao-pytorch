@@ -59,7 +59,7 @@ def _ensure_torchao_registered():
         quantize_=MagicMock(return_value=MagicMock()),
     ):
         from nvidia_tao_pytorch.core.quantization.backends.torchao.torchao import TorchAOBackend
-        from nvidia_tao_pytorch.core.quantization import register_backend
+        from nvidia_tao_pytorch.core.quantization.registry import register_backend
 
         # Manually register the backend to avoid module reloading
         register_backend("torchao")(TorchAOBackend)

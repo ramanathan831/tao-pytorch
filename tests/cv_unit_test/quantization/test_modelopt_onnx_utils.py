@@ -16,9 +16,9 @@
 
 from __future__ import annotations
 
+import logging
 import pytest
 import tempfile
-import torch
 import torch.nn as nn
 import numpy as np
 from typing import cast
@@ -623,3 +623,133 @@ class TestConvertTaoToModeloptOnnxParams:
 
             assert not params["op_types_to_quantize"]
             assert params["quantize_mode"] == "int8"  # Default
+
+    def test_warning_different_dtype_within_layer(self, caplog):
+        """Test warning when weights and activations have different dtypes within the same layer."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = ModelQuantizationConfig(
+                layers=[
+                    LayerQuantizationConfig(
+                        module_name="Linear",
+                        weights=WeightQuantizationConfig(dtype="int8"),
+                        activations=ActivationQuantizationConfig(dtype="fp8_e4m3fn"),
+                    )
+                ],
+                results_dir=temp_dir
+            )
+
+            onnx_path = f"{temp_dir}/model.onnx"
+            with caplog.at_level(logging.WARNING):
+                params = convert_tao_to_modelopt_onnx_params(
+                    config=config,
+                    model=None,
+                    onnx_path=onnx_path
+                )
+
+            # Check that warning was issued
+            assert any(
+                "different dtypes for weights and activations" in record.message
+                for record in caplog.records
+            )
+            # Check that unsupported message is present
+            assert any(
+                "currently unsupported" in record.message
+                for record in caplog.records
+            )
+            # Check that the first dtype wins (weights dtype)
+            assert params["quantize_mode"] == "int8"
+
+    def test_warning_different_dtype_across_layers(self, caplog):
+        """Test warning when different layers have different dtypes."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = ModelQuantizationConfig(
+                layers=[
+                    LayerQuantizationConfig(
+                        module_name="Linear",
+                        weights=WeightQuantizationConfig(dtype="int8"),
+                    ),
+                    LayerQuantizationConfig(
+                        module_name="Conv2d",
+                        weights=WeightQuantizationConfig(dtype="fp8_e4m3fn"),
+                    ),
+                ],
+                results_dir=temp_dir
+            )
+
+            onnx_path = f"{temp_dir}/model.onnx"
+            with caplog.at_level(logging.WARNING):
+                params = convert_tao_to_modelopt_onnx_params(
+                    config=config,
+                    model=None,
+                    onnx_path=onnx_path
+                )
+
+            # Check that warning was issued
+            assert any("multiple different dtypes across layers" in record.message
+                       for record in caplog.records)
+            # Check that the first dtype wins
+            assert params["quantize_mode"] == "int8"
+
+    def test_warning_both_mismatch_types(self, caplog):
+        """Test warning when both within-layer and across-layer dtype mismatches occur."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = ModelQuantizationConfig(
+                layers=[
+                    LayerQuantizationConfig(
+                        module_name="Linear",
+                        weights=WeightQuantizationConfig(dtype="int8"),
+                        activations=ActivationQuantizationConfig(dtype="fp8_e4m3fn"),
+                    ),
+                    LayerQuantizationConfig(
+                        module_name="Conv2d",
+                        weights=WeightQuantizationConfig(dtype="fp8_e5m2"),
+                    ),
+                ],
+                results_dir=temp_dir
+            )
+
+            onnx_path = f"{temp_dir}/model.onnx"
+            with caplog.at_level(logging.WARNING):
+                convert_tao_to_modelopt_onnx_params(
+                    config=config,
+                    model=None,
+                    onnx_path=onnx_path
+                )
+
+            # Check that both warnings were issued
+            assert any("different dtypes for weights and activations" in record.message
+                       for record in caplog.records)
+            assert any("multiple different dtypes across layers" in record.message
+                       for record in caplog.records)
+
+    def test_no_warning_same_dtype(self, caplog):
+        """Test no warning when all dtypes are the same."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = ModelQuantizationConfig(
+                layers=[
+                    LayerQuantizationConfig(
+                        module_name="Linear",
+                        weights=WeightQuantizationConfig(dtype="fp8_e4m3fn"),
+                        activations=ActivationQuantizationConfig(dtype="fp8_e4m3fn"),
+                    ),
+                    LayerQuantizationConfig(
+                        module_name="Conv2d",
+                        weights=WeightQuantizationConfig(dtype="fp8_e4m3fn"),
+                        activations=ActivationQuantizationConfig(dtype="fp8_e4m3fn"),
+                    ),
+                ],
+                results_dir=temp_dir
+            )
+
+            onnx_path = f"{temp_dir}/model.onnx"
+            with caplog.at_level(logging.WARNING):
+                params = convert_tao_to_modelopt_onnx_params(
+                    config=config,
+                    model=None,
+                    onnx_path=onnx_path
+                )
+
+            # Check that no warnings about dtype mismatches were issued
+            assert not any("different dtypes" in record.message
+                           for record in caplog.records)
+            assert params["quantize_mode"] == "fp8"

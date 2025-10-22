@@ -19,18 +19,20 @@ patterns and unified model creation for quantized models.
 """
 
 import fnmatch
+
 import torch
 import torch.nn as nn
-from nvidia_tao_pytorch.core.tlt_logging import logging
-from omegaconf import OmegaConf, DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from nvidia_tao_pytorch.core.quantization import (
-    ModelQuantizationConfig,
-    LayerQuantizationConfig,
-    WeightQuantizationConfig,
     ActivationQuantizationConfig,
+    LayerQuantizationConfig,
+    ModelQuantizationConfig,
+    WeightQuantizationConfig,
 )
 from nvidia_tao_pytorch.core.quantization.constants import QuantizationMode
+from nvidia_tao_pytorch.core.quantization.validation import normalize_dtype
+from nvidia_tao_pytorch.core.tlt_logging import logging
 
 __all__ = [
     "match_layer",
@@ -145,7 +147,7 @@ def create_quantized_model_from_config(model_path: str, model_class, **model_kwa
 
     # Handle ModelOpt backend artifacts
     backend = getattr(experiment_config.quantize, 'backend', None)
-    if backend == "modelopt" and isinstance(state_dict, dict) and "model_state_dict" in state_dict:
+    if backend == "modelopt.pytorch" and isinstance(state_dict, dict) and "model_state_dict" in state_dict:
         state_dict = state_dict["model_state_dict"]
 
     # Prefix keys with "model." to match Lightning module structure
@@ -156,33 +158,14 @@ def create_quantized_model_from_config(model_path: str, model_class, **model_kwa
     return model
 
 
-def _normalize_dtype(dtype: str) -> str:
-    """Normalize dtype strings from YAML/OmegaConf.
-
-    Converts the prefix "float8_" to "fp8_" to match internal expectations.
-
-    Parameters
-    ----------
-    dtype : str
-        Input dtype string.
-
-    Returns
-    -------
-    str
-        Normalized dtype string.
-    """
-    return dtype.replace("float8_", "fp8_") if isinstance(dtype, str) else dtype
-
-
 def build_model_quant_config_from_omegaconf(qcfg: DictConfig | dict) -> ModelQuantizationConfig:
     """Construct a ``ModelQuantizationConfig`` from an OmegaConf config or dict.
 
     Normalizes dtype strings (e.g., "float8_*" -> "fp8_*") and builds the corresponding TAO
-    dataclasses. Populates all available configuration fields including:
+    dataclasses. Populates all supported configuration fields including:
     - backend, mode, algorithm
-    - default_layer_dtype, default_activation_dtype
     - layers, skip_names
-    - model_path, results_dir
+    - model_path, results_dir, backend_kwargs, device
 
     Parameters
     ----------
@@ -192,7 +175,7 @@ def build_model_quant_config_from_omegaconf(qcfg: DictConfig | dict) -> ModelQua
     Returns
     -------
     ModelQuantizationConfig
-        Complete TAO quantization configuration object with all fields populated.
+        Complete TAO quantization configuration object.
     """
     cfg_dict = (
         OmegaConf.to_container(qcfg, resolve=True)
@@ -206,14 +189,14 @@ def build_model_quant_config_from_omegaconf(qcfg: DictConfig | dict) -> ModelQua
         if isinstance(layer.get("weights"), dict):
             w = dict(layer["weights"])  # shallow copy
             if "dtype" in w:
-                w["dtype"] = _normalize_dtype(w["dtype"])
+                w["dtype"] = normalize_dtype(w["dtype"])
             weights_cfg = WeightQuantizationConfig(**w)
 
         activations_cfg = None
         if isinstance(layer.get("activations"), dict):
             a = dict(layer["activations"])  # shallow copy
             if "dtype" in a:
-                a["dtype"] = _normalize_dtype(a["dtype"])
+                a["dtype"] = normalize_dtype(a["dtype"])
             activations_cfg = ActivationQuantizationConfig(**a)
 
         layers.append(
@@ -237,18 +220,17 @@ def build_model_quant_config_from_omegaconf(qcfg: DictConfig | dict) -> ModelQua
     if algorithm_value is not None:
         normalized_algorithm = str(algorithm_value).lower()
 
-    # Create the config object with all possible fields
+    # Create the config object with all supported fields
     config = ModelQuantizationConfig(
-        backend=cfg_dict.get("backend", "modelopt"),
+        backend=cfg_dict.get("backend", "torchao"),
         mode=normalized_mode,
         algorithm=normalized_algorithm,
-        default_layer_dtype=cfg_dict.get("default_layer_dtype", "native"),
-        default_activation_dtype=cfg_dict.get("default_activation_dtype", "native"),
         layers=layers,
         skip_names=cfg_dict.get("skip_names", []),
         model_path=cfg_dict.get("model_path", ""),
         results_dir=cfg_dict.get("results_dir", ""),
         backend_kwargs=cfg_dict.get("backend_kwargs", {}),
+        device=cfg_dict.get("device", "cuda"),
     )
 
     return config
