@@ -22,24 +22,23 @@ This backend works exclusively with ONNX files specified by file path.
 from __future__ import annotations
 
 import os
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
 
-from nvidia_tao_pytorch.core.tlt_logging import logger as tlt_logger
-from nvidia_tao_pytorch.core.quantization.quantizer_base import QuantizerBase
-from nvidia_tao_pytorch.core.quantization.calibratable import Calibratable
-from nvidia_tao_pytorch.core.quantization.registry import register_backend
-from nvidia_tao_pytorch.core.quantization.constants import QuantizationMode
+from nvidia_tao_core.config.common.quantization.default_config import ModelQuantizationConfig
 from nvidia_tao_pytorch.core.quantization.backends.modelopt_onnx.utils import (
     convert_tao_to_modelopt_onnx_params,
     format_params_for_logging,
 )
-from nvidia_tao_core.config.common.quantization.default_config import (
-    ModelQuantizationConfig,
-)
+from nvidia_tao_pytorch.core.quantization.calibratable import Calibratable
+from nvidia_tao_pytorch.core.quantization.constants import QuantizationMode
+from nvidia_tao_pytorch.core.quantization.quantizer_base import FileBasedQuantizerBase
+from nvidia_tao_pytorch.core.quantization.registry import register_backend
+from nvidia_tao_pytorch.core.quantization.validation import validate_backend_mode_compatibility
+from nvidia_tao_pytorch.core.tlt_logging import logger as tlt_logger
 
 try:
     from modelopt.onnx.quantization import quantize as modelopt_onnx_quantize  # type: ignore
@@ -49,11 +48,11 @@ except ImportError:
         raise ImportError("modelopt.onnx.quantization is not available. Please install modelopt with ONNX support.")
 
 
-SUPPORTED_MODES = {QuantizationMode.STATIC_PTQ.name.lower()}
+SUPPORTED_MODES = {QuantizationMode.STATIC_PTQ.value}
 
 
-@register_backend("modelopt_onnx")
-class ModelOptONNXBackend(QuantizerBase, Calibratable):
+@register_backend("modelopt.onnx")
+class ModelOptONNXBackend(FileBasedQuantizerBase, Calibratable):
     """ModelOpt ONNX quantization backend for TAO Toolkit.
 
     This backend provides integration with NVIDIA ModelOpt ONNX quantization
@@ -124,12 +123,13 @@ class ModelOptONNXBackend(QuantizerBase, Calibratable):
         -------
         None
         """
-        self.backend_name = "modelopt_onnx"
+        self.backend_name = "modelopt.onnx"
         self._logger = tlt_logger
 
         self._onnx_path: Optional[str] = None
         self._backend_kwargs = backend_kwargs or {}
         self._calibration_data: Any = None
+        self._config: Optional[ModelQuantizationConfig] = None
 
     def prepare(self, model: Optional[nn.Module], config: ModelQuantizationConfig) -> Optional[nn.Module]:
         """Prepare the backend for quantization using ONNX file from config.
@@ -177,14 +177,13 @@ class ModelOptONNXBackend(QuantizerBase, Calibratable):
         if model is not None:
             raise ValueError("ONNX backend requires model=None. Provide ONNX file path via config.model_path instead.")
 
-        # Validate mode
+        # Validate mode using centralized validation
         mode_value = (
-            config.mode.name.lower()
+            config.mode.value
             if isinstance(config.mode, QuantizationMode)
             else str(config.mode).lower()
         )
-        if mode_value not in SUPPORTED_MODES:
-            raise ValueError(f"Unsupported mode '{config.mode}'. Supported: {sorted(SUPPORTED_MODES)}")
+        validate_backend_mode_compatibility(self.backend_name, mode_value, SUPPORTED_MODES)
 
         # Get and validate ONNX file path from model_path
         onnx_path = getattr(config, 'model_path', None)
@@ -198,6 +197,7 @@ class ModelOptONNXBackend(QuantizerBase, Calibratable):
             raise ValueError(f"Invalid file extension: {onnx_path}. Expected .onnx")
 
         self._onnx_path = onnx_path
+        self._config = config
 
     def calibrate(self, model: Optional[nn.Module], data_loader) -> None:
         """Extract calibration data from dataloader for quantization.
@@ -218,11 +218,19 @@ class ModelOptONNXBackend(QuantizerBase, Calibratable):
         -------
         None
 
+        Raises
+        ------
+        ValueError
+            If model is not None (ONNX backend requires model=None).
+
         Notes
         -----
         The calibration data is extracted from all batches in the data loader,
         converted to numpy arrays, and concatenated along the batch dimension.
         """
+        if model is not None:
+            raise ValueError("ONNX backend requires model=None. Provide ONNX file path via config.model_path instead.")
+
         if data_loader is None:
             self._calibration_data = None
         else:
@@ -346,7 +354,7 @@ class ModelOptONNXBackend(QuantizerBase, Calibratable):
             if num_batches % 10 == 0:
                 self._logger.info(f"  Processed {num_batches} batches ({total_images} images)...")
 
-        self._logger.info(f"✓ Extracted {total_images} calibration images from {num_batches} batches")
+        self._logger.info(f"Extracted {total_images} calibration images from {num_batches} batches")
 
         # Convert list of arrays to a single concatenated array with error handling
         if len(calibration_data) == 1:
@@ -413,17 +421,23 @@ class ModelOptONNXBackend(QuantizerBase, Calibratable):
         if not isinstance(config, ModelQuantizationConfig):
             raise TypeError("config must be an instance of ModelQuantizationConfig")
 
-        if not self._onnx_path or not os.path.exists(self._onnx_path):
+        if self._onnx_path is None:
+            raise RuntimeError(
+                "No ONNX model path available. "
+                "Call prepare() before quantize() to set up the ONNX file path."
+            )
+
+        if not os.path.exists(self._onnx_path):
             raise FileNotFoundError(f"ONNX model file not found: {self._onnx_path}")
 
         # Log calibration data status
         if self._calibration_data is None:
             self._logger.warning(
-                "⚠ No calibration data provided. ModelOpt will generate dummy data (may reduce accuracy)"
+                "No calibration data provided. ModelOpt will generate dummy data which may reduce accuracy."
             )
         else:
             shape_info = self._calibration_data.shape if hasattr(self._calibration_data, 'shape') else type(self._calibration_data).__name__
-            self._logger.info(f"📊 Using calibration data: shape={shape_info}")
+            self._logger.info(f"Using calibration data with shape: {shape_info}")
 
         # Convert TAO config to ModelOpt ONNX parameters
         modelopt_params = convert_tao_to_modelopt_onnx_params(
@@ -435,7 +449,7 @@ class ModelOptONNXBackend(QuantizerBase, Calibratable):
         # Ensure output directory exists
         output_dir = os.path.dirname(output_path)
         if output_dir and not os.path.exists(output_dir):
-            self._logger.info(f"📁 Creating output directory: {output_dir}")
+            self._logger.info(f"Creating output directory: {output_dir}")
             os.makedirs(output_dir, exist_ok=True)
 
         # Log ModelOpt parameters for debugging (without full arrays)
@@ -444,14 +458,14 @@ class ModelOptONNXBackend(QuantizerBase, Calibratable):
 
         # Log key quantization settings
         self._logger.info(
-            f"⚙️  Quantization settings: mode={modelopt_params.get('quantize_mode')}, "
-            f"method={modelopt_params.get('calibration_method')}, "
-            f"ops={len(modelopt_params.get('op_types_to_quantize') or [])} types"
+            f"Quantization configuration - Mode: {modelopt_params.get('quantize_mode')}, "
+            f"Method: {modelopt_params.get('calibration_method')}, "
+            f"Op types: {len(modelopt_params.get('op_types_to_quantize') or [])}"
         )
 
         # Call ModelOpt ONNX quantization with error handling
         try:
-            self._logger.info("🚀 Starting ModelOpt ONNX quantization...")
+            self._logger.info("Starting ModelOpt ONNX quantization...")
             result = modelopt_onnx_quantize(**modelopt_params)
 
             # Log return value if any
@@ -465,7 +479,7 @@ class ModelOptONNXBackend(QuantizerBase, Calibratable):
                 f"  Output path: {output_path}\n"
                 f"  Error: {e}"
             )
-            self._logger.error(f"❌ {error_msg}")
+            self._logger.error(error_msg)
             raise RuntimeError(error_msg) from e
 
         # Verify output file was created
@@ -474,11 +488,11 @@ class ModelOptONNXBackend(QuantizerBase, Calibratable):
                 f"Quantized model was not created at expected path: {output_path}\n"
                 f"ModelOpt quantization completed but output file is missing."
             )
-            self._logger.error(f"❌ {error_msg}")
+            self._logger.error(error_msg)
             raise FileNotFoundError(error_msg)
 
         file_size = os.path.getsize(output_path) / (1024 * 1024)  # Convert to MB
-        self._logger.info(f"✅ Quantization complete! Model saved to: {output_path} ({file_size:.2f} MB)")
+        self._logger.info(f"Quantization complete. Model saved to: {output_path} ({file_size:.2f} MB)")
 
         return output_path
 
@@ -522,12 +536,12 @@ class ModelOptONNXBackend(QuantizerBase, Calibratable):
         """
         # If model is a string (path returned from quantize), just log and return
         if isinstance(model, str):
-            self._logger.info(f"✓ Model already saved at: {model}")
+            self._logger.info(f"Model already saved at: {model}")
             return
 
         # If model is None, that's fine - just a no-op
         if model is None:
-            self._logger.debug("save_model called with model=None (already saved during quantize)")
+            self._logger.debug("save_model() called with model=None (already saved during quantize)")
             return
 
         # If model is a PyTorch module, that's an error

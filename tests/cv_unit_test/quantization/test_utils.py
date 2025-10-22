@@ -333,7 +333,7 @@ def test_create_quantized_model_from_config_modelopt_backend(mock_quantizer_clas
     mock_quantizer_class.return_value = mock_quantizer
 
     # Create config with modelopt backend
-    exp_cfg = make_experiment_config(backend="modelopt")
+    exp_cfg = make_experiment_config(backend="modelopt.pytorch")
     ckpt_path = tmp_path / "model.pth"
 
     # Mock torch.load to return modelopt-style state dict

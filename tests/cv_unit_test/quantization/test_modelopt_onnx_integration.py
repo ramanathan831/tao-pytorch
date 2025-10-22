@@ -60,15 +60,15 @@ def backend_class(clean_registry):
     from nvidia_tao_pytorch.core.quantization.backends.modelopt_onnx.modelopt_onnx import (
         ModelOptONNXBackend,
     )
-    register_backend("modelopt_onnx")(ModelOptONNXBackend)
-    return get_backend_class("modelopt_onnx")
+    register_backend("modelopt.onnx")(ModelOptONNXBackend)
+    return get_backend_class("modelopt.onnx")
 
 
 @pytest.fixture
 def quant_config(mock_onnx_file, tmp_path):
     """Create a standard quantization config with ONNX path."""
     return build_model_quant_config_from_omegaconf({
-        "backend": "modelopt_onnx",
+        "backend": "modelopt.onnx",
         "model_path": mock_onnx_file,
         "mode": "static_ptq",
         "algorithm": "max",
@@ -161,7 +161,7 @@ class TestModelOptONNXIntegration:
 
         # Config without backend_kwargs
         config = build_model_quant_config_from_omegaconf({
-            "backend": "modelopt_onnx",
+            "backend": "modelopt.onnx",
             "model_path": mock_onnx_file,
             "mode": "static_ptq",
             "algorithm": "max",

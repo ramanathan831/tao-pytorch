@@ -99,7 +99,7 @@ def _dtype_to_num_bits(dtype: str, mode: str | None = None) -> int | Tuple[int, 
         )
 
     # Check if e5m2 is being used with static mode and fall back to e4m3
-    if key == "fp8_e5m2" and mode and "static" in mode.lower():
+    if key == "fp8_e5m2" and mode and "static" in str(mode).lower():
         tlt_logger.warning(
             f"Static mode is unsupported for float8 e5m2 dtype. Falling back to e4m3. "
             f"Original dtype: {dtype}, mode: {mode}"
@@ -169,15 +169,6 @@ def convert_tao_to_modelopt_config(
     """
     if config is None:
         raise TypeError("config cannot be None")
-
-    # Warn if default dtypes are set to non-native values; feature not supported yet
-    default_layer_dtype = str(getattr(config, "default_layer_dtype", "native")).lower()
-    default_activation_dtype = str(getattr(config, "default_activation_dtype", "native")).lower()
-    if default_layer_dtype != "native" or default_activation_dtype != "native":
-        tlt_logger.warning(
-            "Non-native default_layer_dtype/default_activation_dtype is currently not supported "
-            "by the modelopt backend and will be ignored."
-        )
 
     quant_cfg: Dict[str, Any] = {}
 

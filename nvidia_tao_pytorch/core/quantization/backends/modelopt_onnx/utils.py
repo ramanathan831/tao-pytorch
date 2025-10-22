@@ -22,15 +22,24 @@ ModelOpt ONNX quantization API.
 from __future__ import annotations
 
 import os
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
+
+import torch
 import torch.nn as nn
 
 from nvidia_tao_pytorch.core.quantization import (
-    ModelQuantizationConfig,
     LayerQuantizationConfig,
+    ModelQuantizationConfig,
 )
 from nvidia_tao_pytorch.core.quantization.constants import QuantizationMode
 from nvidia_tao_pytorch.core.quantization.validation import assert_supported_dtype
+from nvidia_tao_pytorch.core.tlt_logging import logger as tlt_logger
+
+try:
+    import onnxruntime as ort
+    ONNXRUNTIME_AVAILABLE = True
+except ImportError:
+    ONNXRUNTIME_AVAILABLE = False
 
 
 def format_params_for_logging(params: Dict[str, Any]) -> str:
@@ -277,6 +286,97 @@ def _determine_calibration_method(config: ModelQuantizationConfig) -> str:
         return "max"  # Fallback
 
 
+def _determine_execution_providers(device_str: str, logger) -> List[str]:
+    """Determine ONNX Runtime execution providers based on device configuration.
+
+    This function maps TAO device configuration to ONNX Runtime execution providers.
+    It handles various device types including CPU, CUDA, and TensorRT. All available
+    providers are included in the list, with the preferred provider first.
+
+    Parameters
+    ----------
+    device_str : str
+        Device string from configuration. Valid values:
+        - "cpu": Use CPU execution provider
+        - "cuda", "cuda:0", etc.: Use CUDA execution provider as preferred
+        - "trt": Use TensorRT execution provider as preferred
+    logger : Logger
+        Logger instance for warnings and information
+
+    Returns
+    -------
+    List[str]
+        List of execution providers in priority order with all available providers.
+        The preferred provider is listed first, followed by other available providers:
+        - CPU device: ["CPUExecutionProvider"]
+        - CUDA device: ["CUDAExecutionProvider", "CPUExecutionProvider"] (if CUDA available)
+          or ["CPUExecutionProvider"] (if CUDA not available)
+        - TRT device: ["TensorrtExecutionProvider", "CUDAExecutionProvider", "CPUExecutionProvider"]
+          (with all available providers included)
+
+    Notes
+    -----
+    The function queries ONNX Runtime for available providers and includes all of them
+    in the returned list, with the preferred provider based on device_str listed first.
+    This allows ONNX Runtime to automatically fall back to alternative providers if needed.
+    """
+    providers = []
+    preferred_provider = None
+
+    # Determine preferred provider based on device string
+    if device_str == 'trt':
+        preferred_provider = 'TensorrtExecutionProvider'
+    elif device_str.startswith('cuda'):
+        preferred_provider = 'CUDAExecutionProvider'
+    else:  # cpu or any other value
+        preferred_provider = 'CPUExecutionProvider'
+
+    # Get available providers from ONNX Runtime
+    if not ONNXRUNTIME_AVAILABLE:
+        logger.warning(
+            "ONNX Runtime not available for provider detection. "
+            "Using CPUExecutionProvider as fallback."
+        )
+        return ['CPUExecutionProvider']
+
+    available_providers = ort.get_available_providers()
+
+    # Additional validation for CUDA
+    if preferred_provider == 'CUDAExecutionProvider':
+        if not torch.cuda.is_available():
+            logger.warning(
+                "CUDA requested but not available on this system. "
+                "Will use CPU for calibration."
+            )
+            preferred_provider = 'CPUExecutionProvider'
+
+    # Build provider list: preferred first, then all other available providers
+    if preferred_provider in available_providers:
+        providers.append(preferred_provider)
+        logger.info(f"Using {preferred_provider} as preferred execution provider for ONNX quantization")
+
+        # Add all other available providers
+        for provider in available_providers:
+            if provider != preferred_provider and provider not in providers:
+                providers.append(provider)
+    else:
+        # Preferred provider not available, warn and use all available providers
+        logger.warning(
+            f"{preferred_provider} requested but not available in ONNX Runtime. "
+            f"Available providers: {available_providers}. "
+            f"Using available providers with automatic fallback."
+        )
+        providers = list(available_providers)
+
+    # Ensure at least CPUExecutionProvider is present
+    if 'CPUExecutionProvider' not in providers:
+        providers.append('CPUExecutionProvider')
+
+    logger.debug(f"ONNX Runtime execution providers (in priority order): {providers}")
+
+    return providers
+
+
 def convert_tao_to_modelopt_onnx_params(
     config: ModelQuantizationConfig,
     model: Optional[nn.Module],
@@ -350,6 +450,63 @@ def convert_tao_to_modelopt_onnx_params(
     if config is None:
         raise TypeError("config cannot be None")
 
+    # Validate dtype consistency across layers and between weights/activations
+    # ModelOpt ONNX backend uses a single global quantize_mode for the entire model
+    weight_dtypes = set()
+    activation_dtypes = set()
+    layer_mismatches = []
+
+    if config.layers:
+        for layer in config.layers:
+            if isinstance(layer, LayerQuantizationConfig):
+                w_dtype = None
+                a_dtype = None
+
+                if layer.weights and layer.weights.dtype:
+                    w_dtype = str(layer.weights.dtype).lower()
+                    weight_dtypes.add(w_dtype)
+
+                if layer.activations and layer.activations.dtype:
+                    a_dtype = str(layer.activations.dtype).lower()
+                    activation_dtypes.add(a_dtype)
+
+                # Check if weights and activations differ within the same layer
+                if w_dtype and a_dtype and w_dtype != a_dtype:
+                    layer_mismatches.append({
+                        'module': layer.module_name,
+                        'weights': w_dtype,
+                        'activations': a_dtype
+                    })
+
+    # Warning 1: Different dtypes between weights and activations in the same layer
+    if layer_mismatches:
+        tlt_logger.warning(
+            "ModelOpt ONNX backend detected different dtypes for weights and activations within layers. "
+            "The ONNX backend uses a single 'quantize_mode' for the entire model and cannot apply "
+            "different dtypes to weights vs activations per layer. The first layer's dtype will be used. "
+            "Mismatched layers:"
+        )
+        for mismatch in layer_mismatches:
+            tlt_logger.warning(
+                f"  - Layer '{mismatch['module']}': weights={mismatch['weights']}, "
+                f"activations={mismatch['activations']}"
+            )
+        tlt_logger.warning(
+            "Using different dtypes for weights and activations is currently unsupported in the ONNX backend. "
+            "Please use the same dtype for both weights and activations."
+        )
+
+    # Warning 2: Different dtypes across different layers
+    all_dtypes = weight_dtypes | activation_dtypes
+    if len(all_dtypes) > 1:
+        tlt_logger.warning(
+            f"ModelOpt ONNX backend detected multiple different dtypes across layers: {sorted(all_dtypes)}. "
+            "The ONNX backend uses a single global 'quantize_mode' for the entire model. "
+            "Only the first layer's dtype will be applied to all layers. "
+            "If you need per-layer quantization control, consider using the 'modelopt' (PyTorch) backend instead, "
+            "or specify operators to quantize using 'op_types_to_quantize' in backend_kwargs."
+        )
+
     # Determine quantization mode from the first layer's dtype
     quantize_mode = "int8"  # Default
     if config.layers:
@@ -371,6 +528,10 @@ def convert_tao_to_modelopt_onnx_params(
     # Determine calibration method
     calibration_method = _determine_calibration_method(config)
 
+    # Get device from config and determine execution providers
+    device_str = getattr(config, 'device', 'cuda')
+    execution_providers = _determine_execution_providers(device_str, tlt_logger)
+
     # Build parameters dict with core parameters
     params = {
         "onnx_path": onnx_path,
@@ -382,9 +543,17 @@ def convert_tao_to_modelopt_onnx_params(
         "output_path": output_path if output_path is not None else os.path.join(config.results_dir, "quantized_model.onnx"),
     }
 
+    # Add execution providers if not already specified in backend_kwargs
+    # This allows backend_kwargs to override the device-based provider selection if needed
+    if backend_kwargs and 'execution_providers' not in backend_kwargs:
+        params['execution_providers'] = execution_providers
+    elif not backend_kwargs:
+        params['execution_providers'] = execution_providers
+
     # Merge backend_kwargs (allows advanced ModelOpt ONNX parameters)
     # backend_kwargs can include: per_channel, reduce_range, activation_type,
-    # weight_type, use_external_data_format, extra_options, etc.
+    # weight_type, use_external_data_format, extra_options, execution_providers, etc.
+    # Note: If execution_providers is in backend_kwargs, it will override our device-based selection
     if backend_kwargs:
         params.update(backend_kwargs)
 

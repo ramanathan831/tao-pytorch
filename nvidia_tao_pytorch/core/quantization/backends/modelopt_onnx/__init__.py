@@ -36,7 +36,7 @@ convert_tao_to_modelopt_onnx_params
 
 Notes
 -----
-Importing this package automatically registers the ``modelopt_onnx`` backend
+Importing this package automatically registers the ``modelopt.onnx`` backend
 via the ``@register_backend`` decorator on ``ModelOptONNXBackend``.
 
 The backend requires the ModelOpt ONNX package to be installed. If not available,
@@ -49,7 +49,7 @@ Examples
 >>>
 >>> # Create and use the backend
 >>> backend = ModelOptONNXBackend()
->>> config = ModelQuantizationConfig(model_path="/path/to/model.onnx")
+>>> config = ModelQuantizationConfig(backend="modelopt.onnx", model_path="/path/to/model.onnx")
 >>> backend.prepare(model=None, config=config)
 >>> backend.quantize(model=None, config=config)
 """

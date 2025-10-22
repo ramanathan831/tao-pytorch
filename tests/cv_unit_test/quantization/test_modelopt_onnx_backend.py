@@ -60,15 +60,15 @@ def backend_class(clean_registry):
     from nvidia_tao_pytorch.core.quantization.backends.modelopt_onnx.modelopt_onnx import (
         ModelOptONNXBackend,
     )
-    register_backend("modelopt_onnx")(ModelOptONNXBackend)
-    return get_backend_class("modelopt_onnx")
+    register_backend("modelopt.onnx")(ModelOptONNXBackend)
+    return get_backend_class("modelopt.onnx")
 
 
 @pytest.fixture
 def quant_config(mock_onnx_file):
     """Create a standard quantization config with ONNX path."""
     return build_model_quant_config_from_omegaconf({
-        "backend": "modelopt_onnx",
+        "backend": "modelopt.onnx",
         "model_path": mock_onnx_file,
         "mode": "static_ptq",
         "algorithm": "max",
@@ -115,7 +115,7 @@ class TestModelOptONNXBackend:
         """Test prepare with missing onnx_path in config."""
         backend = backend_class()
         config_without_onnx = build_model_quant_config_from_omegaconf({
-            "backend": "modelopt_onnx",
+            "backend": "modelopt.onnx",
             "mode": "static_ptq",
             "algorithm": "max",
             "layers": [{"module_name": "Linear", "weights": {"dtype": "int8"}}],
@@ -128,7 +128,7 @@ class TestModelOptONNXBackend:
         """Test prepare with non-existent ONNX file in config."""
         backend = backend_class()
         config_with_bad_path = build_model_quant_config_from_omegaconf({
-            "backend": "modelopt_onnx",
+            "backend": "modelopt.onnx",
             "model_path": "/nonexistent/file.onnx",
             "mode": "static_ptq",
             "algorithm": "max",
@@ -153,7 +153,7 @@ class TestModelOptONNXBackend:
         try:
             backend = backend_class()
             config_with_bad_extension = build_model_quant_config_from_omegaconf({
-                "backend": "modelopt_onnx",
+                "backend": "modelopt.onnx",
                 "model_path": invalid_path,
                 "mode": "static_ptq",
                 "algorithm": "max",
@@ -172,7 +172,7 @@ class TestModelOptONNXBackend:
             tmp_path = tmp_file.name
         try:
             unsupported_config = build_model_quant_config_from_omegaconf({
-                "backend": "modelopt_onnx",
+                "backend": "modelopt.onnx",
                 "model_path": tmp_path,
                 "mode": "weight_only_ptq",  # Unsupported
                 "algorithm": "max",
@@ -230,7 +230,7 @@ class TestModelOptONNXBackend:
         """Test that quantize() creates output directory if it doesn't exist."""
         # Create config with a non-existent results_dir
         config = build_model_quant_config_from_omegaconf({
-            "backend": "modelopt_onnx",
+            "backend": "modelopt.onnx",
             "model_path": mock_onnx_file,
             "mode": "static_ptq",
             "algorithm": "max",
@@ -376,3 +376,69 @@ class TestModelOptONNXBackend:
 
         # Save (should handle the string path gracefully)
         backend.save_model(quantized_model, quant_config.results_dir)  # Should not raise
+
+    # === Device Parameter Tests ===
+
+    def test_execution_providers_cpu(self):
+        """Test that CPU device maps to CPUExecutionProvider."""
+        from nvidia_tao_pytorch.core.quantization.backends.modelopt_onnx.utils import _determine_execution_providers
+        from nvidia_tao_pytorch.core.tlt_logging import logger
+
+        providers = _determine_execution_providers("cpu", logger)
+        assert "CPUExecutionProvider" in providers
+
+    def test_execution_providers_cuda(self):
+        """Test that CUDA device maps to CUDA/CPU providers."""
+        from nvidia_tao_pytorch.core.quantization.backends.modelopt_onnx.utils import _determine_execution_providers
+        from nvidia_tao_pytorch.core.tlt_logging import logger
+
+        providers = _determine_execution_providers("cuda", logger)
+        # Always includes CPU as fallback
+        assert "CPUExecutionProvider" in providers
+
+    def test_execution_providers_trt(self):
+        """Test that TRT device attempts TensorRT provider."""
+        from nvidia_tao_pytorch.core.quantization.backends.modelopt_onnx.utils import _determine_execution_providers
+        from nvidia_tao_pytorch.core.tlt_logging import logger
+
+        providers = _determine_execution_providers("trt", logger)
+        # Always includes CPU as fallback
+        assert "CPUExecutionProvider" in providers
+
+    @patch('nvidia_tao_pytorch.core.quantization.backends.modelopt_onnx.modelopt_onnx.modelopt_onnx_quantize')
+    @patch('os.path.getsize')
+    @patch('os.path.exists')
+    def test_device_parameter_used_in_quantization(self, mock_exists, mock_getsize, mock_quantize, backend_class, mock_onnx_file, mock_dataloader):
+        """Test that device parameter is properly passed to execution providers."""
+        config = build_model_quant_config_from_omegaconf({
+            "backend": "modelopt.onnx",
+            "model_path": mock_onnx_file,
+            "mode": "static_ptq",
+            "algorithm": "max",
+            "device": "cuda",  # Explicitly set device
+            "layers": [{
+                "module_name": "Linear",
+                "weights": {"dtype": "int8"},
+                "activations": {"dtype": "int8"},
+            }],
+        })
+
+        backend = backend_class()
+        backend.prepare(None, config)
+        backend.calibrate(None, mock_dataloader)
+
+        # Mock file operations
+        mock_exists.return_value = True
+        mock_getsize.return_value = 1024 * 1024
+
+        # Quantize
+        result = backend.quantize(None, config)
+        assert result is not None
+
+        # Verify that execution_providers was passed
+        call_args = mock_quantize.call_args
+        params = call_args.kwargs
+        assert "execution_providers" in params
+        assert isinstance(params["execution_providers"], list)
+        # Should always have CPU as fallback
+        assert "CPUExecutionProvider" in params["execution_providers"]
