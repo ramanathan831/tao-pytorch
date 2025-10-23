@@ -20,7 +20,6 @@ from torch import nn
 import math
 from typing import Tuple
 
-from nvidia_tao_pytorch.core.tlt_logging import logger
 from nvidia_tao_pytorch.core.distributed.comm import get_world_size, is_dist_avail_and_initialized
 from nvidia_tao_pytorch.cv.deformable_detr.utils import box_ops
 from nvidia_tao_pytorch.cv.mask_grounding_dino.utils.vl_utils import create_positive_map, create_positive_map_from_span
@@ -102,6 +101,18 @@ def cpp_pooling(
 
     N, _, H, W = label_map.shape
     H_out, W_out = output_size
+
+    # Handle non-divisible sizes by interpolation
+    if (H % H_out != 0) or (W % W_out != 0):
+        # Nearest interpolation keeps discrete class values (no mixing)
+        label_map = F.interpolate(
+            label_map.float(),
+            size=(H_out * (H // H_out), W_out * (W // W_out)),
+            mode="nearest",
+            align_corners=None
+        )
+        H, W = label_map.shape[-2:]
+
     scale_h = H // H_out
     scale_w = W // W_out
 
@@ -128,10 +139,9 @@ def cpp_pooling(
     return probs.view(N, 2, H_out, W_out)
 
 
-def find_grid_and_recommend(N: int, H: int, W: int) -> Tuple[int, int, int]:
+def find_grid(N: int, H: int, W: int) -> Tuple[int, int]:
     """
-    Find grid dimensions (n, m) for N queries to match aspect ratio H:W,
-    and recommend nearest K that gives a perfect integer multiple preserving aspect ratio.
+    Find grid dimensions (n, m) for N queries to match aspect ratio H:W.
 
     Args:
         N (int): Number of queries.
@@ -139,10 +149,9 @@ def find_grid_and_recommend(N: int, H: int, W: int) -> Tuple[int, int, int]:
         W (int): Width of the image.
 
     Returns:
-        Tuple[int, int, int]:
+        Tuple[int, int]:
             - n: number of rows in grid
             - m: number of columns in grid
-            - K: recommended number of queries for perfect aspect ratio
     """
     best_n, best_m = 1, N
     best_diff = float("inf")
@@ -157,13 +166,7 @@ def find_grid_and_recommend(N: int, H: int, W: int) -> Tuple[int, int, int]:
                 best_diff = diff
                 best_n, best_m = n, m
 
-    # Step 2: Recommend nearest K preserving aspect ratio
-    g = math.gcd(H, W)
-    h, w = H // g, W // g
-    base = h * w
-    K = max(base, round(N / base) * base)
-
-    return best_n, best_m, K
+    return best_n, best_m
 
 
 class SetCriterion(nn.Module):
@@ -188,6 +191,8 @@ class SetCriterion(nn.Module):
         self.losses = losses
         self.focal_alpha = focal_alpha
         self.focal_gamma = focal_gamma
+        if "rela" in self.losses:
+            self.register_buffer("rela_weights", torch.tensor([0.9, 1.1], dtype=torch.float32))
 
     def loss_boxes(self, outputs, targets, indices, num_boxes):
         """Compute the losses related to the bounding boxes, the L1 regression loss and the GIoU loss.
@@ -368,14 +373,6 @@ class SetCriterion(nn.Module):
                 - "loss_rela_minimap": minimap prediction loss
                 - "loss_rela_union_mask": union mask prediction loss
         """
-        # Early return if required outputs are missing
-        if "minimaps" not in outputs or "no_targets" not in outputs or "pred_logits" not in outputs:
-            return {
-                "loss_rela_nt": 0.0,
-                "loss_rela_minimap": 0.0,
-                "loss_rela_union_mask": 0.0,
-            }
-
         # Prepare target masks
         masks = []
         for t in targets:
@@ -384,42 +381,43 @@ class SetCriterion(nn.Module):
                 m = torch.zeros((1, *m.shape[1:]), device=m.device, dtype=m.dtype)
             masks.append(m.any(dim=0, keepdim=True))
 
-        src_minimap = outputs["minimaps"].permute(0, 2, 1)  # [bs, 2, n_query]
+        src_minimap = outputs.get("minimaps", None)
+        if src_minimap is not None:
+            src_minimap = src_minimap.permute(0, 2, 1)  # [bs, n_query, 2]
         src_union_mask_logits = outputs["union_mask_logits"]
-
-        masks = torch.stack(masks, dim=0)
-        b, _, h, w = src_union_mask_logits.shape
-
-        # Pool masks to match union mask size
-        target_masks = cpp_pooling(masks, (h, w))
-        valid_masks = cpp_pooling(outputs.get("valid_masks", masks), (h, w), valid_mask=True)
-
-        # Recommend number of region queries for minimap aspect ratio
-        n_query = src_minimap.size(2)
-        H, W = masks.shape[-2:]
-        n, m, K = find_grid_and_recommend(n_query, H, W)
-        if K != n_query:
-            logger.warning(
-                f"Recommend using number of region query as {K} to maintain minimap-to-image aspect ratio."
-            )
-
         src_nts = outputs["no_targets"]
-        target_minimaps = cpp_pooling(masks, (n, m))
-        src_minimap = src_minimap.view(b, -1, n, m)
-        dummy_mask = torch.ones_like(src_minimap[:, :1])
 
-        # Convert target no-target signal to tensor
-        target_nts = torch.stack(
-            [torch.tensor(t.get("empty", False), dtype=torch.long) for t in targets]
-        ).to(src_nts.device)
+        masks, _ = nested_tensor_from_tensor_list(
+            masks,
+            size_divisibility=8,
+            split=False
+        ).decompose()
+        b, _, h, w = src_union_mask_logits.shape
+        with torch.amp.autocast("cuda", enabled=True):
+            masks = masks.to(src_union_mask_logits, non_blocking=True)
+            # Pool masks to match union mask size
+            target_masks = cpp_pooling(masks, (h, w)).to(dtype=src_union_mask_logits.dtype)
+            valid_masks = cpp_pooling(outputs.get("valid_masks", masks), (h, w), valid_mask=True)
+            loss_rela_union_mask = rela_mask_loss_jit(src_union_mask_logits, target_masks, valid_masks)
 
-        # Optional: weight for cross-entropy loss
-        weight = torch.FloatTensor([0.9, 1.1]).to(src_minimap.device)
+            if src_minimap is not None:
+                n_query = src_minimap.size(2)
+                H, W = masks.shape[-2:]
+                n, m = find_grid(n_query, H, W)
+                target_minimaps = cpp_pooling(masks, (n, m))
+                src_minimap = src_minimap.view(b, -1, n, m)
+                dummy_mask = torch.ones_like(src_minimap[:, :1])
+                loss_rela_minimap = rela_mask_loss_jit(src_minimap, target_minimaps, dummy_mask)
+            else:
+                loss_rela_minimap = 0.0   # Validation does not require minimap loss.
 
-        # Compute losses
-        loss_rela_nt = F.cross_entropy(src_nts, target_nts, weight=weight)
-        loss_rela_minimap = rela_mask_loss_jit(src_minimap, target_minimaps, dummy_mask)
-        loss_rela_union_mask = rela_mask_loss_jit(src_union_mask_logits, target_masks, valid_masks)
+            # Convert target no-target signal to tensor
+            target_nts = torch.stack(
+                [torch.tensor(t.get("empty", False), dtype=torch.long) for t in targets]
+            ).to(src_nts.device)
+
+            # Compute losses
+            loss_rela_nt = F.cross_entropy(src_nts, target_nts, weight=self.rela_weights)
 
         losses = {
             "loss_rela_nt": loss_rela_nt,
@@ -553,6 +551,9 @@ class SetCriterion(nn.Module):
                     indices_list.append(indices)
                 for loss in self.losses:
                     kwargs = {}
+                    if loss in ["rela"]:
+                        # Rela loss is not computed for auxiliary outputs.
+                        continue
                     l_dict = self.get_loss(loss, aux_outputs, targets, indices, num_boxes, **kwargs)
                     l_dict = {k + f'_{idx}': v for k, v in l_dict.items()}
                     losses.update(l_dict)
@@ -562,11 +563,14 @@ class SetCriterion(nn.Module):
             interm_outputs = outputs['interm_outputs']
             indices = []
             for j in range(len(cat_list)):  # bs
-                interm_output_single = {
-                    'pred_logits': interm_outputs['pred_logits'][j].unsqueeze(0),
-                    'pred_boxes': interm_outputs['pred_boxes'][j].unsqueeze(0)
-                }
-                inds = self.matcher(interm_output_single, [targets[j]], label_map_list[j])
+                if targets[j].get('empty', False):
+                    inds = [(torch.zeros((0,), dtype=torch.int64), torch.zeros((0,), dtype=torch.int64))]
+                else:
+                    interm_output_single = {
+                        'pred_logits': interm_outputs['pred_logits'][j].unsqueeze(0),
+                        'pred_boxes': interm_outputs['pred_boxes'][j].unsqueeze(0)
+                    }
+                    inds = self.matcher(interm_output_single, [targets[j]], label_map_list[j])
                 indices.extend(inds)
 
             one_hot_aux = torch.zeros(outputs['pred_logits'].size(), dtype=torch.int64)
@@ -580,8 +584,9 @@ class SetCriterion(nn.Module):
                 indices_list.append(indices)
             for loss in self.losses:
                 kwargs = {}
-                if loss in ['masks', "masks_boxinst"]:
+                if loss in ['masks', "masks_boxinst", "rela"]:
                     # Intermediate masks losses are too costly to compute, we ignore them.
+                    # Rela loss is not computed for intermediate outputs.
                     continue
                 l_dict = self.get_loss(loss, interm_outputs, targets, indices, num_boxes, **kwargs)
                 l_dict = {k + '_interm': v for k, v in l_dict.items()}
