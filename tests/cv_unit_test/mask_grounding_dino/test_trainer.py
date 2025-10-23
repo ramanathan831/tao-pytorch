@@ -29,17 +29,17 @@ from nvidia_tao_pytorch.cv.mask_grounding_dino.model.pl_gdino_model import MaskG
 from nvidia_tao_pytorch.core.utilities import check_and_create
 
 
-TEST_WIDTH = 960
-TEST_HEIGHT = 1024
+TEST_SIZE_MIN = 960
+TEST_SIZE_MAX = 1024
 TEST_OBJ_WIDTH = 80
 TEST_OBJ_HEIGHT = 80
 FAST_DEV_RUN = 2  # Run dry run 2 times
-AUGMENT_SIZE_CROP = 480
-AUGMENT_SIZE_WIDTH = 640
-AUGMENT_SIZE_HEIGHT = 960
+AUGMENT_SIZE_CROP = None
+AUGMENT_TEST_SIZE = 800
+AUGMENT_MAX_SIZE = 1333
 tmp_top_obj = tempfile.TemporaryDirectory()
 tmp_top_dir = tmp_top_obj.name
-tmp_img = Image.fromarray(np.random.randint(low=0, high=255, size=(TEST_WIDTH, TEST_HEIGHT, 3), dtype=np.uint8))
+tmp_img = Image.fromarray(np.random.randint(low=0, high=255, size=(TEST_SIZE_MIN, TEST_SIZE_MAX, 3), dtype=np.uint8))
 img_file = os.path.join(tmp_top_dir, f"test.jpg")
 tmp_img.save(img_file)
 detection_json_file = os.path.join(tmp_top_dir, "detection_json.jsonl")
@@ -66,9 +66,15 @@ def _test_sample_json():
     check_and_create(tmp_top_dir)
     check_and_create(coco_dir)
     for image_id in range(0, 10):
-        sample_w = int(np.random.randint(low=TEST_WIDTH-20, high=TEST_WIDTH+20, size=1)[0])
-        sample_h = int(np.random.randint(low=TEST_HEIGHT-20, high=TEST_HEIGHT+20, size=1)[0])
-        img = Image.fromarray(np.random.randint(low=0, high=255, size=(sample_w, sample_h, 3), dtype=np.uint8))
+        min_size = int(np.random.randint(low=TEST_SIZE_MIN-20, high=TEST_SIZE_MIN+20, size=1)[0])
+        max_size = int(np.random.randint(low=TEST_SIZE_MAX-20, high=TEST_SIZE_MAX+20, size=1)[0])
+        if random.random() < 0.5:
+            sample_w = min_size
+            sample_h = max_size
+        else:
+            sample_w = max_size
+            sample_h = min_size
+        img = Image.fromarray(np.random.randint(low=0, high=255, size=(sample_h, sample_w, 3), dtype=np.uint8))
         img_file = os.path.join(coco_dir, f"test_{str(image_id)}.jpg")
 
         img.save(img_file)
@@ -124,15 +130,21 @@ def _test_detection_jsonl():
     check_and_create(detection_dir)
 
     for image_id in range(0, 10):
-        sample_w = int(np.random.randint(low=TEST_WIDTH-20, high=TEST_WIDTH+20, size=1)[0])
-        sample_h = int(np.random.randint(low=TEST_HEIGHT-20, high=TEST_HEIGHT+20, size=1)[0])
-        img = Image.fromarray(np.random.randint(low=0, high=255, size=(sample_w, sample_h, 3), dtype=np.uint8))
+        min_size = int(np.random.randint(low=TEST_SIZE_MIN-20, high=TEST_SIZE_MIN+20, size=1)[0])
+        max_size = int(np.random.randint(low=TEST_SIZE_MAX-20, high=TEST_SIZE_MAX+20, size=1)[0])
+        if random.random() < 0.5:
+            sample_w = min_size
+            sample_h = max_size
+        else:
+            sample_w = max_size
+            sample_h = min_size
+        img = Image.fromarray(np.random.randint(low=0, high=255, size=(sample_h, sample_w, 3), dtype=np.uint8))
         img_file = os.path.join(detection_dir, f"test_{str(image_id)}.jpg")
 
         img.save(img_file)
         json_output = {
             "file_name": f"test_{str(image_id)}.jpg",
-            "height": sample_w,
+            "height": sample_h,
             "width": sample_w,
             "image_id": image_id
         }
@@ -171,8 +183,14 @@ def _test_grounding_expression_jsonl():
     check_and_create(grounding_dir)
 
     for image_id in range(0, 10):
-        sample_w = int(np.random.randint(low=TEST_WIDTH-20, high=TEST_WIDTH+20, size=1)[0])
-        sample_h = int(np.random.randint(low=TEST_HEIGHT-20, high=TEST_HEIGHT+20, size=1)[0])
+        min_size = int(np.random.randint(low=TEST_SIZE_MIN-20, high=TEST_SIZE_MIN+20, size=1)[0])
+        max_size = int(np.random.randint(low=TEST_SIZE_MAX-20, high=TEST_SIZE_MAX+20, size=1)[0])
+        if random.random() < 0.5:
+            sample_w = min_size
+            sample_h = max_size
+        else:
+            sample_w = max_size
+            sample_h = min_size
         img = Image.fromarray(np.random.randint(low=0, high=255, size=(sample_h, sample_w, 3), dtype=np.uint8))
         img_file = os.path.join(grounding_dir, f"test_expression_{str(image_id)}.jpg")
 
@@ -231,8 +249,14 @@ def _test_grounding_phrase_jsonl():
     check_and_create(grounding_dir)
 
     for image_id in range(0, 10):
-        sample_w = int(np.random.randint(low=TEST_WIDTH-20, high=TEST_WIDTH+20, size=1)[0])
-        sample_h = int(np.random.randint(low=TEST_HEIGHT-20, high=TEST_HEIGHT+20, size=1)[0])
+        min_size = int(np.random.randint(low=TEST_SIZE_MIN-20, high=TEST_SIZE_MIN+20, size=1)[0])
+        max_size = int(np.random.randint(low=TEST_SIZE_MAX-20, high=TEST_SIZE_MAX+20, size=1)[0])
+        if random.random() < 0.5:
+            sample_w = min_size
+            sample_h = max_size
+        else:
+            sample_w = max_size
+            sample_h = min_size
         img = Image.fromarray(np.random.randint(low=0, high=255, size=(sample_h, sample_w, 3), dtype=np.uint8))
         img_file = os.path.join(grounding_dir, f"test_phrase_{str(image_id)}.jpg")
 
@@ -286,8 +310,14 @@ def _test_pred_grounding_jsonl():
     check_and_create(pred_grounding_dir)
     
     for image_id in range(0, 10):
-        sample_w = int(np.random.randint(low=TEST_WIDTH-20, high=TEST_WIDTH+20, size=1)[0])
-        sample_h = int(np.random.randint(low=TEST_HEIGHT-20, high=TEST_HEIGHT+20, size=1)[0])
+        min_size = int(np.random.randint(low=TEST_SIZE_MIN-20, high=TEST_SIZE_MIN+20, size=1)[0])
+        max_size = int(np.random.randint(low=TEST_SIZE_MAX-20, high=TEST_SIZE_MAX+20, size=1)[0])
+        if random.random() < 0.5:
+            sample_w = min_size
+            sample_h = max_size
+        else:
+            sample_w = max_size
+            sample_h = min_size
         img = Image.fromarray(np.random.randint(low=0, high=255, size=(sample_h, sample_w, 3), dtype=np.uint8))
         img_file = os.path.join(pred_grounding_dir, f"test_pred_grounding_{str(image_id)}.jpg")
 
@@ -331,8 +361,8 @@ def _train_spec(request):
     experiment_config.dataset.batch_size = 2
     experiment_config.dataset.workers = 0
     experiment_config.dataset.augmentation.fixed_random_crop=AUGMENT_SIZE_CROP
-    experiment_config.dataset.augmentation.random_resize_max_size=AUGMENT_SIZE_HEIGHT
-    experiment_config.dataset.augmentation.test_random_resize=AUGMENT_SIZE_WIDTH
+    experiment_config.dataset.augmentation.random_resize_max_size=AUGMENT_MAX_SIZE
+    experiment_config.dataset.augmentation.test_random_resize=AUGMENT_TEST_SIZE
     experiment_config = OmegaConf.to_container(experiment_config, resolve=True)
     experiment_config = OmegaConf.create(experiment_config)
     yield experiment_config
@@ -353,8 +383,8 @@ def _eval_spec(request):
     experiment_config.dataset.batch_size = 2
     experiment_config.dataset.workers = 0
     experiment_config.dataset.augmentation.fixed_random_crop=AUGMENT_SIZE_CROP
-    experiment_config.dataset.augmentation.random_resize_max_size=AUGMENT_SIZE_HEIGHT
-    experiment_config.dataset.augmentation.test_random_resize=AUGMENT_SIZE_WIDTH
+    experiment_config.dataset.augmentation.random_resize_max_size=AUGMENT_MAX_SIZE
+    experiment_config.dataset.augmentation.test_random_resize=AUGMENT_TEST_SIZE
     experiment_config = OmegaConf.to_container(experiment_config, resolve=True)
     experiment_config = OmegaConf.create(experiment_config)
     yield experiment_config
@@ -386,8 +416,8 @@ def _infer_spec(request):
     experiment_config.dataset.batch_size = 1
     experiment_config.dataset.workers = 0
     experiment_config.dataset.augmentation.fixed_random_crop=AUGMENT_SIZE_CROP
-    experiment_config.dataset.augmentation.random_resize_max_size=AUGMENT_SIZE_HEIGHT
-    experiment_config.dataset.augmentation.test_random_resize=AUGMENT_SIZE_WIDTH
+    experiment_config.dataset.augmentation.random_resize_max_size=AUGMENT_MAX_SIZE
+    experiment_config.dataset.augmentation.test_random_resize=AUGMENT_TEST_SIZE
     experiment_config = OmegaConf.to_container(experiment_config, resolve=True)
     experiment_config = OmegaConf.create(experiment_config)
     yield experiment_config
