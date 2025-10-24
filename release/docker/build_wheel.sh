@@ -28,7 +28,7 @@ mv ${REPO_ROOT}/nvidia_tao_pytorch/* /orig_src/
 mv /obf_src/* ${REPO_ROOT}/
 
 echo "Building bdist wheel"
-python setup.py bdist_wheel || exit $?
+python setup.py bdist_wheel --plat-name manylinux_2_31_x86_64 || exit $?
 
 echo "Restoring the original project structure"
 # Move the obf_src files.
