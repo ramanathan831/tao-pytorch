@@ -47,7 +47,7 @@ spec_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 @hydra_runner(
     config_path=os.path.join(spec_root, "experiment_specs"),
-    config_name="spec_nvppnet_swin", schema=ExperimentConfig
+    config_name="spec_coco", schema=ExperimentConfig
 )
 @monitor_status(name="OneFormer", mode="evaluate")
 def main(cfg: ExperimentConfig) -> None:
