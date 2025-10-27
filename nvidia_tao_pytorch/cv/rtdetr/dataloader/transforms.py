@@ -101,8 +101,8 @@ class ConvertBox(T.Transform):
             'cxcywh': tv_tensors.BoundingBoxFormat.CXCYWH
         }
 
-    def _transform(self, inpt: Any, params: Dict[str, Any]) -> Any:
-        """_transform function."""
+    def transform(self, inpt: Any, params: Dict[str, Any]) -> Any:
+        """transform function."""
         if self.out_fmt:
             spatial_size = inpt.canvas_size
             in_fmt = inpt.format.value.lower()

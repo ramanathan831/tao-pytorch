@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from platform import machine
 import pytest
 import os
 import tempfile
@@ -23,6 +24,11 @@ from nvidia_tao_core.config.sparse4d.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.sparse4d.dataloader.pl_sparse4d_data_module import Sparse4DDataModule
 from nvidia_tao_pytorch.cv.sparse4d.model.sparse4d_pl_model import Sparse4DPlModel
 from nvidia_tao_pytorch.cv.sparse4d.utils.misc import load_pretrained_weights
+
+pytestmark = pytest.mark.skipif(
+    ("aarch64" in machine().lower()) or ("arm" in machine().lower()),
+    reason="Sparse4D tests take very long (~12 hours) on ARM architecture. TODO: Fix this.",
+)
 
 DATA_ROOT = "/home/scratch.metropolis2/tao_ci/tao_pytorch/data/sparse4d/SURF_Booth_031325/full_data/"
 TRAIN_ANNO_ROOT = "/home/scratch.metropolis2/tao_ci/tao_pytorch/data/sparse4d/SURF_Booth_031325/anno_pkls/ov_test_split/SURF_Booth_031325+bev-sensor-buffer-zone-c4_infos_test.pkl"

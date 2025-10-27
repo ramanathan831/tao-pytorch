@@ -37,7 +37,9 @@ TEST_OBJ_HEIGHT = 80
 tmp_top_obj = tempfile.TemporaryDirectory()
 tmp_top_dir = tmp_top_obj.name
 detection_json_file = os.path.join(tmp_top_dir, "detection_json.jsonl")
-grounding_json_file = os.path.join(tmp_top_dir, "grounding_json.jsonl")
+grounding_expression_json_file = os.path.join(tmp_top_dir, "grounding_expression_json.jsonl")
+grounding_phrase_json_file = os.path.join(tmp_top_dir, "grounding_phrase_json.jsonl")
+pred_grounding_json_file = os.path.join(tmp_top_dir, "pred_grounding_json.jsonl")
 json_file = os.path.join(tmp_top_dir, "sample_json.json")
 classmap_file = os.path.join(tmp_top_dir, "classmap.json")
 classtxt_file = os.path.join(tmp_top_dir, "classmap.txt")
@@ -67,7 +69,7 @@ def _test_sample_json():
         images_info = {
             "id": image_id,
             "file_name": f"test_{str(image_id)}.jpg",
-            "height": sample_w,
+            "height": sample_h,
             "width": sample_w
         }
         json_output["images"].append(images_info)
@@ -80,6 +82,12 @@ def _test_sample_json():
             w = int(np.random.randint(low=1, high=TEST_OBJ_WIDTH, size=1)[0])
             h = int(np.random.randint(low=1, high=TEST_OBJ_HEIGHT, size=1)[0])
             bbox= [x1, y1, w, h]
+            segmentation = [[
+                x1, y1,
+                x1, y1 + h,
+                x1 + w, y1 + h,
+                x1 + w, y1
+            ]]
             area  = bbox[2] * bbox[3]
             annotation_info = {
                             'image_id': image_id,
@@ -87,7 +95,8 @@ def _test_sample_json():
                             'id': annotation_id,
                             'bbox': bbox,
                             'area': area,
-                            'iscrowd': 0
+                            'iscrowd': 0,
+                            'segmentation': segmentation
                         }
 
             json_output["annotations"].append(annotation_info)
@@ -117,6 +126,7 @@ def _test_detection_jsonl():
         img.save(img_file)
         json_output = {
             "file_name": f"test_{str(image_id)}.jpg",
+            "image_id": image_id,
             "height": sample_w,
             "width": sample_w
         }
@@ -145,58 +155,170 @@ def _test_detection_jsonl():
 
 
 @pytest.fixture
-def _test_grounding_jsonl():
+def _test_grounding_expression_jsonl():
 
     sentence = "Two people are talking outside of the video game shop next door to the mobile phone store."
     phrases = ["Two people", "the mobile phone store", "the video game shop"]
     jsonl_outputs = []
-    grounding_dir = os.path.join(tmp_top_dir, "grounding")
+    grounding_dir = os.path.join(tmp_top_dir, "grounding_expression")
     check_and_create(tmp_top_dir)
     check_and_create(grounding_dir)
 
     for image_id in range(0, 10):
         sample_w = int(np.random.randint(low=TEST_WIDTH-20, high=TEST_WIDTH+20, size=1)[0])
         sample_h = int(np.random.randint(low=TEST_HEIGHT-20, high=TEST_HEIGHT+20, size=1)[0])
-        img = Image.fromarray(np.random.randint(low=0, high=255, size=(sample_w, sample_h, 3), dtype=np.uint8))
-        img_file = os.path.join(grounding_dir, f"test_{str(image_id)}.jpg")
+        img = Image.fromarray(np.random.randint(low=0, high=255, size=(sample_h, sample_w, 3), dtype=np.uint8))
+        img_file = os.path.join(grounding_dir, f"test_expression_{str(image_id)}.jpg")
 
         img.save(img_file)
         json_output = {
-            "file_name": f"test_{str(image_id)}.jpg",
-            "height": sample_w,
+            "file_name": f"test_expression_{str(image_id)}.jpg",
+            "image_id": image_id,
+            "height": sample_h,
             "width": sample_w
         }
-        regions = []
-        for _ in range(0, 5):
-            x1 = int(np.random.randint(low=0, high=sample_w-TEST_OBJ_WIDTH, size=1)[0])
-            y1 = int(np.random.randint(low=0, high=sample_h-TEST_OBJ_HEIGHT, size=1)[0])
-            w = int(np.random.randint(low=1, high=TEST_OBJ_WIDTH, size=1)[0])
-            h = int(np.random.randint(low=1, high=TEST_OBJ_HEIGHT, size=1)[0])
-            x2, y2 = x1 + w, y1 + h
-            phrase = random.choice(phrases)
-            regions.append({
-                "bbox": [x1, y1, x2, y2],
-                "phrase": phrase,
-                "mask": [[x1, y1, x1, y2, x2, y2, x2, y1]]
-            })
-        json_output["grounding"] = {"caption": sentence, "regions": regions}
+        # 20% chance of creating an "empty" sample
+        if random.random() < 0.4:
+            json_output["grounding"] = {
+                "expression": sentence,
+                "regions": [],
+                "sent_id": image_id,
+                "expression_id": image_id,
+                "empty": True
+            }
+        else:
+            regions = []
+            for _ in range(0, 5):
+                x1 = int(np.random.randint(low=0, high=sample_w-TEST_OBJ_WIDTH, size=1)[0])
+                y1 = int(np.random.randint(low=0, high=sample_h-TEST_OBJ_HEIGHT, size=1)[0])
+                w = int(np.random.randint(low=1, high=TEST_OBJ_WIDTH, size=1)[0])
+                h = int(np.random.randint(low=1, high=TEST_OBJ_HEIGHT, size=1)[0])
+                x2, y2 = x1 + w, y1 + h
+                phrase = random.choice(phrases)
+                regions.append({
+                    "bbox": [x1, y1, x2, y2],
+                    "phrase": phrase,
+                    "mask": [[x1, y1, x1, y2, x2, y2, x2, y1]]
+                })
+            json_output["grounding"] = {
+                "expression": sentence,
+                "regions": regions,
+                "sent_id": image_id,
+                "expression_id": image_id,
+                "empty": False,
+            }
         jsonl_outputs.append(json_output)
 
-    with jsonlines.open(grounding_json_file, 'w') as outfile:
+    with jsonlines.open(grounding_expression_json_file, 'w') as outfile:
         outfile.write_all(jsonl_outputs)
 
 
+
 @pytest.fixture
-def _dataset_spec():
+def _test_grounding_phrase_jsonl():
+
+    sentence = "Two people are talking outside of the video game shop next door to the mobile phone store."
+    phrases = ["Two people", "the mobile phone store", "the video game shop"]
+    jsonl_outputs = []
+    grounding_dir = os.path.join(tmp_top_dir, "grounding_phrase")
+    check_and_create(tmp_top_dir)
+    check_and_create(grounding_dir)
+
+    for image_id in range(0, 10):
+        sample_w = int(np.random.randint(low=TEST_WIDTH-20, high=TEST_WIDTH+20, size=1)[0])
+        sample_h = int(np.random.randint(low=TEST_HEIGHT-20, high=TEST_HEIGHT+20, size=1)[0])
+        img = Image.fromarray(np.random.randint(low=0, high=255, size=(sample_h, sample_w, 3), dtype=np.uint8))
+        img_file = os.path.join(grounding_dir, f"test_phrase_{str(image_id)}.jpg")
+
+        img.save(img_file)
+        json_output = {
+            "file_name": f"test_phrase_{str(image_id)}.jpg",
+            "image_id": image_id,
+            "height": sample_h,
+            "width": sample_w
+        }
+        # 20% chance of creating an "empty" sample
+        if random.random() < 0.4:
+            json_output["grounding"] = {
+                "caption": sentence,
+                "regions": [],
+                "sent_id": image_id,
+                "expression_id": image_id,
+                "empty": True
+            }
+        else:
+            regions = []
+            for _ in range(0, 5):
+                x1 = int(np.random.randint(low=0, high=sample_w-TEST_OBJ_WIDTH, size=1)[0])
+                y1 = int(np.random.randint(low=0, high=sample_h-TEST_OBJ_HEIGHT, size=1)[0])
+                w = int(np.random.randint(low=1, high=TEST_OBJ_WIDTH, size=1)[0])
+                h = int(np.random.randint(low=1, high=TEST_OBJ_HEIGHT, size=1)[0])
+                x2, y2 = x1 + w, y1 + h
+                phrase = random.choice(phrases)
+                regions.append({
+                    "bbox": [x1, y1, x2, y2],
+                    "phrase": phrase,
+                    "mask": [[x1, y1, x1, y2, x2, y2, x2, y1]]
+                })
+            json_output["grounding"] = {
+                "caption": sentence,
+                "regions": regions,
+                "sent_id": image_id,
+                "expression_id": image_id,
+                "empty": False,
+            }
+        jsonl_outputs.append(json_output)
+
+    with jsonlines.open(grounding_phrase_json_file, 'w') as outfile:
+        outfile.write_all(jsonl_outputs)
+        
+@pytest.fixture
+def _test_pred_grounding_jsonl():
+    jsonl_outputs = []
+    pred_grounding_dir = os.path.join(tmp_top_dir, "pred_grounding")
+    check_and_create(tmp_top_dir)
+    check_and_create(pred_grounding_dir)
+    
+    for image_id in range(0, 10):
+        sample_w = int(np.random.randint(low=TEST_WIDTH-20, high=TEST_WIDTH+20, size=1)[0])
+        sample_h = int(np.random.randint(low=TEST_HEIGHT-20, high=TEST_HEIGHT+20, size=1)[0])
+        img = Image.fromarray(np.random.randint(low=0, high=255, size=(sample_h, sample_w, 3), dtype=np.uint8))
+        img_file = os.path.join(pred_grounding_dir, f"test_pred_grounding_{str(image_id)}.jpg")
+
+        img.save(img_file)
+        json_output = {
+            "image_path": f"test_pred_grounding_{str(image_id)}.jpg",
+            "expression": "Two people are talking outside of the video game shop next door to the mobile phone store."
+        }
+        
+        jsonl_outputs.append(json_output)
+
+    with jsonlines.open(pred_grounding_json_file, 'w') as outfile:
+        outfile.write_all(jsonl_outputs)
+
+@pytest.fixture
+def _dataset_spec(request):
+    data_type, folder, json_file = request.param
     data_config = OmegaConf.structured(MaskGDINODatasetConfig())
     data_config.train_data_sources = [{"image_dir": os.path.join(tmp_top_dir, "detection"), 
                                        "json_file": detection_json_file,
                                        "label_map": classmap_file},
-                                      {"image_dir": os.path.join(tmp_top_dir, "grounding"),
-                                       "json_file": grounding_json_file},
+                                      {"image_dir": os.path.join(tmp_top_dir, "grounding_expression"),
+                                       "json_file": grounding_expression_json_file},
+                                      {"image_dir": os.path.join(tmp_top_dir, "grounding_phrase"),
+                                       "json_file": grounding_phrase_json_file},
                                       ]
-    data_config.val_data_sources = {"image_dir": os.path.join(tmp_top_dir, "coco"), "json_file": json_file}
-    data_config.infer_data_sources = {"image_dir": os.path.join(tmp_top_dir, "coco"), "captions": str(classlist)}
+    if data_type == "VG":
+        infer_folder = "pred_grounding"
+        infer_extra_key = "json_file"
+        infer_extra_value = pred_grounding_json_file
+    else:
+        infer_folder = "coco"
+        infer_extra_key = "captions"
+        infer_extra_value = str(classlist)
+    data_config.val_data_sources = {"image_dir": os.path.join(tmp_top_dir, folder), "json_file": json_file, "data_type": data_type}
+    data_config.test_data_sources = {"image_dir": os.path.join(tmp_top_dir, folder), "json_file": json_file, "data_type": data_type}
+    data_config.infer_data_sources = {"image_dir": os.path.join(tmp_top_dir, infer_folder), "data_type": data_type, infer_extra_key: infer_extra_value}
     data_config.batch_size = TEST_BATCH_SIZE
     data_config.workers = 0
 
@@ -210,14 +332,18 @@ def _aug_spec():
 
 @pytest.mark.cv_unit
 @pytest.mark.parametrize("fixed_padding", [True, False])
-def test_train_dataloader(_test_detection_jsonl, _test_grounding_jsonl, _test_sample_json, _dataset_spec, fixed_padding):
+@pytest.mark.parametrize("_dataset_spec", [
+    ("OD", "coco", json_file),
+    ("VG", "grounding_expression", grounding_expression_json_file)
+], indirect=True)
+def test_train_dataloader(_test_detection_jsonl, _test_grounding_expression_jsonl, _test_grounding_phrase_jsonl, _test_sample_json, _dataset_spec, fixed_padding):
     _dataset_spec.augmentation.fixed_padding = fixed_padding
     dm = ODVGDataModule(_dataset_spec)
     dm.setup("fit")
     train_loader = dm.train_dataloader()
     max_size, min_size = _dataset_spec.augmentation.random_resize_max_size, _dataset_spec.augmentation.test_random_resize
     for _, batch in enumerate(train_loader):
-        data, targets = batch
+        data, targets = batch[0], batch[1]
         b, c, height, width = data.shape
         assert b == TEST_BATCH_SIZE, "Incorrect batch size"
         assert c == 4, "Incorrect channel size"
@@ -234,9 +360,81 @@ def test_train_dataloader(_test_detection_jsonl, _test_grounding_jsonl, _test_sa
             assert h <= max_size, "Incorrect label height"
             assert w <= max_size, "Incorrect label width"
 
-@pytest.mark.cv_unit
 @pytest.mark.parametrize("fixed_padding", [True, False])
-def test_pred_dataloader(_test_sample_json, _dataset_spec, fixed_padding):
+@pytest.mark.parametrize("_dataset_spec", [
+    ("OD", "coco", json_file),
+    ("VG", "grounding_expression", grounding_expression_json_file)
+], indirect=True)
+def test_val_dataloader(_test_detection_jsonl, _test_grounding_expression_jsonl, _test_grounding_phrase_jsonl, _test_sample_json, _dataset_spec, fixed_padding):
+    _dataset_spec.augmentation.fixed_padding = fixed_padding
+    dm = ODVGDataModule(_dataset_spec)
+    dm.setup("fit")
+    val_loader = dm.val_dataloader()
+    total_iter = len(val_loader)
+    total_size = len(dm.val_dataset)
+    max_size, min_size = _dataset_spec.augmentation.random_resize_max_size, _dataset_spec.augmentation.test_random_resize
+    for i, batch in enumerate(val_loader):
+        data, targets = batch[0], batch[1]
+        b, c, height, width = data.shape
+        if i + 1 == total_iter:
+            assert b == (total_size % TEST_BATCH_SIZE), "Incorrect handling at the last batch"
+        else:
+            assert b == TEST_BATCH_SIZE, "Incorrect batch size"
+        assert c == 4, "Incorrect channel size"
+
+        if fixed_padding:
+            assert height in (min_size, max_size), "Incorrect image height"
+            assert width in (min_size, max_size), "Incorrect image width"
+        else:
+            assert height <= max_size, "Incorrect image height"
+            assert width <= max_size, "Incorrect image width"
+
+        for target in targets:
+            h, w = target["size"]
+            assert h <= max_size, "Incorrect label height"
+            assert w <= max_size, "Incorrect label width"
+            
+@pytest.mark.parametrize("fixed_padding", [True, False])
+@pytest.mark.parametrize("_dataset_spec", [
+    ("OD", "coco", json_file),
+    ("VG", "grounding_expression", grounding_expression_json_file)
+], indirect=True)
+def test_test_dataloader(_test_detection_jsonl, _test_grounding_expression_jsonl, _test_grounding_phrase_jsonl, _test_sample_json, _dataset_spec, fixed_padding):
+    _dataset_spec.augmentation.fixed_padding = fixed_padding
+    dm = ODVGDataModule(_dataset_spec)
+    dm.setup("test")
+    test_loader = dm.test_dataloader()
+    total_iter = len(test_loader)
+    total_size = len(dm.test_dataset)
+    max_size, min_size = _dataset_spec.augmentation.random_resize_max_size, _dataset_spec.augmentation.test_random_resize
+    for i, batch in enumerate(test_loader):
+        data, targets = batch[0], batch[1]
+        b, c, height, width = data.shape
+        if i + 1 == total_iter:
+            assert b == (total_size % TEST_BATCH_SIZE), "Incorrect handling at the last batch"
+        else:
+            assert b == TEST_BATCH_SIZE, "Incorrect batch size"
+        assert c == 4, "Incorrect channel size"
+
+        if fixed_padding:
+            assert height in (min_size, max_size), "Incorrect image height"
+            assert width in (min_size, max_size), "Incorrect image width"
+        else:
+            assert height <= max_size, "Incorrect image height"
+            assert width <= max_size, "Incorrect image width"
+
+        for target in targets:
+            h, w = target["size"]
+            assert h <= max_size, "Incorrect label height"
+            assert w <= max_size, "Incorrect label width"
+
+@pytest.mark.cv_unit
+@pytest.mark.parametrize("_dataset_spec", [
+    ("OD", "coco", json_file),
+    ("VG", "grounding_expression", grounding_expression_json_file)
+], indirect=True)
+@pytest.mark.parametrize("fixed_padding", [True, False])
+def test_pred_dataloader(_test_sample_json, _test_pred_grounding_jsonl, _dataset_spec, fixed_padding):
     _dataset_spec.augmentation.fixed_padding = fixed_padding
     dm = ODVGDataModule(_dataset_spec)
     dm.setup("predict")

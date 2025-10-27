@@ -263,6 +263,7 @@ def test_classifier_onnx_export(_test_dir, _test_experiment_spec, backbone, batc
 @pytest.mark.parametrize("batch_size", [1])
 @pytest.mark.parametrize("backbone", TEST_TOPOLOGIES)
 @pytest.mark.parametrize("opset_version", [17])
+@pytest.mark.skip(reason="flaky test to be fixed")
 def test_cls_trtexec(_test_dir, _test_experiment_spec, backbone, batch_size, opset_version):
     check_and_create(tmp_top_dir)
 

@@ -15,19 +15,12 @@
 from __future__ import annotations
 
 from unittest.mock import patch, MagicMock
-import sys
-import os
 import pytest
 import torch.nn as nn
 
-_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../.."))
-_PKG_ROOT = os.path.join(_REPO_ROOT, "tao-pytorch")
-_CORE_ROOT = os.path.join(_PKG_ROOT, "tao-core")
-for p in (_PKG_ROOT, _CORE_ROOT):
-    if p not in sys.path:
-        sys.path.insert(0, p)
-
-from nvidia_tao_pytorch.core.quantization import (  # noqa: E402
+# Note: pytest handles sys.path automatically via PYTHONPATH and conftest.py
+# No manual sys.path manipulation needed
+from nvidia_tao_pytorch.core.quantization import (
     ModelQuantizer,
     get_registry_manager,
     register_backend,
@@ -63,7 +56,7 @@ def _patch_modelopt_imports():
     """Targeted patch for modelopt imports - FAST"""
     modelopt_mocks = _create_modelopt_mocks()
     return patch.multiple(
-        "nvidia_tao_pytorch.core.quantization.backends.modelopt.modelopt",
+        "nvidia_tao_pytorch.core.quantization.backends.modelopt_pytorch.modelopt_pytorch",
         **modelopt_mocks
     )
 
@@ -72,7 +65,7 @@ def _patch_modelopt_imports():
 def test_quantize_model_accepts_dict_and_omegaconf():
     # Ensure backend is registered for this test and isolation maintained
     get_registry_manager().clear_all()
-    from nvidia_tao_pytorch.core.quantization.backends.modelopt.modelopt import (
+    from nvidia_tao_pytorch.core.quantization.backends.modelopt_pytorch.modelopt_pytorch import (
         ModelOptBackend,
     )
 

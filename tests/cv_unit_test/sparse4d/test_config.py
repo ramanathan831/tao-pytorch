@@ -19,6 +19,12 @@ import pytest
 import json
 
 from omegaconf import OmegaConf
+from platform import machine
+
+pytestmark = pytest.mark.skipif(
+    ("aarch64" in machine().lower()) or ("arm" in machine().lower()),
+    reason="Sparse4D tests take very long (~12 hours) on ARM architecture. TODO: Fix this.",
+)
 
 from nvidia_tao_core.api_utils.dataclass2json_converter import create_json_schema, dataclass_to_json
 from nvidia_tao_core.api_utils.json_schema_validation import validate_jsonschema

@@ -15,7 +15,7 @@
 
 import torch.nn as nn
 
-from nvidia_tao_pytorch.core.quantization.backends.modelopt.utils import (
+from nvidia_tao_pytorch.core.quantization.backends.modelopt_pytorch.utils import (
     convert_tao_to_modelopt_config,
 )
 from nvidia_tao_pytorch.core.quantization import (
@@ -54,7 +54,7 @@ def _make_toy_model():
 def test_basic_int8_conversion():
     """Verify that a straightforward INT8 PTQ spec is converted correctly."""
     cfg = ModelQuantizationConfig(
-        backend="modelopt",
+        backend="modelopt.pytorch",
         mode="static_ptq",
         algorithm="max",
         layers=[_make_basic_layer(dtype="int8")],
@@ -116,7 +116,7 @@ def test_default_disable_when_no_layers():
 
 def test_algorithm_override_is_propagated():
     cfg = ModelQuantizationConfig(
-        backend="modelopt",
+        backend="modelopt.pytorch",
         mode="static_ptq",
         algorithm="smoothquant",
         layers=[_make_basic_layer(dtype="int8")],
@@ -130,7 +130,7 @@ def test_algorithm_override_is_propagated():
 
 def test_entropy_algorithm_is_passed_through():
     cfg = ModelQuantizationConfig(
-        backend="modelopt",
+        backend="modelopt.pytorch",
         mode="static_ptq",
         algorithm="entropy",
         layers=[_make_basic_layer(dtype="int8")],
@@ -147,7 +147,7 @@ def test_weights_native_disables_weight_quantizer():
         activations=ActivationQuantizationConfig(dtype="int8", observer_or_fake_quant="dummy"),
     )
     cfg = ModelQuantizationConfig(
-        backend="modelopt",
+        backend="modelopt.pytorch",
         mode="static_ptq",
         layers=[layer],
     )
@@ -165,7 +165,7 @@ def test_activations_native_disables_input_quantizer():
         activations=ActivationQuantizationConfig(dtype="native", observer_or_fake_quant="dummy"),
     )
     cfg = ModelQuantizationConfig(
-        backend="modelopt",
+        backend="modelopt.pytorch",
         mode="static_ptq",
         layers=[layer],
     )

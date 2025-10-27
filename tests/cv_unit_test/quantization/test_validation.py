@@ -14,7 +14,8 @@
 
 """Unit tests for quantization validation functions."""
 
-from nvidia_tao_pytorch.core.quantization.validation import get_valid_dtype_options
+import pytest
+from nvidia_tao_pytorch.core.quantization.validation import get_valid_dtype_options, assert_supported_dtype
 from nvidia_tao_pytorch.core.quantization.constants import SupportedDtype
 
 
@@ -39,3 +40,25 @@ def test_get_valid_dtype_options():
     assert sorted(valid_dtypes) == sorted(
         expected_dtypes
     ), "The dtype options should match values in SupportedDtype enum"
+
+
+def test_assert_supported_dtype_with_valid_dtype():
+    """Test that assert_supported_dtype accepts valid dtypes without raising."""
+    assert_supported_dtype("int8")
+    assert_supported_dtype("fp8_e4m3fn")
+    assert_supported_dtype("fp8_e5m2")
+
+
+def test_assert_supported_dtype_with_none():
+    """Test that assert_supported_dtype raises TypeError for None."""
+    with pytest.raises(TypeError, match="dtype cannot be None"):
+        assert_supported_dtype(None)
+
+
+def test_assert_supported_dtype_with_invalid_dtype():
+    """Test that assert_supported_dtype raises ValueError for unsupported dtypes."""
+    with pytest.raises(ValueError, match="Unsupported dtype 'int4'"):
+        assert_supported_dtype("int4")
+
+    with pytest.raises(ValueError, match="Unsupported dtype 'float32'"):
+        assert_supported_dtype("float32")

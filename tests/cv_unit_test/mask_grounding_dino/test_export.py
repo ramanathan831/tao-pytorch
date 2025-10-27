@@ -21,6 +21,7 @@ import onnx
 import onnxruntime as ort
 import numpy as np
 import torch
+from copy import deepcopy
 
 from nvidia_tao_core.config.mask_grounding_dino.default_config import MaskGDINOModelConfig, MaskGDINODatasetConfig, ExperimentConfig
 from nvidia_tao_pytorch.cv.mask_grounding_dino.model.build_nn_model import build_model
@@ -29,21 +30,24 @@ from nvidia_tao_pytorch.cv.mask_grounding_dino.utils.onnx_export import ONNXExpo
 
 @pytest.fixture
 def _test_experiment_spec():
-    dataset_config = OmegaConf.structured(MaskGDINODatasetConfig())
-    model_config = OmegaConf.structured(MaskGDINOModelConfig())
-    experiment_config = OmegaConf.structured(ExperimentConfig())
+    dataset_config = MaskGDINODatasetConfig()
+    model_config = MaskGDINOModelConfig()
+    experiment_config = ExperimentConfig()
     experiment_config.dataset = dataset_config
     experiment_config.model = model_config
+    experiment_config = OmegaConf.structured(experiment_config)
+
     yield experiment_config
 
 
 @pytest.mark.cv_unit
 @pytest.mark.parametrize("backbone", ["swin_tiny_224_1k"])
 @pytest.mark.parametrize("batch_size", [-1])
-@pytest.mark.skip(reason="flaky test to be fixed")
-def test_mask_grounding_dino_onnx_export(_test_experiment_spec, backbone, batch_size):
+@pytest.mark.parametrize("num_region_queries", [0, 200])
+def test_mask_grounding_dino_onnx_export(_test_experiment_spec, backbone, batch_size, num_region_queries):
     """Unit test for ONNX export on Mask Grounding DINO model. Here, custom DMHA is used."""
-
+    _test_experiment_spec.model.backbone = backbone
+    _test_experiment_spec.model.num_region_queries = num_region_queries
     # Define input and output of ONNX
     if batch_size == -1:
         input_batch_size = 1
@@ -53,6 +57,8 @@ def test_mask_grounding_dino_onnx_export(_test_experiment_spec, backbone, batch_
 
     input_names = ["inputs", "input_ids", "attention_mask", "position_ids", "token_type_ids", "text_token_mask"]
     output_names = ["pred_logits", "pred_boxes", "pred_masks"]
+    if num_region_queries > 0:
+        output_names.extend(['no_targets', 'union_mask_logits'])
 
     model = build_model(_test_experiment_spec, export=True)
     model.eval()
@@ -91,15 +97,15 @@ def test_mask_grounding_dino_onnx_export(_test_experiment_spec, backbone, batch_
 @pytest.mark.cv_unit
 @pytest.mark.parametrize("backbone", ["swin_tiny_224_1k"])
 @pytest.mark.parametrize("batch_size", [-1])
-@pytest.mark.skip(reason="flaky test to be fixed")
-def test_mask_grounding_dino_compare_onnx_output(_test_experiment_spec, backbone, batch_size):
+@pytest.mark.parametrize("num_region_queries", [0, 200])
+def test_mask_grounding_dino_compare_onnx_output(_test_experiment_spec, backbone, batch_size, num_region_queries):
     """Unit test for ONNX export on Mask Grounding DINO model. Here pytorch DMHA is used for ONNXRuntime."""
-    _test_experiment_spec["model"].backbone = backbone
-    _test_experiment_spec["model"].aux_loss = False
-    _test_experiment_spec["model"].num_feature_levels = 4
-    _test_experiment_spec["model"].return_interm_indices = [1, 2, 3, 4]
-    _test_experiment_spec["model"].num_queries = 100
-
+    _test_experiment_spec.model.backbone = backbone
+    _test_experiment_spec.model.aux_loss = False
+    _test_experiment_spec.model.num_feature_levels = 4
+    _test_experiment_spec.model.return_interm_indices = [1, 2, 3, 4]
+    _test_experiment_spec.model.num_queries = 100
+    _test_experiment_spec.model.num_region_queries = num_region_queries
     # Define input and output of ONNX
     if batch_size == -1:
         input_batch_size = 1
@@ -109,7 +115,9 @@ def test_mask_grounding_dino_compare_onnx_output(_test_experiment_spec, backbone
     input_channel, input_height, input_width = 3, 544, 960
 
     input_names = ["inputs", "input_ids", "attention_mask", "position_ids", "token_type_ids", "text_token_mask"]
-    output_names = ["pred_logits", "pred_boxes"]
+    output_names = ["pred_logits", "pred_boxes", "pred_masks"]
+    if num_region_queries > 0:
+        output_names.extend(['no_targets', 'union_mask_logits'])
 
     np.random.seed(0)
     torch.manual_seed(0)
@@ -118,6 +126,7 @@ def test_mask_grounding_dino_compare_onnx_output(_test_experiment_spec, backbone
 
     # To run ONNXRuntime, we run models in CPU so that deformable attention does not
     # use custom TRT Plugin
+    
     model = build_model(_test_experiment_spec, export=True)
     model.eval()
     device = "cpu"
