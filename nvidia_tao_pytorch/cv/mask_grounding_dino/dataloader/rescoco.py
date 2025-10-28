@@ -10,6 +10,8 @@ from PIL import Image
 import torch
 from torch.utils.data import Dataset
 
+from nvidia_tao_pytorch.cv.mask_grounding_dino.dataloader.odvg import clean_caption
+
 
 class RESPredictDataset(Dataset):
     """Referring Expression Segmentation Dataset for inference."""
@@ -58,7 +60,7 @@ class RESPredictDataset(Dataset):
         target = {
             "orig_size": torch.as_tensor([int(height), int(width)]),
             "size": torch.as_tensor([int(height), int(width)]),
-            "caption": instance['expression'],
+            "caption": clean_caption(instance['expression']),
         }
 
         if self.transforms:
