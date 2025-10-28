@@ -218,7 +218,7 @@ def _test_grounding_expression_jsonl():
                 w = int(np.random.randint(low=1, high=TEST_OBJ_WIDTH, size=1)[0])
                 h = int(np.random.randint(low=1, high=TEST_OBJ_HEIGHT, size=1)[0])
                 x2, y2 = x1 + w, y1 + h
-                phrase = random.choice(phrases)
+                phrase = random.choice(phrases).lower().strip()
                 regions.append({
                     "bbox": [x1, y1, x2, y2],
                     "phrase": phrase,
@@ -284,7 +284,7 @@ def _test_grounding_phrase_jsonl():
                 w = int(np.random.randint(low=1, high=TEST_OBJ_WIDTH, size=1)[0])
                 h = int(np.random.randint(low=1, high=TEST_OBJ_HEIGHT, size=1)[0])
                 x2, y2 = x1 + w, y1 + h
-                phrase = random.choice(phrases)
+                phrase = random.choice(phrases).lower().strip()
                 regions.append({
                     "bbox": [x1, y1, x2, y2],
                     "phrase": phrase,
@@ -308,6 +308,7 @@ def _test_pred_grounding_jsonl():
     pred_grounding_dir = os.path.join(tmp_top_dir, "pred_grounding")
     check_and_create(tmp_top_dir)
     check_and_create(pred_grounding_dir)
+    expression_list = ["PERSON LEFT WITH BACK SHOWING", "Two persons and a flying disk.", "Person on left", "the women wearing white and blue sweater standing in the middle washing dishes and the white clock on the wall", "right girl"]
     
     for image_id in range(0, 10):
         min_size = int(np.random.randint(low=TEST_SIZE_MIN-20, high=TEST_SIZE_MIN+20, size=1)[0])
@@ -324,7 +325,7 @@ def _test_pred_grounding_jsonl():
         img.save(img_file)
         json_output = {
             "image_path": f"test_pred_grounding_{str(image_id)}.jpg",
-            "expression": "Two people are talking outside of the video game shop next door to the mobile phone store."
+            "expression": expression_list[image_id % len(expression_list)]
         }
         
         jsonl_outputs.append(json_output)
