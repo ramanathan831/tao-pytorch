@@ -81,7 +81,7 @@ spec:
   backoffLimit: 4
   nodeSelector:
     kubernetes.io/os: linux
-    nvidia.com/gpu_type: A100_PCIE_40GB
+    nvidia.com/gpu_type: A100_80GB_PCIe
     nvidia.com/driver_version: "580.35"
 """) {
   node(POD_LABEL) {
