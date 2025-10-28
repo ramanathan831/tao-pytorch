@@ -143,10 +143,14 @@ spec:
         command_env = pythonpath_env + ' ' + ci_path_env
 
         stage ("functional_tests") {
-          withCredentials([string(credentialsId: 'NGC_CLI_API_KEY_SVC_TLT_CI', variable: 'NGC_CLI_API_KEY')]) {
+          withCredentials([
+            string(credentialsId: 'NGC_CLI_API_KEY_SVC_TLT_CI', variable: 'NGC_CLI_API_KEY'),
+            string(credentialsId: 'HF_TOKEN_CI', variable: 'HF_TOKEN')
+          ]) {
             script{
               env.NGC_KEY=NGC_CLI_API_KEY
               env.NGC_PATH='ea-tlt/tao_ea/pretrained_dino_imagenet:fan_hybrid_tiny'
+              env.HF_TOKEN=HF_TOKEN
             }
           }
           gitlabCommitStatus(name: "functional_tests", connection: gitLabConnection('git-lab-master')) {

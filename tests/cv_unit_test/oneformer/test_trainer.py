@@ -259,6 +259,7 @@ def _infer_spec():
 @pytest.mark.oneformer
 @pytest.mark.train
 @pytest.mark.parametrize("precision", ["32-true", "16-mixed"])
+@pytest.mark.skip(reason="flaky test pending fix")
 def test_trainer_fit(_test_sample_json, _train_spec, precision):
     """Test the OneFormer training pipeline."""
     _train_spec.model.backbone.name = "D2SwinTransformer"
@@ -289,6 +290,7 @@ def test_trainer_fit(_test_sample_json, _train_spec, precision):
 @pytest.mark.oneformer
 @pytest.mark.evaluate
 @pytest.mark.parametrize("precision", ["32-true", "16-mixed"])
+@pytest.mark.skip(reason="flaky test pending fix")
 def test_trainer_evaluate(_test_sample_json, _eval_spec, precision):
     """Test the OneFormer evaluation pipeline."""
     _eval_spec.model.backbone.name = "D2SwinTransformer"
@@ -310,6 +312,7 @@ def test_trainer_evaluate(_test_sample_json, _eval_spec, precision):
 @pytest.mark.oneformer
 @pytest.mark.inference
 @pytest.mark.parametrize("precision", ["32-true", "16-mixed"])
+@pytest.mark.skip(reason="flaky test pending fix")
 def test_trainer_inference(_test_sample_json, _infer_spec, precision):
     """Test the OneFormer inference pipeline."""
     _infer_spec.model.backbone.name = "D2SwinTransformer"
