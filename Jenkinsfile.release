@@ -79,10 +79,26 @@ spec:
     tty: true
   restartPolicy: Never
   backoffLimit: 4
-  nodeSelector:
-    kubernetes.io/os: linux
-    nvidia.com/gpu_type: A100_80GB_PCIe
-    nvidia.com/driver_version: "580.35"
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: nvidia.com/gpu_type
+            operator: In
+            values:
+            - A100_80GB_PCIE
+            - A100_PCIE_80GB
+          - key: nvidia.com/driver_version
+            operator: In
+            values:
+            - 580.35
+            - 580.66
+            - 580.82.07
+          - key: kubernetes.io/os
+            operator: In
+            values:
+            - linux
 """) {
   node(POD_LABEL) {
     try {
