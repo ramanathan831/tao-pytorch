@@ -27,10 +27,10 @@ from time import time
 import yaml
 from contextlib import contextmanager
 
-from nvidia_tao_pytorch.core.telemetry.nvml_utils import get_device_details
 from nvidia_tao_pytorch.core.tlt_logging import logging
-from nvidia_tao_pytorch.core.telemetry.telemetry import send_telemetry_data
 from nvidia_tao_pytorch.core.distributed.validator import validate_configs
+from nvidia_tao_core.telemetry.nvml import get_device_details
+from nvidia_tao_core.telemetry.telemetry import send_telemetry_data
 
 LIGHTNING_EXCLUDED_NETWORKS = [
     "bevfusion",

@@ -20,7 +20,7 @@ import json
 import logging
 import os
 
-from nvidia_tao_core.cloud_handlers.utils import status_callback
+from nvidia_tao_core.microservices.handlers.cloud_handlers.utils import status_callback
 
 from torch import distributed as torch_distributed
 from pytorch_lightning.utilities import rank_zero_only, rank_zero_warn

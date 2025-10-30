@@ -1,6 +1,3 @@
-[submodule "tao-converter"]
-	path = tao-converter
-	url = ../tao-converter.git
 [submodule "tao-core"]
 	path = tao-core
 	url = ../tao-core.git
