@@ -20,7 +20,7 @@ import torch
 import os
 import tempfile
 
-from nvidia_tao_core.cloud_handlers import utils
+from nvidia_tao_core.microservices.handlers.cloud_handlers import utils
 from pytorch_lightning.utilities.rank_zero import rank_zero_only
 from nvidia_tao_pytorch.core.distributed.comm import synchronize
 

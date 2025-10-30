@@ -232,8 +232,8 @@ The TAO docker is built on top of the TAO Pytorch base dev docker, by building a
 git lfs install
 git lfs pull
 source scripts/envsetup.sh
-cd $NV_TAO_PYTORCH_TOP/release/docker
-./deploy.sh --build --wheel
+cd $NV_TAO_PYTORCH_TOP
+./release/docker/deploy.sh --build --wheel
 ```
 
 In order to build a new docker, please edit the `deploy.sh` file in `$NV_TAO_PYTORCH_TOP/release/docker` to update the patch version and re-run the steps above.
