@@ -17,12 +17,11 @@
 import argparse
 import json
 import os
+import platform
 import subprocess
 import sys
 
 from packaging import version
-
-from nvidia_tao_pytorch.core.platform_utils import get_platform_digest
 
 ROOT_DIR = os.getenv("NV_TAO_PYTORCH_TOP", os.getcwd())
 
@@ -31,7 +30,27 @@ with open(os.path.join(ROOT_DIR, "docker/manifest.json"), "r") as m_file:
 
 DOCKER_REGISTRY = docker_config["registry"]
 DOCKER_REPOSITORY = docker_config["repository"]
-DOCKER_DIGEST = get_platform_digest(docker_config)
+
+# Platform keys for digest lookup
+X86_KEY = "x86"
+ARM_KEY = "arm"
+
+# Handle both old and new manifest formats
+if "digest" in docker_config:
+    # Old format with single digest
+    DOCKER_DIGEST = docker_config["digest"]
+elif "digests" in docker_config:
+    # New format with platform-specific digests
+    arch = platform.machine()
+    if arch == "x86_64":
+        DOCKER_DIGEST = docker_config["digests"][X86_KEY]
+    elif arch == "aarch64":
+        DOCKER_DIGEST = docker_config["digests"][ARM_KEY]
+    else:
+        # Fallback to x86
+        DOCKER_DIGEST = docker_config["digests"][X86_KEY]
+else:
+    raise ValueError("Invalid manifest format: missing 'digest' or 'digests' field")
 DOCKER_COMMAND = "docker"
 HOME_PATH = os.path.expanduser("~")
 MOUNTS_PATH = os.path.join(HOME_PATH, ".tao_mounts.json")
@@ -97,11 +116,11 @@ def get_docker_gpus_prefix(gpus):
         .strip()
         .decode()
     )
-    
+
     # Check if running on a tegra system like thor or jetson
     uname_output = subprocess.check_output(["uname", "-a"]).decode().strip()
     is_tegra = "tegra" in uname_output
-    
+
     # Use nvidia runtime if docker version is old OR if on tao-thor/tegra system
     if version.parse(docker_version) <= version.parse("1.40") or is_tegra:
         # Stick to the older version of getting the gpu's using runtime=nvidia

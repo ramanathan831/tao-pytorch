@@ -16,8 +16,7 @@
 
 import json
 import os
-
-from nvidia_tao_pytorch.core.platform_utils import get_platform_digest
+import platform
 
 
 def configure_env():
@@ -59,7 +58,27 @@ def get_docker_information(manifest_file):
     with open(manifest_file, "r") as m_file:
         docker_config = json.load(m_file)
 
-    digest = get_platform_digest(docker_config)
+    # Platform keys for digest lookup
+    X86_KEY = "x86"
+    ARM_KEY = "arm"
+
+    # Handle both old and new manifest formats
+    if "digest" in docker_config:
+        # Old format with single digest
+        digest = docker_config["digest"]
+    elif "digests" in docker_config:
+        # New format with platform-specific digests
+        arch = platform.machine()
+        if arch == "x86_64":
+            digest = docker_config["digests"][X86_KEY]
+        elif arch == "aarch64":
+            digest = docker_config["digests"][ARM_KEY]
+        else:
+            # Fallback to x86
+            digest = docker_config["digests"][X86_KEY]
+    else:
+        raise ValueError("Invalid manifest format: missing 'digest' or 'digests' field")
+
     return docker_config["registry"], docker_config["repository"], digest
 
 
