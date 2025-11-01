@@ -64,7 +64,7 @@ spec:
       - name: DOCKER_TLS_CERTDIR
         value: ""
   - name: base-image
-    image: nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:6896dcd174f1ceabb80b64fa7f4c6da07d9c2227476c91f8e9ade34ae5a3a938
+    image: nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:4d6c2f98bcb233a7ab7c87f187b3d5a3e1c405d1206fb2b0d3c7b410bb93e84d
     securityContext:
       privileged: true
     command:
