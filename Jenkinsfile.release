@@ -112,6 +112,90 @@ spec:
           }
         }
 
+        stage('update_core_submodule') {
+          gitlabCommitStatus(name: "update_core_submodule", connection: gitLabConnection('git-lab-master')) {
+            withCredentials([string(credentialsId: 'gitlab-api-token', variable: 'GITLAB_TOKEN')]) {
+              // Determine the release branch from TAO_VERSION
+              def releaseBranch = "release/${TAO_VERSION}"
+              echo "Target release branch: ${releaseBranch}"
+              
+              // Save original .gitmodules
+              sh "cp .gitmodules .gitmodules.backup"
+              
+              try {
+                // Configure git to use the token for authentication
+                sh """
+                  git config --global credential.helper store
+                  echo "https://oauth2:${GITLAB_TOKEN}@gitlab-master.nvidia.com" > ~/.git-credentials
+                """
+                
+                // Fetch the release branch and checkout
+                sh """
+                  git fetch origin ${releaseBranch}
+                  git checkout ${releaseBranch} || git checkout -b ${releaseBranch} origin/${releaseBranch}
+                """
+                
+                // Temporarily update submodule URL to HTTPS with authentication
+                sh """
+                  git config -f .gitmodules submodule.tao-core.url https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-core.git
+                  git config -f .gitmodules submodule.tao-core.branch ${releaseBranch}
+                """
+                
+                // Initialize and update submodule to latest from the branch
+                sh """
+                  git submodule sync
+                  git submodule update --init --remote tao-core
+                """
+                
+                // Mark tao-core submodule as safe directory and print SHA
+                sh "git config --global --add safe.directory $WORKSPACE/tao-core"
+                def coreCommitSha = sh(script: "cd tao-core && git rev-parse HEAD", returnStdout: true).trim()
+                echo "tao-core submodule SHA: ${coreCommitSha}"
+                
+                // Check if there are changes in the submodule
+                def submoduleStatus = sh(script: "git status --porcelain tao-core", returnStdout: true).trim()
+                
+                if (submoduleStatus) {
+                  echo "Submodule tao-core has updates. Committing the new SHA..."
+                  
+                  // Restore original .gitmodules (don't commit the branch or URL change)
+                  sh "mv .gitmodules.backup .gitmodules"
+                  
+                  // Stage only the submodule change
+                  sh "git add tao-core"
+                  
+                  // Commit and push
+                  sh """
+                    git config user.email "christwang@nvidia.com"
+                    git config user.name "TAO Release CI"
+                    git commit -m "TAO Release CI - update core submodule"
+                    git push https://oauth2:${GITLAB_TOKEN}@gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-pytorch.git HEAD:${releaseBranch}
+                  """
+                  
+                  echo "Successfully updated and pushed tao-core submodule to ${releaseBranch}"
+                } else {
+                  echo "No updates needed for tao-core submodule"
+                  // Restore original .gitmodules
+                  sh "mv .gitmodules.backup .gitmodules"
+                }
+              } catch (Exception e) {
+                // Restore original .gitmodules in case of error
+                sh "mv .gitmodules.backup .gitmodules || true"
+                throw e
+              } finally {
+                // Clean up all git credentials and credential files
+                sh """
+                  rm -f ~/.git-credentials || true
+                  rm -f ~/.gitconfig || true
+                  git config --global --unset credential.helper || true
+                  # Remove any .git-credentials files in the workspace
+                  find $WORKSPACE -name '.git-credentials' -type f -delete || true
+                """
+              }
+            }
+          }
+        }
+
         stage ('patch_build_files') {
           gitlabCommitStatus(name: "patch_build_files", connection: gitLabConnection('git-lab-master')) {
             sh "python3 release/update_version.py --version ${TAO_VERSION}"
