@@ -1,4 +1,13 @@
-FROM nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:4d6c2f98bcb233a7ab7c87f187b3d5a3e1c405d1206fb2b0d3c7b410bb93e84d
+# FROM nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:4d6c2f98bcb233a7ab7c87f187b3d5a3e1c405d1206fb2b0d3c7b410bb93e84d
+# Select base image based on architecture
+ARG TARGETARCH # provided by Docker if using BuildKit. Else pass in explicitly.
+ARG ARM64_DIGEST=83487c18b87d5818cceb12e0112681e31943bb3492f01c2138402f826d8f4a7d
+ARG X86_DIGEST=4d6c2f98bcb233a7ab7c87f187b3d5a3e1c405d1206fb2b0d3c7b410bb93e84d
+
+FROM nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:${ARM64_DIGEST} AS base-arm64
+FROM nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:${X86_DIGEST} AS base-amd64
+
+FROM base-${TARGETARCH}
 
 # Installing the TLT packages.
 WORKDIR /opt/nvidia
@@ -29,8 +38,11 @@ RUN cd tao-core && bash release/python/build_wheel.sh && \
     cd .. && rm -rf tao-core
 
 ## Install mongodump and mongorestore
-RUN apt update && wget https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2204-$(uname -m)-100.10.0.deb ## Update this when upgrading from Ubuntu 22.04
-RUN apt install ./mongodb-database-tools-*-100.10.0.deb && rm -f mongodb-database-tools-*.deb
+RUN apt update && \
+    ARCH=$(uname -m) && \
+    if [ "$ARCH" = "aarch64" ]; then ARCH="arm64"; fi && \
+    wget https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2204-${ARCH}-100.10.0.deb ## Update this when upgrading from Ubuntu 22.04
+RUN apt install -y ./mongodb-database-tools-*-100.10.0.deb && rm -f mongodb-database-tools-*.deb
 
 COPY dist/*.whl /opt/nvidia/wheels/
 RUN cd wheels && ls ./*.whl|xargs -I'{}' python -m pip install '{}' \
