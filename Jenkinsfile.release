@@ -397,7 +397,8 @@ spec:
               }
               
               echo "Uploading wheel: ${SRC} to ${TARGET}"
-              sh "jfrog rt u --url=https://urm.nvidia.com/artifactory/ --user=${JFROG_USERNAME} --access-token=${JFROG_PASSWORD} --target-props '${PROP}' ${SRC} ${TARGET}"
+              sh "cp ${SRC} dist/nvidia_tao_pytorch-${VER}-${PYTHON_VER}-manylinux1_x86_64.whl"
+              sh "jfrog rt u --url=https://urm.nvidia.com/artifactory/ --user=${JFROG_USERNAME} --access-token=${JFROG_PASSWORD} --target-props '${PROP}' dist/nvidia_tao_pytorch-${VER}-${PYTHON_VER}-manylinux1_x86_64.whl ${TARGET}"
             }
             def append_string="pytorch_wheel: nvidia_tao_pytorch-${VER}-${PYTHON_VER}-${ARCH}.whl"
             def config_file_path = "/home/scratch.metropolis2/users/release_pipeline_files/release_items.yml"
