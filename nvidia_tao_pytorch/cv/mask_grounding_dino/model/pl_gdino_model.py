@@ -66,7 +66,7 @@ class MaskGDINOPlModel(TAOLightningModule):
             tokenized = self.tokenizer([caption], padding="longest", return_tensors="pt")
             label_list = torch.arange(len(cap_lists))
             label_positive_map = create_positive_map(tokenized[0], label_list, cap_lists, caption)
-            self.register_buffer("label_positive_map", label_positive_map)
+            self.register_buffer("label_positive_map", label_positive_map, persistent=False)
         else:
             self.label_positive_map = None
 
