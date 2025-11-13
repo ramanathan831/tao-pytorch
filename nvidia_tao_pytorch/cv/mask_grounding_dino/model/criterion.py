@@ -192,7 +192,7 @@ class SetCriterion(nn.Module):
         self.focal_alpha = focal_alpha
         self.focal_gamma = focal_gamma
         if "rela" in self.losses:
-            self.register_buffer("rela_weights", torch.tensor([0.9, 1.1], dtype=torch.float32))
+            self.register_buffer("rela_weights", torch.tensor([0.9, 1.1], dtype=torch.float32), persistent=False)
 
     def loss_boxes(self, outputs, targets, indices, num_boxes):
         """Compute the losses related to the bounding boxes, the L1 regression loss and the GIoU loss.
