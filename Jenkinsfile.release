@@ -811,6 +811,8 @@ spec:
     env:
       - name: DOCKER_TLS_CERTDIR
         value: ""
+      - name: OTEL_SDK_DISABLED
+        value: "true"
   restartPolicy: Never
   backoffLimit: 4
   nodeSelector:
@@ -827,104 +829,115 @@ spec:
       
       steps {
         container('docker') {
-          gitlabCommitStatus(name: "consolidate_multiarch_image", connection: gitLabConnection('git-lab-master')) {
+          retry(count: 3) {
             script {
-              echo "=== Consolidating Multi-Architecture Images ==="
-              
-              sh '''
-                echo "Waiting for Docker daemon..."
-                for i in $(seq 1 30); do
-                  docker info > /dev/null 2>&1 && break
-                  sleep 2
-                done
-              '''
-              
-              def IMAGE_NAME_PYT = "nvcr.io/nvstaging/tao/tao-toolkit-pyt"
-              def IMAGE_NAME_TOOLKIT = "nvcr.io/nvstaging/tao/tao-toolkit"
-              def X86_TAG, ARM64_TAG, UNIFIED_TAG, UNIFIED_PYT_TAG, RELEASE_TAG
-              def CC_X86_TAG, CC_ARM64_TAG, CC_UNIFIED_TAG
-              
-              if (params.RC) {
-                X86_TAG = "${TAO_VERSION}-rc-${BUILD_NUMBER}-x86"
-                ARM64_TAG = "${TAO_VERSION}-rc-${BUILD_NUMBER}-arm64"
-                UNIFIED_TAG = "${TAO_VERSION}-rc-${BUILD_NUMBER}-multiarch"
-                
-                // Tags for tao-toolkit image
-                def X86_TOOLKIT_TAG = "${TAO_VERSION}-pyt-x86"
-                def ARM64_TOOLKIT_TAG = "${TAO_VERSION}-pyt-arm64"
-                UNIFIED_PYT_TAG = "${TAO_VERSION}-pyt-multiarch"
-                
-                CC_X86_TAG = "${TAO_VERSION}-rc-${BUILD_NUMBER}-cc-x86"
-                CC_ARM64_TAG = "${TAO_VERSION}-rc-${BUILD_NUMBER}-cc-arm64"
-                CC_UNIFIED_TAG = "${TAO_VERSION}-rc-${BUILD_NUMBER}-cc-multiarch"
-              } else {
-                X86_TAG = "${TAO_VERSION}-pyt-x86"
-                ARM64_TAG = "${TAO_VERSION}-pyt-arm64"
-                UNIFIED_TAG = "${TAO_VERSION}-pyt"
-                RELEASE_TAG = "${TAO_VERSION}-release"
+              if (currentBuild.getPreviousBuild()?.getResult() == 'FAILURE') {
+                echo "Previous attempt failed, sleeping 5 minutes before retry..."
+                sleep time: 5, unit: 'MINUTES'
               }
-              
-              docker.withRegistry('https://nvcr.io', 'NGC_API_KEY') {
-                sh "docker buildx create --name mb --use --driver docker-container --bootstrap || docker buildx use mb"
+            }
+            gitlabCommitStatus(name: "consolidate_multiarch_image", connection: gitLabConnection('git-lab-master')) {
+              script {
+                echo "=== Consolidating Multi-Architecture Images ==="
+                
+                sh '''
+                  echo "Waiting for Docker daemon..."
+                  for i in $(seq 1 30); do
+                    docker info > /dev/null 2>&1 && break
+                    sleep 2
+                  done
+                '''
+                
+                def IMAGE_NAME_PYT = "nvcr.io/nvstaging/tao/tao-toolkit-pyt"
+                def IMAGE_NAME_TOOLKIT = "nvcr.io/nvstaging/tao/tao-toolkit"
+                def X86_TAG, ARM64_TAG, UNIFIED_TAG, UNIFIED_PYT_TAG, LATEST_TAG
+                def CC_X86_TAG, CC_ARM64_TAG, CC_UNIFIED_TAG
                 
                 if (params.RC) {
-                  // Consolidate tao-toolkit-pyt images
-                  echo "=== Consolidating tao-toolkit-pyt Images ==="
-                  def x86Exists = sh(script: "docker manifest inspect ${IMAGE_NAME_PYT}:${X86_TAG}", returnStatus: true)
-                  def armExists = sh(script: "docker manifest inspect ${IMAGE_NAME_PYT}:${ARM64_TAG}", returnStatus: true)
+                  X86_TAG = "${TAO_VERSION}-rc-${BUILD_NUMBER}-x86"
+                  ARM64_TAG = "${TAO_VERSION}-rc-${BUILD_NUMBER}-arm64"
+                  UNIFIED_TAG = "${TAO_VERSION}-rc-${BUILD_NUMBER}-multiarch"
                   
-                  if (x86Exists != 0 || armExists != 0) {
-                    error("One or both pyt images not found")
-                  }
-                  
-                  sh "docker buildx imagetools create -t ${IMAGE_NAME_PYT}:${UNIFIED_TAG} ${IMAGE_NAME_PYT}:${X86_TAG} ${IMAGE_NAME_PYT}:${ARM64_TAG}"
-                  sh "docker manifest inspect ${IMAGE_NAME_PYT}:${UNIFIED_TAG}"
-                  echo "✓ PyT multiarch image created: ${IMAGE_NAME_PYT}:${UNIFIED_TAG}"
-                  
-                  // Consolidate tao-toolkit images (pyt variant)
-                  echo "=== Consolidating tao-toolkit PyT Images ==="
+                  // Tags for tao-toolkit image
                   def X86_TOOLKIT_TAG = "${TAO_VERSION}-pyt-x86"
                   def ARM64_TOOLKIT_TAG = "${TAO_VERSION}-pyt-arm64"
+                  UNIFIED_PYT_TAG = "${TAO_VERSION}-pyt-multiarch"
+                  LATEST_TAG = "${TAO_VERSION}-pyt"
                   
-                  def x86ToolkitExists = sh(script: "docker manifest inspect ${IMAGE_NAME_TOOLKIT}:${X86_TOOLKIT_TAG}", returnStatus: true)
-                  def armToolkitExists = sh(script: "docker manifest inspect ${IMAGE_NAME_TOOLKIT}:${ARM64_TOOLKIT_TAG}", returnStatus: true)
-                  
-                  if (x86ToolkitExists != 0 || armToolkitExists != 0) {
-                    error("One or both toolkit pyt images not found")
-                  }
-                  
-                  sh "docker buildx imagetools create -t ${IMAGE_NAME_TOOLKIT}:${UNIFIED_PYT_TAG} ${IMAGE_NAME_TOOLKIT}:${X86_TOOLKIT_TAG} ${IMAGE_NAME_TOOLKIT}:${ARM64_TOOLKIT_TAG}"
-                  sh "docker manifest inspect ${IMAGE_NAME_TOOLKIT}:${UNIFIED_PYT_TAG}"
-                  echo "✓ Toolkit PyT multiarch image created: ${IMAGE_NAME_TOOLKIT}:${UNIFIED_PYT_TAG}"
-                  
-                  // Consolidate CC images (RC only)
-                  echo "=== Consolidating CC Images ==="
-                  def ccX86Exists = sh(script: "docker manifest inspect ${IMAGE_NAME_PYT}:${CC_X86_TAG}", returnStatus: true)
-                  def ccArmExists = sh(script: "docker manifest inspect ${IMAGE_NAME_PYT}:${CC_ARM64_TAG}", returnStatus: true)
-                  
-                  if (ccX86Exists != 0 || ccArmExists != 0) {
-                    error("One or both CC images not found")
-                  }
-                  
-                  sh "docker buildx imagetools create -t ${IMAGE_NAME_PYT}:${CC_UNIFIED_TAG} ${IMAGE_NAME_PYT}:${CC_X86_TAG} ${IMAGE_NAME_PYT}:${CC_ARM64_TAG}"
-                  sh "docker manifest inspect ${IMAGE_NAME_PYT}:${CC_UNIFIED_TAG}"
-                  echo "✓ CC multiarch image created: ${IMAGE_NAME_PYT}:${CC_UNIFIED_TAG}"
+                  CC_X86_TAG = "${TAO_VERSION}-rc-${BUILD_NUMBER}-cc-x86"
+                  CC_ARM64_TAG = "${TAO_VERSION}-rc-${BUILD_NUMBER}-cc-arm64"
+                  CC_UNIFIED_TAG = "${TAO_VERSION}-rc-${BUILD_NUMBER}-cc-multiarch"
                 } else {
-                  // Non-RC: Consolidate tao-toolkit images
-                  echo "=== Consolidating tao-toolkit PyT Images ==="
-                  def x86Exists = sh(script: "docker manifest inspect ${IMAGE_NAME_TOOLKIT}:${X86_TAG}", returnStatus: true)
-                  def armExists = sh(script: "docker manifest inspect ${IMAGE_NAME_TOOLKIT}:${ARM64_TAG}", returnStatus: true)
+                  X86_TAG = "${TAO_VERSION}-pyt-x86"
+                  ARM64_TAG = "${TAO_VERSION}-pyt-arm64"
+                  UNIFIED_TAG = "${TAO_VERSION}-pyt"
+                }
+                
+                docker.withRegistry('https://nvcr.io', 'NGC_API_KEY') {
+                  sh "docker buildx create --name mb --use --driver docker-container --bootstrap || docker buildx use mb"
                   
-                  if (x86Exists != 0 || armExists != 0) {
-                    error("One or both toolkit images not found")
+                  if (params.RC) {
+                    // Consolidate tao-toolkit-pyt images
+                    echo "=== Consolidating tao-toolkit-pyt Images ==="
+                    def x86Exists = sh(script: "docker manifest inspect ${IMAGE_NAME_PYT}:${X86_TAG}", returnStatus: true)
+                    def armExists = sh(script: "docker manifest inspect ${IMAGE_NAME_PYT}:${ARM64_TAG}", returnStatus: true)
+                    
+                    if (x86Exists != 0 || armExists != 0) {
+                      error("One or both pyt images not found")
+                    }
+                    
+                    sh "docker buildx imagetools create -t ${IMAGE_NAME_PYT}:${UNIFIED_TAG} ${IMAGE_NAME_PYT}:${X86_TAG} ${IMAGE_NAME_PYT}:${ARM64_TAG}"
+                    sh "docker manifest inspect ${IMAGE_NAME_PYT}:${UNIFIED_TAG}"
+                    echo "✓ PyT multiarch image created: ${IMAGE_NAME_PYT}:${UNIFIED_TAG}"
+                    
+                    // Consolidate tao-toolkit images (pyt variant)
+                    echo "=== Consolidating tao-toolkit PyT Images ==="
+                    def X86_TOOLKIT_TAG = "${TAO_VERSION}-pyt-x86"
+                    def ARM64_TOOLKIT_TAG = "${TAO_VERSION}-pyt-arm64"
+                    
+                    def x86ToolkitExists = sh(script: "docker manifest inspect ${IMAGE_NAME_TOOLKIT}:${X86_TOOLKIT_TAG}", returnStatus: true)
+                    def armToolkitExists = sh(script: "docker manifest inspect ${IMAGE_NAME_TOOLKIT}:${ARM64_TOOLKIT_TAG}", returnStatus: true)
+                    
+                    if (x86ToolkitExists != 0 || armToolkitExists != 0) {
+                      error("One or both toolkit pyt images not found")
+                    }
+                    
+                    sh "docker buildx imagetools create -t ${IMAGE_NAME_TOOLKIT}:${UNIFIED_PYT_TAG} ${IMAGE_NAME_TOOLKIT}:${X86_TOOLKIT_TAG} ${IMAGE_NAME_TOOLKIT}:${ARM64_TOOLKIT_TAG}"
+                    
+                    // For RC builds, also tag with latest version tag
+                    sh "docker buildx imagetools create -t ${IMAGE_NAME_TOOLKIT}:${LATEST_TAG} ${IMAGE_NAME_TOOLKIT}:${UNIFIED_PYT_TAG}"
+                    echo "✓ RC multiarch image also tagged as latest: ${IMAGE_NAME_TOOLKIT}:${LATEST_TAG}"
+                    
+                    sh "docker manifest inspect ${IMAGE_NAME_TOOLKIT}:${UNIFIED_PYT_TAG}"
+                    echo "✓ Toolkit PyT multiarch image created: ${IMAGE_NAME_TOOLKIT}:${UNIFIED_PYT_TAG}"
+                    
+                    // Consolidate CC images (RC only)
+                    echo "=== Consolidating CC Images ==="
+                    def ccX86Exists = sh(script: "docker manifest inspect ${IMAGE_NAME_PYT}:${CC_X86_TAG}", returnStatus: true)
+                    def ccArmExists = sh(script: "docker manifest inspect ${IMAGE_NAME_PYT}:${CC_ARM64_TAG}", returnStatus: true)
+                    
+                    if (ccX86Exists != 0 || ccArmExists != 0) {
+                      error("One or both CC images not found")
+                    }
+                    
+                    sh "docker buildx imagetools create -t ${IMAGE_NAME_PYT}:${CC_UNIFIED_TAG} ${IMAGE_NAME_PYT}:${CC_X86_TAG} ${IMAGE_NAME_PYT}:${CC_ARM64_TAG}"
+                    sh "docker manifest inspect ${IMAGE_NAME_PYT}:${CC_UNIFIED_TAG}"
+                    echo "✓ CC multiarch image created: ${IMAGE_NAME_PYT}:${CC_UNIFIED_TAG}"
+                  } else {
+                    // Non-RC: Consolidate tao-toolkit images
+                    echo "=== Consolidating tao-toolkit PyT Images ==="
+                    def x86Exists = sh(script: "docker manifest inspect ${IMAGE_NAME_TOOLKIT}:${X86_TAG}", returnStatus: true)
+                    def armExists = sh(script: "docker manifest inspect ${IMAGE_NAME_TOOLKIT}:${ARM64_TAG}", returnStatus: true)
+                    
+                    if (x86Exists != 0 || armExists != 0) {
+                      error("One or both toolkit images not found")
+                    }
+                    
+                    sh "docker buildx imagetools create -t ${IMAGE_NAME_TOOLKIT}:${UNIFIED_TAG} ${IMAGE_NAME_TOOLKIT}:${X86_TAG} ${IMAGE_NAME_TOOLKIT}:${ARM64_TAG}"
+                    
+                    sh "docker manifest inspect ${IMAGE_NAME_TOOLKIT}:${UNIFIED_TAG}"
+                    echo "✓ Toolkit PyT multiarch image created: ${IMAGE_NAME_TOOLKIT}:${UNIFIED_TAG}"
                   }
-                  
-                  sh "docker buildx imagetools create -t ${IMAGE_NAME_TOOLKIT}:${UNIFIED_TAG} ${IMAGE_NAME_TOOLKIT}:${X86_TAG} ${IMAGE_NAME_TOOLKIT}:${ARM64_TAG}"
-                  sh "docker buildx imagetools create -t ${IMAGE_NAME_TOOLKIT}:${RELEASE_TAG} ${IMAGE_NAME_TOOLKIT}:${UNIFIED_TAG}"
-                  
-                  sh "docker manifest inspect ${IMAGE_NAME_TOOLKIT}:${UNIFIED_TAG}"
-                  echo "✓ Toolkit PyT multiarch image created: ${IMAGE_NAME_TOOLKIT}:${UNIFIED_TAG}"
-                  echo "✓ Release tag created: ${IMAGE_NAME_TOOLKIT}:${RELEASE_TAG}"
                 }
               }
             }
