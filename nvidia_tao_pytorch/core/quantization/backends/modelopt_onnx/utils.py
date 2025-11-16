@@ -446,6 +446,11 @@ def convert_tao_to_modelopt_onnx_params(
     - reduce_range: bool - Reduce quantization range for better accuracy
     - use_external_data_format: bool - For large models (>2GB)
     - And any other ModelOpt ONNX-specific parameters
+
+    We default the dq_only parameter on the ModelOpt ONNX call to False,
+    but it can be overridden via backend_kwargs. This was done in order to ensure parity
+    with the modelopt onnx CLI behavior and to allow for compatibility with TRT downstream,
+    which requires a Q-DQ node pair.
     """
     if config is None:
         raise TypeError("config cannot be None")
@@ -541,6 +546,7 @@ def convert_tao_to_modelopt_onnx_params(
         "op_types_to_quantize": op_types_to_quantize or None,  # None means quantize all supported ops
         "nodes_to_exclude": nodes_to_exclude or None,
         "output_path": output_path if output_path is not None else os.path.join(config.results_dir, "quantized_model.onnx"),
+        "dq_only": False,  # Default to False, can be overridden via backend_kwargs
     }
 
     # Add execution providers if not already specified in backend_kwargs
