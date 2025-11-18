@@ -162,12 +162,9 @@ spec:
             values:
             - A100_80GB_PCIE
             - A100_PCIE_80GB
-          - key: nvidia.com/driver_version
-            operator: In
-            values:
-            - 580.35
-            - 580.66
-            - 580.82.07
+            - A100_PCIE_40GB
+            - A40
+            - L40
           - key: kubernetes.io/os
             operator: In
             values:
@@ -351,55 +348,81 @@ spec:
                       def VERSION_PARTS = TAO_VERSION.split('\\.')
                       def MAJOR_MINOR = "${VERSION_PARTS[0]}.${VERSION_PARTS[1]}"
                       def PATCH_NUMBER = VERSION_PARTS[-1]
-                      
-                      def VER
-                      if (params.RC) {
-                        VER = "${MAJOR_MINOR}.${PATCH_NUMBER}${BUILD_TYPE}${BUILD_NUMBER}"
-                      } else {
-                        VER = "${MAJOR_MINOR}.${PATCH_NUMBER}"
-                      }
                       def PYTHON_VER = "cp312-cp312"
                       def ARCH = "linux_x86_64"
-                      def SRC = "dist/nvidia_tao_pytorch-${VER}-${PYTHON_VER}-${ARCH}.whl"
-                      def TARGET = "sw-tao-pypi-local/nvidia-tao-pytorch/${VER}/"
-                      def PROP = "component_name=nvidia-tao-pytorch;arch=x86_64;os=linux;build_source=None;version=${VER};branch=main;release_approver=vpraveen"
                       
-                      withCredentials([usernamePassword(credentialsId: 'tao-artifactory-tkn', passwordVariable: 'JFROG_PASSWORD', usernameVariable: 'JFROG_USERNAME')]) {
-                        if (!params.RC) {
-                          echo "Checking for existing wheel asset..."
-                          def wheelPattern = "${TARGET}nvidia_tao_pytorch-${VER}-${PYTHON_VER}-${ARCH}.whl"
-                          echo "Searching for pattern: ${wheelPattern}"
+                      def VER
+                      def SRC
+                      
+                      withCredentials([usernamePassword(credentialsId: 'tao-artifactory-tkn-christwang', passwordVariable: 'JFROG_PASSWORD', usernameVariable: 'JFROG_USERNAME')]) {
+                        // Upload RC version wheel if this is an RC build
+                        if (params.RC) {
+                          def RC_VER = "${MAJOR_MINOR}.${PATCH_NUMBER}${BUILD_TYPE}${BUILD_NUMBER}"
+                          VER = RC_VER
+                          SRC = "dist/nvidia_tao_pytorch-${RC_VER}-${PYTHON_VER}-${ARCH}.whl"
                           
-                          def searchStatus = sh(script: "jfrog rt s --url=https://urm.nvidia.com/artifactory/ --user=${JFROG_USERNAME} --access-token=${JFROG_PASSWORD} '${wheelPattern}' --count", returnStatus: true)
-                          def count = 0
-                          if (searchStatus == 0) {
-                            count = Integer.parseInt(sh(script: "jfrog rt s --url=https://urm.nvidia.com/artifactory/ --user=${JFROG_USERNAME} --access-token=${JFROG_PASSWORD} '${wheelPattern}' --count", returnStdout: true).trim())
-                          } else {
-                            echo "Search command returned non-zero (status=${searchStatus}). Treating as no existing wheel."
-                          }
-
-                          if (count > 0) {
-                            echo "Found ${count} existing wheel(s). Removing..."
-                            try {
-                              sh "jfrog rt del --url=https://urm.nvidia.com/artifactory/ --user=${JFROG_USERNAME} --access-token=${JFROG_PASSWORD} '${wheelPattern}' --quiet"
-                              echo "Successfully removed existing wheel"
-                            } catch (Exception e) {
-                              echo "Warning: Failed to delete existing wheel: ${e.getMessage()}"
-                              echo "Continuing with upload..."
-                            }
-                          } else {
-                            echo "No existing wheel found (search count: ${count})"
-                          }
+                          echo "=== Uploading RC version wheel ==="
+                          def RC_TARGET = "sw-tao-pypi-local/nvidia-tao-pytorch/${RC_VER}/"
+                          def RC_PROP = "component_name=nvidia-tao-pytorch;arch=x86_64;os=linux;build_source=None;version=${RC_VER};branch=main;release_approver=vpraveen"
+                          
+                          echo "Uploading RC wheel: ${SRC} to ${RC_TARGET}"
+                          sh "cp ${SRC} dist/nvidia_tao_pytorch-${RC_VER}-${PYTHON_VER}-manylinux1_x86_64.whl"
+                          sh "jfrog rt u --url=https://urm.nvidia.com/artifactory/ --user=${JFROG_USERNAME} --password=${JFROG_PASSWORD} --target-props '${RC_PROP}' dist/nvidia_tao_pytorch-${RC_VER}-${PYTHON_VER}-manylinux1_x86_64.whl ${RC_TARGET}"
+                        } else {
+                          VER = "${MAJOR_MINOR}.${PATCH_NUMBER}"
+                          SRC = "dist/nvidia_tao_pytorch-${VER}-${PYTHON_VER}-${ARCH}.whl"
                         }
                         
-                        echo "Uploading wheel: ${SRC} to ${TARGET}"
-                        sh "cp ${SRC} dist/nvidia_tao_pytorch-${VER}-${PYTHON_VER}-manylinux1_x86_64.whl"
-                        sh "jfrog rt u --url=https://urm.nvidia.com/artifactory/ --user=${JFROG_USERNAME} --access-token=${JFROG_PASSWORD} --target-props '${PROP}' dist/nvidia_tao_pytorch-${VER}-${PYTHON_VER}-manylinux1_x86_64.whl ${TARGET}"
+                        // Upload final version wheel (runs for both RC and non-RC)
+                        echo "=== Uploading final version wheel ==="
+                        def FINAL_VER = "${MAJOR_MINOR}.${PATCH_NUMBER}"
+                        def FINAL_TARGET = "sw-tao-pypi-local/nvidia-tao-pytorch/${FINAL_VER}/"
+                        def FINAL_PROP = "component_name=nvidia-tao-pytorch;arch=x86_64;os=linux;build_source=None;version=${FINAL_VER};branch=main;release_approver=vpraveen"
+                        
+                        // For RC builds, rebuild wheel with non-RC version for correct internal metadata
+                        if (params.RC) {
+                          echo "Rebuilding wheel with non-RC version for final release..."
+                          sh "rm -rf dist/*"
+                          sh "echo '${PATCH_NUMBER}' > build.info"
+                          sh "${env.X86_COMMAND_ENV} python setup.py bdist_wheel"
+                          SRC = "dist/nvidia_tao_pytorch-${FINAL_VER}-${PYTHON_VER}-${ARCH}.whl"
+                          echo "Built final wheel: ${SRC}"
+                        }
+                        
+                        echo "Checking for existing final version wheel..."
+                        def finalWheelPattern = "${FINAL_TARGET}dist/nvidia_tao_pytorch-${FINAL_VER}-${PYTHON_VER}-manylinux1_x86_64.whl"
+                        echo "Searching for pattern: ${finalWheelPattern}"
+                        
+                        def searchStatus = sh(script: "jfrog rt s --url=https://urm.nvidia.com/artifactory/ --user=${JFROG_USERNAME} --password=${JFROG_PASSWORD} '${finalWheelPattern}' --count", returnStatus: true)
+                        def count = 0
+                        if (searchStatus == 0) {
+                          count = Integer.parseInt(sh(script: "jfrog rt s --url=https://urm.nvidia.com/artifactory/ --user=${JFROG_USERNAME} --password=${JFROG_PASSWORD} '${finalWheelPattern}' --count", returnStdout: true).trim())
+                        } else {
+                          echo "Search command returned non-zero (status=${searchStatus}). Treating as no existing wheel."
+                        }
+                        
+                        if (count > 0) {
+                          echo "Found ${count} existing final version wheel(s). Removing..."
+                          try {
+                            sh "jfrog rt del --url=https://urm.nvidia.com/artifactory/ --user=${JFROG_USERNAME} --password=${JFROG_PASSWORD} '${finalWheelPattern}' --quiet"
+                            echo "Successfully removed existing final version wheel"
+                          } catch (Exception e) {
+                            echo "Warning: Failed to delete existing final version wheel: ${e.getMessage()}"
+                            echo "Continuing with upload..."
+                          }
+                        } else {
+                          echo "No existing final version wheel found (search count: ${count})"
+                        }
+                        
+                        echo "Uploading final version wheel: ${SRC} to ${FINAL_TARGET}"
+                        sh "cp ${SRC} dist/nvidia_tao_pytorch-${FINAL_VER}-${PYTHON_VER}-manylinux1_x86_64.whl"
+                        sh "jfrog rt u --url=https://urm.nvidia.com/artifactory/ --user=${JFROG_USERNAME} --password=${JFROG_PASSWORD} --target-props '${FINAL_PROP}' dist/nvidia_tao_pytorch-${FINAL_VER}-${PYTHON_VER}-manylinux1_x86_64.whl ${FINAL_TARGET}"
+                        
+                        def append_string = "pytorch_wheel: nvidia_tao_pytorch-${VER}-${PYTHON_VER}-${ARCH}.whl"
+                        def config_file_path = "/home/scratch.metropolis2/users/release_pipeline_files/release_items.yml"
+                        sh "python3 ci/update_release_config.py ${config_file_path} '${append_string}'"
+                        sh "cat /home/scratch.metropolis2/users/release_pipeline_files/release_items.yml"
                       }
-                      def append_string = "pytorch_wheel: nvidia_tao_pytorch-${VER}-${PYTHON_VER}-${ARCH}.whl"
-                      def config_file_path = "/home/scratch.metropolis2/users/release_pipeline_files/release_items.yml"
-                      sh "python3 ci/update_release_config.py ${config_file_path} '${append_string}'"
-                      sh "cat /home/scratch.metropolis2/users/release_pipeline_files/release_items.yml"
                     }
                   }
                 }
@@ -436,11 +459,6 @@ spec:
                             def RC_IMAGE_TAG = "${TAO_VERSION}-rc-${BUILD_NUMBER}-x86"
                             sh "docker build -t ${IMAGE_NAME}:${RC_IMAGE_TAG} --build-arg TARGETARCH=${TARGETARCH} --network=host -f ${WORKSPACE}/release/docker/Dockerfile ${WORKSPACE}"
                             sh "docker push ${IMAGE_NAME}:${RC_IMAGE_TAG}"
-                            
-                            def UNIFIED_IMAGE_NAME = "nvcr.io/nvstaging/tao/tao-toolkit"
-                            def UNIFIED_IMAGE_TAG = "${TAO_VERSION}-pyt-x86"
-                            // sh "docker tag ${IMAGE_NAME}:${RC_IMAGE_TAG} ${UNIFIED_IMAGE_NAME}:${UNIFIED_IMAGE_TAG}"
-                            // sh "docker push ${UNIFIED_IMAGE_NAME}:${UNIFIED_IMAGE_TAG}"
                             
                             def append_string = "pytorch: ${IMAGE_NAME}:${RC_IMAGE_TAG}"
                             def config_file_path = "/home/scratch.metropolis2/users/release_pipeline_files/release_items.yml"
@@ -706,11 +724,6 @@ spec:
                             sh "docker build -t ${IMAGE_NAME}:${RC_IMAGE_TAG} --build-arg TARGETARCH=${TARGETARCH} --network=host -f ${WORKSPACE}/release/docker/Dockerfile ${WORKSPACE}"
                             sh "docker push ${IMAGE_NAME}:${RC_IMAGE_TAG}"
                             
-                            def UNIFIED_IMAGE_NAME = "nvcr.io/nvstaging/tao/tao-toolkit"
-                            def UNIFIED_IMAGE_TAG = "${TAO_VERSION}-pyt-arm64"
-                            // sh "docker tag ${IMAGE_NAME}:${RC_IMAGE_TAG} ${UNIFIED_IMAGE_NAME}:${UNIFIED_IMAGE_TAG}"
-                            // sh "docker push ${UNIFIED_IMAGE_NAME}:${UNIFIED_IMAGE_TAG}"
-                            
                             def append_string = "pytorch: ${IMAGE_NAME}:${RC_IMAGE_TAG}"
                             def config_file_path = "/home/scratch.metropolis2/users/release_pipeline_files/release_items.yml"
                             sh "python3 ci/update_release_config.py ${config_file_path} '${append_string}'"
@@ -850,19 +863,13 @@ spec:
                 
                 def IMAGE_NAME_PYT = "nvcr.io/nvstaging/tao/tao-toolkit-pyt"
                 def IMAGE_NAME_TOOLKIT = "nvcr.io/nvstaging/tao/tao-toolkit"
-                def X86_TAG, ARM64_TAG, UNIFIED_TAG, UNIFIED_PYT_TAG, LATEST_TAG
+                def X86_TAG, ARM64_TAG, UNIFIED_TAG
                 def CC_X86_TAG, CC_ARM64_TAG, CC_UNIFIED_TAG
                 
                 if (params.RC) {
                   X86_TAG = "${TAO_VERSION}-rc-${BUILD_NUMBER}-x86"
                   ARM64_TAG = "${TAO_VERSION}-rc-${BUILD_NUMBER}-arm64"
                   UNIFIED_TAG = "${TAO_VERSION}-rc-${BUILD_NUMBER}-multiarch"
-                  
-                  // Tags for tao-toolkit image
-                  def X86_TOOLKIT_TAG = "${TAO_VERSION}-pyt-x86"
-                  def ARM64_TOOLKIT_TAG = "${TAO_VERSION}-pyt-arm64"
-                  UNIFIED_PYT_TAG = "${TAO_VERSION}-pyt-multiarch"
-                  LATEST_TAG = "${TAO_VERSION}-pyt"
                   
                   CC_X86_TAG = "${TAO_VERSION}-rc-${BUILD_NUMBER}-cc-x86"
                   CC_ARM64_TAG = "${TAO_VERSION}-rc-${BUILD_NUMBER}-cc-arm64"
@@ -890,26 +897,12 @@ spec:
                     sh "docker manifest inspect ${IMAGE_NAME_PYT}:${UNIFIED_TAG}"
                     echo "✓ PyT multiarch image created: ${IMAGE_NAME_PYT}:${UNIFIED_TAG}"
                     
-                    // Consolidate tao-toolkit images (pyt variant)
-                    echo "=== Consolidating tao-toolkit PyT Images ==="
-                    def X86_TOOLKIT_TAG = "${TAO_VERSION}-pyt-x86"
-                    def ARM64_TOOLKIT_TAG = "${TAO_VERSION}-pyt-arm64"
-                    
-                    def x86ToolkitExists = sh(script: "docker manifest inspect ${IMAGE_NAME_TOOLKIT}:${X86_TOOLKIT_TAG}", returnStatus: true)
-                    def armToolkitExists = sh(script: "docker manifest inspect ${IMAGE_NAME_TOOLKIT}:${ARM64_TOOLKIT_TAG}", returnStatus: true)
-                    
-                    if (x86ToolkitExists != 0 || armToolkitExists != 0) {
-                      error("One or both toolkit pyt images not found")
-                    }
-                    
-                    sh "docker buildx imagetools create -t ${IMAGE_NAME_TOOLKIT}:${UNIFIED_PYT_TAG} ${IMAGE_NAME_TOOLKIT}:${X86_TOOLKIT_TAG} ${IMAGE_NAME_TOOLKIT}:${ARM64_TOOLKIT_TAG}"
-                    
-                    // For RC builds, also tag with latest version tag
-                    sh "docker buildx imagetools create -t ${IMAGE_NAME_TOOLKIT}:${LATEST_TAG} ${IMAGE_NAME_TOOLKIT}:${UNIFIED_PYT_TAG}"
-                    echo "✓ RC multiarch image also tagged as latest: ${IMAGE_NAME_TOOLKIT}:${LATEST_TAG}"
-                    
-                    sh "docker manifest inspect ${IMAGE_NAME_TOOLKIT}:${UNIFIED_PYT_TAG}"
-                    echo "✓ Toolkit PyT multiarch image created: ${IMAGE_NAME_TOOLKIT}:${UNIFIED_PYT_TAG}"
+                    // Retag tao-toolkit-pyt multiarch image to tao-toolkit with -pyt suffix
+                    echo "=== Retagging PyT multiarch image to tao-toolkit ==="
+                    def TOOLKIT_PYT_TAG = "${TAO_VERSION}-pyt"
+                    sh "docker buildx imagetools create -t ${IMAGE_NAME_TOOLKIT}:${TOOLKIT_PYT_TAG} ${IMAGE_NAME_PYT}:${UNIFIED_TAG}"
+                    sh "docker manifest inspect ${IMAGE_NAME_TOOLKIT}:${TOOLKIT_PYT_TAG}"
+                    echo "✓ Toolkit PyT image tagged: ${IMAGE_NAME_TOOLKIT}:${TOOLKIT_PYT_TAG}"
                     
                     // Consolidate CC images (RC only)
                     echo "=== Consolidating CC Images ==="
