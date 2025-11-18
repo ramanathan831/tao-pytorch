@@ -162,9 +162,6 @@ spec:
             values:
             - A100_80GB_PCIE
             - A100_PCIE_80GB
-            - A100_PCIE_40GB
-            - A40
-            - L40
           - key: kubernetes.io/os
             operator: In
             values:
