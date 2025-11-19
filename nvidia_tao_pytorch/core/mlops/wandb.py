@@ -17,6 +17,8 @@
 from datetime import datetime
 import logging
 
+from omegaconf import DictConfig, OmegaConf
+
 from pytorch_lightning.loggers import WandbLogger
 import wandb
 from wandb import AlertLevel
@@ -105,35 +107,33 @@ def initialize_wandb(project: str = "TAO Toolkit",
         start_time = datetime.now()
         time_string = start_time.strftime("%m:%d:%y_%H:%M:%S")
         name = f"{name}_{time_string}"
+
+        # Format config for wandb
+        cfg_dict = (
+            OmegaConf.to_container(config, resolve=True)
+            if isinstance(config, DictConfig)
+            else dict(config) if config is not None else {}
+        )
         # Initialize and setup wandb logger. WandB logger **kwargs in the
         # class definition takes kwargs that internally gets routed to wandb.init().
         # So you can add kwargs from wandb.init() as part of this constructor along
-        # with it's own args, kwargs.
-        if run_id == "":
-            wandb_logger = WandbLogger(
-                name=name,
-                project=project,
-                entity=entity,
-                log_model=False,
-                save_dir=results_dir,
-                sync_tensorboard=sync_tensorboard,
-                save_code=save_code,
-                config=config,
-                tags=tags
-            )
-        else:
-            wandb_logger = WandbLogger(
-                name=name,
-                project=project,
-                entity=entity,
-                log_model=False,
-                save_dir=results_dir,
-                sync_tensorboard=sync_tensorboard,
-                save_code=save_code,
-                config=config,
-                tags=tags,
-                id=run_id
-            )
+        # with its own args, kwargs.
+        wandb_logger_kwargs = dict(
+            name=name,
+            project=project,
+            entity=entity,
+            log_model=False,
+            save_dir=results_dir,
+            sync_tensorboard=sync_tensorboard,
+            save_code=save_code,
+            config=cfg_dict,
+            tags=tags,
+        )
+
+        if run_id not in [None, ""]:
+            wandb_logger_kwargs["id"] = run_id
+
+        wandb_logger = WandbLogger(**wandb_logger_kwargs)
         global _WANDB_INITIALIZED  # pylint: disable=W0602,W0603
         _WANDB_INITIALIZED = True
         return wandb_logger
