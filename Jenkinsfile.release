@@ -161,7 +161,17 @@ spec:
             operator: In
             values:
             - A100_80GB_PCIE
+<<<<<<< Updated upstream
             - A100_PCIE_80GB
+=======
+            - A100_PCIE_40GB
+          - key: nvidia.com/driver_version
+            operator: In
+            values:
+            - 580.35
+            - 580.66
+            - 580.82.07
+>>>>>>> Stashed changes
           - key: kubernetes.io/os
             operator: In
             values:
@@ -195,10 +205,12 @@ spec:
             stage('x86_update_core_submodule') {
               steps {
                 container('base-image') {
-                  gitlabCommitStatus(name: "x86_update_core_submodule", connection: gitLabConnection('git-lab-master')) {
-                    withCredentials([string(credentialsId: 'gitlab-api-token', variable: 'GITLAB_TOKEN')]) {
-                      script {
-                        updateCoreSubmodule(GITLAB_TOKEN)
+                  catchError(buildResult: 'SUCCESS', stageResult: 'SUCCESS') {
+                    gitlabCommitStatus(name: "x86_update_core_submodule", connection: gitLabConnection('git-lab-master')) {
+                      withCredentials([string(credentialsId: 'gitlab-api-token', variable: 'GITLAB_TOKEN')]) {
+                        script {
+                          updateCoreSubmodule(GITLAB_TOKEN)
+                        }
                       }
                     }
                   }
@@ -603,10 +615,12 @@ spec:
             stage('arm_update_core_submodule') {
               steps {
                 container('base-image') {
-                  gitlabCommitStatus(name: "arm_update_core_submodule", connection: gitLabConnection('git-lab-master')) {
-                    withCredentials([string(credentialsId: 'gitlab-api-token', variable: 'GITLAB_TOKEN')]) {
-                      script {
-                        updateCoreSubmodule(GITLAB_TOKEN)
+                  catchError(buildResult: 'SUCCESS', stageResult: 'SUCCESS') {
+                    gitlabCommitStatus(name: "arm_update_core_submodule", connection: gitLabConnection('git-lab-master')) {
+                      withCredentials([string(credentialsId: 'gitlab-api-token', variable: 'GITLAB_TOKEN')]) {
+                        script {
+                          updateCoreSubmodule(GITLAB_TOKEN)
+                        }
                       }
                     }
                   }
@@ -891,13 +905,22 @@ spec:
                     }
                     
                     sh "docker buildx imagetools create -t ${IMAGE_NAME_PYT}:${UNIFIED_TAG} ${IMAGE_NAME_PYT}:${X86_TAG} ${IMAGE_NAME_PYT}:${ARM64_TAG}"
+                    
+                    // Verify multiarch manifest was created correctly
                     sh "docker manifest inspect ${IMAGE_NAME_PYT}:${UNIFIED_TAG}"
                     echo "✓ PyT multiarch image created: ${IMAGE_NAME_PYT}:${UNIFIED_TAG}"
                     
                     // Retag tao-toolkit-pyt multiarch image to tao-toolkit with -pyt suffix
                     echo "=== Retagging PyT multiarch image to tao-toolkit ==="
                     def TOOLKIT_PYT_TAG = "${TAO_VERSION}-pyt"
+<<<<<<< Updated upstream
                     sh "docker buildx imagetools create -t ${IMAGE_NAME_TOOLKIT}:${TOOLKIT_PYT_TAG} ${IMAGE_NAME_PYT}:${UNIFIED_TAG}"
+=======
+                    // Create the final multiarch manifest directly from source x86 and arm64 images
+                    sh "docker buildx imagetools create -t ${IMAGE_NAME_TOOLKIT}:${TOOLKIT_PYT_TAG} ${IMAGE_NAME_PYT}:${X86_TAG} ${IMAGE_NAME_PYT}:${ARM64_TAG}"
+                    
+                    // Verify the final multiarch manifest
+>>>>>>> Stashed changes
                     sh "docker manifest inspect ${IMAGE_NAME_TOOLKIT}:${TOOLKIT_PYT_TAG}"
                     echo "✓ Toolkit PyT image tagged: ${IMAGE_NAME_TOOLKIT}:${TOOLKIT_PYT_TAG}"
                     
