@@ -37,13 +37,6 @@ RUN cd tao-core && bash release/python/build_wheel.sh && \
     cp nvidia_tao_core/microservices/nginx.conf /etc/nginx/ && \
     cd .. && rm -rf tao-core
 
-## Install mongodump and mongorestore
-RUN apt update && \
-    ARCH=$(uname -m) && \
-    if [ "$ARCH" = "aarch64" ]; then ARCH="arm64"; fi && \
-    wget https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2204-${ARCH}-100.10.0.deb ## Update this when upgrading from Ubuntu 22.04
-RUN apt install -y ./mongodb-database-tools-*-100.10.0.deb && rm -f mongodb-database-tools-*.deb
-
 COPY dist/*.whl /opt/nvidia/wheels/
 RUN cd wheels && ls ./*.whl|xargs -I'{}' python -m pip install '{}' \
     && rm *.whl
