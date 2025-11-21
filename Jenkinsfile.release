@@ -161,9 +161,6 @@ spec:
             operator: In
             values:
             - A100_80GB_PCIE
-<<<<<<< Updated upstream
-            - A100_PCIE_80GB
-=======
             - A100_PCIE_40GB
           - key: nvidia.com/driver_version
             operator: In
@@ -171,7 +168,6 @@ spec:
             - 580.35
             - 580.66
             - 580.82.07
->>>>>>> Stashed changes
           - key: kubernetes.io/os
             operator: In
             values:
@@ -272,23 +268,25 @@ spec:
               }
               steps {
                 container('base-image') {
-                  withCredentials([
-                    string(credentialsId: 'NGC_CLI_API_KEY_SVC_TLT_CI', variable: 'NGC_CLI_API_KEY'),
-                    string(credentialsId: 'HF_TOKEN_CI', variable: 'HF_TOKEN')
-                  ]) {
-                    script {
-                      env.NGC_KEY = NGC_CLI_API_KEY
-                      env.NGC_PATH = 'ea-tlt/tao_ea/pretrained_dino_imagenet:fan_hybrid_tiny'
-                      env.HF_TOKEN = HF_TOKEN
+                  catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                    withCredentials([
+                      string(credentialsId: 'NGC_CLI_API_KEY_SVC_TLT_CI', variable: 'NGC_CLI_API_KEY'),
+                      string(credentialsId: 'HF_TOKEN_CI', variable: 'HF_TOKEN')
+                    ]) {
+                      script {
+                        env.NGC_KEY = NGC_CLI_API_KEY
+                        env.NGC_PATH = 'ea-tlt/tao_ea/pretrained_dino_imagenet:fan_hybrid_tiny'
+                        env.HF_TOKEN = HF_TOKEN
+                      }
                     }
-                  }
-                  gitlabCommitStatus(name: "x86_functional_tests", connection: gitLabConnection('git-lab-master')) {
-                    echo "Running functional tests with coverage for RC build..."
-                    sh "python setup.py develop"
-                    sh "CPUCOUNT=1 pip install tao-core/"
-                    sh "pip install pytest-cov"
-                    sh "${env.X86_COMMAND_ENV} python3 ci/run_functional_tests.py --cov=nvidia_tao_pytorch --cov-report=xml:coverage.xml --cov-report=term"
-                    archiveArtifacts artifacts: 'coverage.xml', fingerprint: true, allowEmptyArchive: true
+                    gitlabCommitStatus(name: "x86_functional_tests", connection: gitLabConnection('git-lab-master')) {
+                      echo "Running functional tests with coverage for RC build..."
+                      sh "python setup.py develop"
+                      sh "CPUCOUNT=1 pip install tao-core/"
+                      sh "pip install pytest-cov"
+                      sh "${env.X86_COMMAND_ENV} python3 ci/run_functional_tests.py --cov=nvidia_tao_pytorch --cov-report=xml:coverage.xml --cov-report=term"
+                      archiveArtifacts artifacts: 'coverage.xml', fingerprint: true, allowEmptyArchive: true
+                    }
                   }
                 }
               }
@@ -913,14 +911,10 @@ spec:
                     // Retag tao-toolkit-pyt multiarch image to tao-toolkit with -pyt suffix
                     echo "=== Retagging PyT multiarch image to tao-toolkit ==="
                     def TOOLKIT_PYT_TAG = "${TAO_VERSION}-pyt"
-<<<<<<< Updated upstream
-                    sh "docker buildx imagetools create -t ${IMAGE_NAME_TOOLKIT}:${TOOLKIT_PYT_TAG} ${IMAGE_NAME_PYT}:${UNIFIED_TAG}"
-=======
                     // Create the final multiarch manifest directly from source x86 and arm64 images
                     sh "docker buildx imagetools create -t ${IMAGE_NAME_TOOLKIT}:${TOOLKIT_PYT_TAG} ${IMAGE_NAME_PYT}:${X86_TAG} ${IMAGE_NAME_PYT}:${ARM64_TAG}"
                     
                     // Verify the final multiarch manifest
->>>>>>> Stashed changes
                     sh "docker manifest inspect ${IMAGE_NAME_TOOLKIT}:${TOOLKIT_PYT_TAG}"
                     echo "✓ Toolkit PyT image tagged: ${IMAGE_NAME_TOOLKIT}:${TOOLKIT_PYT_TAG}"
                     
