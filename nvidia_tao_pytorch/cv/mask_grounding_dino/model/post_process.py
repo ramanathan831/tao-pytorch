@@ -241,7 +241,12 @@ def save_inference_prediction(
         pil_img = Image.open(image_path).convert("RGB")
         pil_img = ImageOps.exif_transpose(pil_img)
         W, H = pil_img.size
-        draw = ImageDraw.Draw(pil_img)
+
+        # Layers
+        bbox_img = pil_img.copy()  # drawing bboxes/text
+        draw = ImageDraw.Draw(bbox_img)
+
+        mask_overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))  # transparent layer for masks
 
         # Handle no-target case
         if pred_boxes.shape[0] == 0:
@@ -288,13 +293,18 @@ def save_inference_prediction(
                 # Overlay mask
                 if save_masks and pred_masks is not None and k < pred_masks.shape[0]:
                     mask = (pred_masks[k].detach().cpu().numpy() > 0.5).astype(np.uint8)
-                    if mask.ndim == 3:  # handle shape [1, H, W]
+                    if mask.ndim == 3:
                         mask = mask[0]
-                    mask_pil = Image.fromarray(mask * 255).resize((W, H), Image.NEAREST)
-                    mask_color = Image.new("RGB", (W, H), color)
-                    pil_img = Image.composite(mask_color, pil_img, mask_pil).convert("RGB")
 
-        pil_img.save(output_image_file)
+                    mask_pil = Image.fromarray(mask * 255).resize((W, H), Image.NEAREST)
+
+                    # Convert mask to RGBA & accumulate it without destroying previous drawings
+                    colored_mask = Image.new("RGBA", (W, H), (*color, int(mask_alpha * 255)))
+                    mask_overlay = Image.composite(colored_mask, mask_overlay, mask_pil)
+
+        final_img = Image.alpha_composite(bbox_img.convert("RGBA"), mask_overlay)
+        final_img = final_img.convert("RGB")  # remove alpha
+        final_img.save(output_image_file)
 
 
 class PostProcess(nn.Module):
