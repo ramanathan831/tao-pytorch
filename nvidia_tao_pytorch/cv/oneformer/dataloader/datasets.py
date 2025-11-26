@@ -538,7 +538,7 @@ class OneFormerPredictDataset(Dataset):
         self.img_list = sorted([
             file
             for ext in PIL_SUPPORTED_FORMATS
-            for file in glob.glob(self.cfg.dataset.test.images + f"/*.{ext}")
+            for file in glob.glob(self.cfg.inference.images_dir + f"/*{ext}")
         ])
         self.mode = self.cfg.inference.mode.lower()
         self.padding_constant = 2**5

@@ -578,7 +578,7 @@ class PredictDataset(BaseDataset):
         self.img_list = sorted([
             file
             for ext in PIL_SUPPORTED_FORMATS
-            for file in glob.glob(self.cfg.test.img_dir + f"/*.{ext}")
+            for file in glob.glob(self.cfg.test.img_dir + f"/*{ext}")
         ])
 
     def image_preprocess(self, img):
