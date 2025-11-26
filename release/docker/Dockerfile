@@ -1,8 +1,8 @@
 # FROM nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:4d6c2f98bcb233a7ab7c87f187b3d5a3e1c405d1206fb2b0d3c7b410bb93e84d
 # Select base image based on architecture
 ARG TARGETARCH # provided by Docker if using BuildKit. Else pass in explicitly.
-ARG ARM64_DIGEST=83487c18b87d5818cceb12e0112681e31943bb3492f01c2138402f826d8f4a7d
-ARG X86_DIGEST=4d6c2f98bcb233a7ab7c87f187b3d5a3e1c405d1206fb2b0d3c7b410bb93e84d
+ARG ARM64_DIGEST=841a5b075f605312e63bdcab5eeeea66113353f1646745a1269935716f30c653
+ARG X86_DIGEST=f0ae0442367e93df8b0644e125f3969c9e79c2677ec49a8e9de53acb5a49026c
 
 FROM nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:${ARM64_DIGEST} AS base-arm64
 FROM nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:${X86_DIGEST} AS base-amd64
