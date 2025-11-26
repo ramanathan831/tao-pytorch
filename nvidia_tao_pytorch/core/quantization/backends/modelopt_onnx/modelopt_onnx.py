@@ -22,6 +22,7 @@ This backend works exclusively with ONNX files specified by file path.
 from __future__ import annotations
 
 import os
+import platform
 from typing import Any, Dict, Optional
 
 import numpy as np
@@ -49,6 +50,27 @@ except ImportError:
 
 
 SUPPORTED_MODES = {QuantizationMode.STATIC_PTQ.value}
+
+
+def _ensure_cudnn_in_library_path():
+    """Ensure cuDNN library path is in LD_LIBRARY_PATH for ModelOpt ONNX backend.
+
+    ModelOpt ONNX performs strict filesystem checks for cuDNN in LD_LIBRARY_PATH,
+    even though libraries may be accessible via ldconfig. This function adds the
+    standard library path if not already present to prevent unnecessary fallback to CPU.
+
+    This is particularly important for models with custom TensorRT plugins that
+    require CUDA/TensorRT execution providers.
+
+    Supports both x86_64 and ARM (aarch64) architectures.
+    """
+    arch = platform.machine()  # Returns 'x86_64' or 'aarch64'
+    cudnn_path = f'/usr/lib/{arch}-linux-gnu'
+    ld_library_path = os.environ.get('LD_LIBRARY_PATH', '')
+
+    if cudnn_path not in ld_library_path:
+        tlt_logger.info(f"Adding {cudnn_path} to LD_LIBRARY_PATH for ModelOpt ONNX backend")
+        os.environ['LD_LIBRARY_PATH'] = f"{cudnn_path}:{ld_library_path}" if ld_library_path else cudnn_path
 
 
 @register_backend("modelopt.onnx")
@@ -429,6 +451,9 @@ class ModelOptONNXBackend(FileBasedQuantizerBase, Calibratable):
 
         if not os.path.exists(self._onnx_path):
             raise FileNotFoundError(f"ONNX model file not found: {self._onnx_path}")
+
+        # Ensure cuDNN path is in LD_LIBRARY_PATH to avoid ModelOpt validation issues
+        _ensure_cudnn_in_library_path()
 
         # Log calibration data status
         if self._calibration_data is None:
