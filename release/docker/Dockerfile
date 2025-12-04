@@ -1,4 +1,4 @@
-FROM nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:4d6c2f98bcb233a7ab7c87f187b3d5a3e1c405d1206fb2b0d3c7b410bb93e84d
+FROM nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:e8fcd909e4e5ffd613a4ec056dad3c277604664852ff663bb0729d883d59acd1
 
 # Installing the TLT packages.
 WORKDIR /opt/nvidia
