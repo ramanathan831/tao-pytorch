@@ -25,25 +25,25 @@ RUN wget https://github.com/kubernetes-client/python/archive/refs/tags/v23.6.0.z
 
 COPY docker/requirements-pip.txt requirements-pip.txt
 RUN pip install --upgrade pip \
-  && pip install -r requirements-pip.txt \
+  && pip install --no-build-isolation -r requirements-pip.txt \
   && rm requirements-pip.txt
 
 
 # Set platform-specific library path using uname
 RUN ARCH_LIB_PATH="/usr/lib/$(uname -m)-linux-gnu" && \
-    echo "export LD_LIBRARY_PATH=${ARCH_LIB_PATH}:\${LD_LIBRARY_PATH}" >> /etc/bash.bashrc
+    echo "export LD_LIBRARY_PATH=\${LD_LIBRARY_PATH}:${ARCH_LIB_PATH}" >> /etc/bash.bashrc
 ENV BASH_ENV=/etc/bash.bashrc
 
 COPY docker/requirements-pip-pytorch.txt requirements-pip-pytorch.txt
-RUN pip install --ignore-installed --no-deps -r requirements-pip-pytorch.txt \
+RUN pip install --no-build-isolation --ignore-installed --no-deps -r requirements-pip-pytorch.txt \
   && rm requirements-pip-pytorch.txt
 
 COPY docker/requirements-pip-odise.txt requirements-pip-odise.txt
-RUN pip install --ignore-installed --no-deps -r requirements-pip-odise.txt \
+RUN pip install --no-build-isolation --ignore-installed --no-deps -r requirements-pip-odise.txt \
   && rm requirements-pip-odise.txt
 
 COPY docker/requirements-pip-quantization.txt requirements-pip-quantization.txt
-RUN pip install --upgrade --no-deps -r requirements-pip-quantization.txt \
+RUN pip install --no-build-isolation --upgrade --no-deps -r requirements-pip-quantization.txt \
   && rm requirements-pip-quantization.txt
 
 ################## Build onnxruntime-gpu ##################
