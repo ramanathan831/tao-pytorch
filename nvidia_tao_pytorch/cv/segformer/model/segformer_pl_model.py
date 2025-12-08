@@ -414,6 +414,7 @@ class SegFormerPlModel(TAOLightningModule):
         if not self.trainer.sanity_checking:
             scores, mean_scores = self._collect_epoch_states()  # logs all evaluation metrics
             self.log("val_acc", scores['acc'], on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
+            self.log("val_miou", scores['miou'], on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
         self._clear_cache()
 
         average_val_loss = self.trainer.logged_metrics["val_loss"].item()

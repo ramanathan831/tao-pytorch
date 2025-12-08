@@ -66,7 +66,11 @@ ENV CPATH="/usr/local/cuda/include/cccl:${CPATH}"
 
 # Clone and build ONNX Runtime
 WORKDIR /workspace/onnxruntime_build
-RUN git clone -b rel-${ONNXRUNTIME_VERSION} --recursive ${ONNXRUNTIME_REPO} onnxruntime
+RUN git clone -b rel-${ONNXRUNTIME_VERSION} --recursive ${ONNXRUNTIME_REPO} onnxruntime && \
+    find /workspace/onnxruntime_build -name ".git" -type d -exec rm -rf {} + 2>/dev/null || true && \
+    find /workspace/onnxruntime_build -name ".git" -type f -exec rm -f {} + 2>/dev/null || true && \
+    find /workspace/onnxruntime_build -name ".github" -type d -exec rm -rf {} + 2>/dev/null || true && \
+    find /workspace/onnxruntime_build -name ".gitlab" -type d -exec rm -rf {} + 2>/dev/null || true
 
 WORKDIR /workspace/onnxruntime_build/onnxruntime
 
@@ -101,7 +105,7 @@ RUN CUDA_ARCHS=$(echo ${GPU_ARCHS} | sed 's/ /;/g' | sed 's/\([0-9]\+a\?\)/\1-re
 # Install the built wheel
 RUN pip install --no-deps /workspace/onnxruntime_build/build/${ONNXRUNTIME_BUILD_CONFIG}/dist/onnxruntime_gpu-*.whl
 
-# Clean up build artifacts
+# Clean up build artifacts including .git folders from submodules
 RUN rm -rf /workspace/onnxruntime_build
 
 WORKDIR /workspace
@@ -119,6 +123,10 @@ ENV NVCC_FLAGS="--ptxas-options=-O2 --ptxas-options=-v"
 COPY docker/xformers xformers_src
 
 RUN echo "======Start building xformers from vllm gitlab repository======" && \
+  find xformers_src -name ".git" -type d -exec rm -rf {} + 2>/dev/null || true && \
+  find xformers_src -name ".git" -type f -exec rm -f {} + 2>/dev/null || true && \
+  find xformers_src -name ".github" -type d -exec rm -rf {} + 2>/dev/null || true && \
+  find xformers_src -name ".gitlab" -type d -exec rm -rf {} + 2>/dev/null || true && \
   cd xformers_src && \
   echo "======Calculating MAX_JOBS to build xformers parallelly======" && \
   # TLT-5330: 90 GB overhead, 20 GB/job, 4 job min and ${max_cpu} job max
@@ -142,5 +150,15 @@ RUN echo 'taotoolkituser:nvidia' | chpasswd
 RUN mkdir -p /workspace && chown taotoolkituser /workspace
 
 WORKDIR /tao-pt
+
+# Security: Remove all git-related files and folders from the image
+# This addresses security scan failures (credentials, internal URLs) and reduces image size
+RUN find / -type d -name ".git" -exec rm -rf {} + 2>/dev/null || true && \
+    find / -type f -name ".git" -exec rm -f {} + 2>/dev/null || true && \
+    find / -type f -name ".gitignore" -exec rm -f {} + 2>/dev/null || true && \
+    find / -type d -name ".github" -exec rm -rf {} + 2>/dev/null || true && \
+    find / -type d -name ".gitlab" -exec rm -rf {} + 2>/dev/null || true && \
+    find / -type f -name ".gitlab-ci.yml" -exec rm -f {} + 2>/dev/null || true && \
+    find / -type f -name "gitlab-ci.yml" -exec rm -f {} + 2>/dev/null || true
 
 CMD [ "/bin/bash" ]

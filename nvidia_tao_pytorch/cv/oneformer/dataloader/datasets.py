@@ -28,18 +28,19 @@ from PIL.Image import Resampling
 from torch.utils.data import Dataset
 import glob
 
+from nvidia_tao_pytorch.core.utilities import PIL_SUPPORTED_FORMATS
 from nvidia_tao_pytorch.cv.mask2former.utils.d2.structures import Instances  # pylint: disable=import-error
-from .augmentations import (
-    RandomRotation,
-    GaussianBlur,
-    RandomErasing,
-)
 from nvidia_tao_pytorch.cv.mask2former.dataloader.augmentations import (
     RandomHorizontalFlip,
     RandomCrop,
     ResizeShortestEdge,
     ColorAugSSDTransform,
     apply_transform,
+)
+from nvidia_tao_pytorch.cv.oneformer.dataloader.augmentations import (
+    RandomRotation,
+    GaussianBlur,
+    RandomErasing,
 )
 logger = logging.getLogger(__name__)
 
@@ -534,7 +535,11 @@ class OneFormerPredictDataset(Dataset):
         """Init dataset for prediction."""
         super().__init__()
         self.cfg = cfg
-        self.img_list = sorted(glob.glob(self.cfg.dataset.test.images + '/*.jpg'))
+        self.img_list = sorted([
+            file
+            for ext in PIL_SUPPORTED_FORMATS
+            for file in glob.glob(self.cfg.inference.images_dir + f"/*{ext}")
+        ])
         self.mode = self.cfg.inference.mode.lower()
         self.padding_constant = 2**5
         self.pixel_mean = np.array(cfg.dataset.pixel_mean)
