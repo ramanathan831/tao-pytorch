@@ -14,4 +14,19 @@ nosetests.xml
 coverage.xml
 *,cover
 *.log
+
+# GitHub workflows and GitLab configs
 .git
+**/.git
+.github/
+*/.github/
+**/.github/
+.gitlab/
+*/.gitlab/
+**/.gitlab/
+.gitlab-ci.yml
+*/.gitlab-ci.yml
+**/.gitlab-ci.yml
+gitlab-ci.yml
+*/gitlab-ci.yml
+**/gitlab-ci.yml

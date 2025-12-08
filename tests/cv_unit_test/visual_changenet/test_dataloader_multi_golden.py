@@ -95,6 +95,7 @@ def _test_exp_spec():
                                                         'UniformLight': 2,
                                                         'WhiteLight': 3
                                                         }
+    experiment_config["dataset"]['classify']["workers"] = 1
     experiment_config["dataset"]['classify']["concat_type"] = 'linear'
     experiment_config["dataset"]['classify']["image_ext"] = '.jpg'
     experiment_config["dataset"]['classify']["batch_size"] = BATCH_SIZE
