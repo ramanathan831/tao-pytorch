@@ -191,7 +191,7 @@ spec:
           gitlabCommitStatus(name: "build_docker_image", connection: gitLabConnection('git-lab-master')) {
             def IMAGE_NAME = "nvcr.io/nvstaging/tao/tao-toolkit-pyt"
             docker.withRegistry('https://nvcr.io', 'NGC_API_KEY'){
-              sh "docker build -t ${IMAGE_NAME}:${TAO_VERSION}-${BUILD_TYPE}-${BUILD_NUMBER} --network=host -f ${WORKSPACE}/release/docker/Dockerfile ${WORKSPACE}"
+              sh "docker build -t ${IMAGE_NAME}:${TAO_VERSION}-${BUILD_TYPE}-${BUILD_NUMBER} --build-arg TARGETARCH=amd64 --network=host -f ${WORKSPACE}/release/docker/Dockerfile ${WORKSPACE}"
             }
           }
         }

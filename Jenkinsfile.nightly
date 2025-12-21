@@ -401,7 +401,7 @@ spec:
             }
             gitlabCommitStatus(name: "release_docker_build", connection: gitLabConnection('git-lab-master')) {
               docker.withRegistry('https://nvcr.io', 'NGC_API_KEY') {
-                sh "docker build -t ${IMAGE_NAME}:main-${BUILD_TYPE}-${BUILD_NUMBER} --network=host -f ${WORKSPACE}/release/docker/Dockerfile ${WORKSPACE}"
+                sh "docker build -t ${IMAGE_NAME}:main-${BUILD_TYPE}-${BUILD_NUMBER} --build-arg TARGETARCH=amd64 --network=host -f ${WORKSPACE}/release/docker/Dockerfile ${WORKSPACE}"
                 sh "docker push ${IMAGE_NAME}:main-${BUILD_TYPE}-${BUILD_NUMBER}"
 
                 def append_string="pytorch: ${IMAGE_NAME}:main-${BUILD_TYPE}-${BUILD_NUMBER}"
