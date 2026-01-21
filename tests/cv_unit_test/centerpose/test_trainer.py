@@ -189,6 +189,14 @@ def _infer_spec():
     experiment_config.inference.num_gpus = 1
     experiment_config.dataset.inference_data = os.path.join(tmp_top_dir, "infer")
     experiment_config.dataset.batch_size = 2
+    
+    # Set valid camera intrinsics for PnP solver
+    # Using reasonable defaults to avoid OpenCV calibration errors
+    experiment_config.inference.focal_length_x = max(TEST_WIDTH, TEST_HEIGHT) * 0.8
+    experiment_config.inference.focal_length_y = max(TEST_WIDTH, TEST_HEIGHT) * 0.8
+    experiment_config.inference.principle_point_x = TEST_WIDTH / 2.0
+    experiment_config.inference.principle_point_y = TEST_HEIGHT / 2.0
+    experiment_config.inference.skew = 0.0
 
     yield experiment_config
 
