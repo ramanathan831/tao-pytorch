@@ -3,7 +3,7 @@ def TAO_VERSION = "6.25.7"
 def BUILD_TYPE = "dev"
 
 // Resolve base image from params if provided; otherwise use default digest
-def BASE_IMAGE_DEFAULT = "nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:d2a6b648152f7e38168453be38233082964193e70b154fdce16fac39e6b0d9e2"
+def BASE_IMAGE_DEFAULT = "nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:7ae6235f7826d80d217852047966818aa3d6bfd50e2f6e6d5d57000770d36a5f"
 def baseImage = (params.BASE_IMAGE_REPO?.trim() && params.BASE_IMAGE_TAG?.trim()) ? "${params.BASE_IMAGE_REPO}:${params.BASE_IMAGE_TAG}" : BASE_IMAGE_DEFAULT
 echo "Using base image ${baseImage}"
 
