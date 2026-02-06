@@ -212,6 +212,51 @@ def test_changenet_onnx_export(_test_experiment_spec, backbone, batch_size, diff
     assert os.path.exists(onnx_path), "ONNX file was not generated properly!"
 
 
+def _export_onnx_if_not_exists(_test_experiment_spec, backbone, difference_module, loss, opset_version):
+    """Helper function to export ONNX model if it doesn't exist."""
+    onnx_path = os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}_diffModule{difference_module}", f"{backbone}_opset{opset_version}_diffModule{difference_module}.onnx")
+
+    if os.path.exists(onnx_path):
+        return onnx_path
+
+    _test_experiment_spec.model.backbone.type = backbone
+    _test_experiment_spec.train.classify.loss = loss
+    _test_experiment_spec.model.classify.difference_module = difference_module
+    _test_experiment_spec.task = 'classify'
+    if 'vit' in backbone:
+        _test_experiment_spec.model.decode_head.feature_strides = [4, 8, 16, 32]
+
+    input_batch_size = 1
+    input_channel, input_height, input_width = 3, IMAGE_HEIGHT*2, IMAGE_WIDTH*2
+    output_names = ["output"]
+    input_names = ["input_1", "input_2"]
+
+    dm = OIDataModule(_test_experiment_spec)
+    model = ChangeNetPlClassifier(_test_experiment_spec, dm).model
+    model.eval()
+    model.cuda()
+
+    dummy_input0 = torch.ones(input_batch_size, input_channel, input_height, input_width, device='cuda')
+    dummy_input1 = torch.ones(input_batch_size, input_channel, input_height, input_width, device='cuda')
+    dummy_input = (dummy_input0, dummy_input1)
+
+    check_and_create(os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}_diffModule{difference_module}"))
+
+    onnx_export = ONNXExporter()
+    onnx_export.export_model(model, -1,
+                             onnx_path,
+                             dummy_input,
+                             input_names=input_names,
+                             opset_version=opset_version,
+                             output_names=output_names,
+                             do_constant_folding=True,
+                             verbose=_test_experiment_spec.export.verbose,
+                             task='classify')
+
+    onnx_export.check_onnx(onnx_path)
+    return onnx_path
+
+
 @pytest.mark.cv_unit
 @pytest.mark.parametrize("batch_size", [1])
 @pytest.mark.parametrize("backbone", TEST_TOPOLOGIES)
@@ -221,9 +266,8 @@ def test_changenet_onnx_export(_test_experiment_spec, backbone, batch_size, diff
                           ])
 @pytest.mark.parametrize("opset_version", [16])
 def test_cls_trtexec(_test_experiment_spec, backbone, batch_size, difference_module, opset_version, loss):
-    check_and_create(os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}_diffModule{difference_module}"))
-
-    onnx_path = os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}_diffModule{difference_module}", f"{backbone}_opset{opset_version}_diffModule{difference_module}.onnx")
+    # Ensure ONNX file exists (export if needed)
+    onnx_path = _export_onnx_if_not_exists(_test_experiment_spec, backbone, difference_module, loss, opset_version)
 
     input_height, input_width = IMAGE_HEIGHT*2, IMAGE_WIDTH*2
     # Test TensorRT engine generation for dynamic batch size ONNX

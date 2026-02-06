@@ -181,14 +181,55 @@ def test_changenet_onnx_export(_test_experiment_spec, backbone, batch_size, task
     assert os.path.exists(onnx_path), "ONNX file was not generated properly!"
 
 
+def _export_onnx_if_not_exists(_test_experiment_spec, backbone, opset_version):
+    """Helper function to export ONNX model if it doesn't exist."""
+    onnx_path = os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}", f"{backbone}_opset{opset_version}.onnx")
+
+    if os.path.exists(onnx_path):
+        return onnx_path
+
+    _test_experiment_spec.model.backbone.type = backbone
+    _test_experiment_spec.task = 'segment'
+    if 'vit' in backbone:
+        _test_experiment_spec.model.decode_head.feature_strides = [4, 8, 16, 32]
+
+    input_batch_size = 1
+    input_channel, input_height, input_width = 3, OUTPUT_SHAPE, OUTPUT_SHAPE
+    input_names = ['input0', 'input1']
+    output_names = ["output0", "output1", 'output2', 'output3', 'output_final']
+
+    model = ChangeNetPlSegment(_test_experiment_spec).model
+    model.eval()
+    model.cuda()
+
+    dummy_input0 = torch.ones(input_batch_size, input_channel, input_height, input_width, device='cuda')
+    dummy_input1 = torch.ones(input_batch_size, input_channel, input_height, input_width, device='cuda')
+    dummy_input = (dummy_input0, dummy_input1)
+
+    check_and_create(os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}"))
+
+    onnx_export = ONNXExporter()
+    onnx_export.export_model(model, -1,
+                             onnx_path,
+                             dummy_input,
+                             input_names=input_names,
+                             opset_version=opset_version,
+                             output_names=output_names,
+                             do_constant_folding=True,
+                             verbose=_test_experiment_spec.export.verbose,
+                             task='segment')
+
+    onnx_export.check_onnx(onnx_path)
+    return onnx_path
+
+
 @pytest.mark.cv_unit
 @pytest.mark.parametrize("batch_size", [1])
 @pytest.mark.parametrize("backbone", TEST_TOPOLOGIES)
 @pytest.mark.parametrize("opset_version", [16])
 def test_cls_trtexec(_test_experiment_spec, backbone, batch_size, opset_version):
-    check_and_create(os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}"))
-
-    onnx_path = os.path.join(tmp_top_dir, f"{backbone}_opset{opset_version}", f"{backbone}_opset{opset_version}.onnx")
+    # Ensure ONNX file exists (export if needed)
+    onnx_path = _export_onnx_if_not_exists(_test_experiment_spec, backbone, opset_version)
 
     input_height, input_width = OUTPUT_SHAPE, OUTPUT_SHAPE
     # Test TensorRT engine generation for dynamic batch size ONNX
