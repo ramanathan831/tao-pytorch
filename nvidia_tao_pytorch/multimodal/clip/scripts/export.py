@@ -1,0 +1,731 @@
+# Copyright (c) 2026, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Export CLIP model to ONNX."""
+
+import math
+import os
+from typing import Optional, Tuple
+
+import onnx
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.onnx import symbolic_helper
+
+from nvidia_tao_pytorch.core.cookbooks.tlt_pytorch_cookbook import (
+    TLTPyTorchCookbook,
+)
+from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
+from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
+from nvidia_tao_pytorch.core.utilities import encrypt_onnx
+from nvidia_tao_pytorch.core.tlt_logging import logging
+
+from nvidia_tao_core.config.clip.default_config import (
+    CLIPExperimentConfig as ExperimentConfig,
+)
+from nvidia_tao_pytorch.multimodal.clip.model.pl_clip_model import CLIPPlModel
+
+
+# Register custom ONNX symbolic for anti-aliased bilinear upsample, which
+# PyTorch uses internally (e.g. in HuggingFace SigLIP2 NaFlex) but has no
+# built-in ONNX exporter mapping.  We map it to the standard ONNX Resize
+# op with mode=linear, dropping the anti-alias flag (negligible at inference).
+def _onnx_upsample_bilinear2d_aa(g, inp, output_size, align_corners, *args):
+    """ONNX symbolic for aten::_upsample_bilinear2d_aa.
+
+    Maps anti-aliased bilinear upsample to standard ONNX Resize op.
+    The anti-alias flag is implicit in the op name and is dropped for ONNX
+    (negligible impact at inference).
+
+    Accepts *args for remaining scale parameters since the JIT graph may
+    pass them in varying forms depending on the PyTorch version.
+    """
+    align_corners_i = symbolic_helper._maybe_get_const(align_corners, "b")
+    coord_mode = "align_corners" if align_corners_i else "asymmetric"
+    empty_tensor = g.op(
+        "Constant", value_t=torch.tensor([], dtype=torch.float32)
+    )
+    return g.op(
+        "Resize", inp, empty_tensor, empty_tensor, output_size,
+        mode_s="linear",
+        coordinate_transformation_mode_s=coord_mode,
+    )
+
+
+torch.onnx.register_custom_op_symbolic(
+    "aten::_upsample_bilinear2d_aa", _onnx_upsample_bilinear2d_aa, 17
+)
+
+
+class ExportFriendlyMHA(nn.Module):
+    """Drop-in replacement for nn.MultiheadAttention with ONNX-friendly ops.
+
+    PyTorch's nn.MultiheadAttention uses a fused _native_multi_head_attention
+    kernel that has no ONNX symbolic.  This module performs the identical
+    computation using standard linear, reshape, softmax, and matmul ops that
+    the ONNX exporter fully supports.
+
+    Use ``_replace_mha_for_export`` to swap all nn.MultiheadAttention modules
+    in a model before calling ``torch.onnx.export``.
+    """
+
+    def __init__(self, mha: nn.MultiheadAttention):
+        """Initialize from existing nn.MultiheadAttention, sharing weights."""
+        super().__init__()
+        self.embed_dim = mha.embed_dim
+        self.num_heads = mha.num_heads
+        self.head_dim = mha.embed_dim // mha.num_heads
+        self.batch_first = mha.batch_first
+
+        # Share weight tensors (no copy)
+        self.in_proj_weight = mha.in_proj_weight
+        self.in_proj_bias = mha.in_proj_bias
+        self.out_proj = mha.out_proj
+
+    def forward(
+        self,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        value: torch.Tensor,
+        key_padding_mask: Optional[torch.Tensor] = None,
+        need_weights: bool = False,
+        attn_mask: Optional[torch.Tensor] = None,
+        average_attn_weights: bool = True,
+        is_causal: bool = False,
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        """Forward pass using decomposed multi-head attention ops."""
+        if self.batch_first:
+            query = query.transpose(0, 1)
+            key = key.transpose(0, 1)
+            value = value.transpose(0, 1)
+
+        seq_len, batch_size, _ = query.shape
+
+        # QKV projection
+        qkv = F.linear(  # pylint: disable=not-callable
+            query, self.in_proj_weight, self.in_proj_bias
+        )
+        q, k, v = qkv.chunk(3, dim=-1)
+
+        # Reshape for multi-head: (S, B, D) -> (S, B, H, Dh) -> (B, H, S, Dh)
+        q = q.reshape(seq_len, batch_size, self.num_heads, self.head_dim)
+        q = q.permute(1, 2, 0, 3)
+        k_len = key.shape[0]
+        k = k.reshape(k_len, batch_size, self.num_heads, self.head_dim)
+        k = k.permute(1, 2, 0, 3)
+        v = v.reshape(k_len, batch_size, self.num_heads, self.head_dim)
+        v = v.permute(1, 2, 0, 3)
+
+        # Scaled dot-product attention
+        scale = math.sqrt(self.head_dim)
+        attn_weights = torch.matmul(q, k.transpose(-2, -1)) / scale
+
+        if attn_mask is not None:
+            attn_weights = attn_weights + attn_mask
+
+        attn_weights = F.softmax(attn_weights, dim=-1)
+
+        attn_output = torch.matmul(attn_weights, v)
+
+        # (B, H, S, Dh) -> (S, B, D)
+        attn_output = attn_output.permute(2, 0, 1, 3).reshape(
+            seq_len, batch_size, self.embed_dim
+        )
+
+        # Output projection
+        attn_output = self.out_proj(attn_output)
+
+        if self.batch_first:
+            attn_output = attn_output.transpose(0, 1)
+
+        return attn_output, None
+
+
+def _replace_mha_for_export(model: nn.Module) -> None:
+    """Replace all nn.MultiheadAttention modules with ExportFriendlyMHA.
+
+    Walks the module tree and swaps each nn.MultiheadAttention with an
+    ExportFriendlyMHA that shares the same weights but uses only
+    ONNX-exportable ops.
+
+    Parameters
+    ----------
+    model : nn.Module
+        Model to prepare for ONNX export (modified in-place).
+    """
+    for _, module in model.named_modules():
+        for attr_name, child in list(module.named_children()):
+            if isinstance(child, nn.MultiheadAttention):
+                setattr(module, attr_name, ExportFriendlyMHA(child))
+
+
+# Valid encoder types for export (aligned with CLIPExportConfig.encoder_type)
+VALID_ENCODER_TYPES = {'combined', 'separate'}
+
+
+class CLIPVisionEncoder(nn.Module):
+    """Wrapper to export only the vision encoder of CLIP.
+
+    This module wraps the CLIP model to export only the vision encoder
+    component, which produces image embeddings from input images.
+
+    Parameters
+    ----------
+    clip_model : nn.Module
+        The full CLIP model containing vision and text encoders.
+    """
+
+    def __init__(self, clip_model: nn.Module):
+        """Initialize CLIPVisionEncoder."""
+        super().__init__()
+        self.model = clip_model
+
+    def forward(self, image: torch.Tensor) -> torch.Tensor:
+        """Forward pass through vision encoder.
+
+        Parameters
+        ----------
+        image : torch.Tensor
+            Input image tensor of shape (B, C, H, W).
+
+        Returns
+        -------
+        torch.Tensor
+            Image embeddings of shape (B, D) where D is embedding dimension.
+        """
+        output = self.model(image=image)
+        if isinstance(output, dict):
+            return output["image_features"]
+        return output[0]
+
+
+class CLIPTextEncoder(nn.Module):
+    """Wrapper to export only the text encoder of CLIP.
+
+    This module wraps the CLIP model to export only the text encoder
+    component, which produces text embeddings from tokenized text.
+
+    Parameters
+    ----------
+    clip_model : nn.Module
+        The full CLIP model containing vision and text encoders.
+    """
+
+    def __init__(self, clip_model: nn.Module):
+        """Initialize CLIPTextEncoder."""
+        super().__init__()
+        self.model = clip_model
+
+    def forward(
+        self,
+        input_ids: torch.Tensor,
+        attention_mask: torch.Tensor,
+    ) -> torch.Tensor:
+        """Forward pass through text encoder.
+
+        Parameters
+        ----------
+        input_ids : torch.Tensor
+            Tokenized text input IDs of shape (B, seq_len).
+        attention_mask : torch.Tensor
+            Attention mask of shape (B, seq_len).
+
+        Returns
+        -------
+        torch.Tensor
+            Text embeddings of shape (B, D) where D is embedding dimension.
+        """
+        text_input = {'input_ids': input_ids, 'attention_mask': attention_mask}
+        output = self.model(text=text_input)
+        if isinstance(output, dict):
+            return output["text_features"]
+        return output[1]
+
+
+class CLIPCombinedEncoder(nn.Module):
+    """Wrapper to export both vision and text encoders as a single ONNX model.
+
+    Takes flat tensor inputs (image, input_ids, attention_mask) so that ONNX
+    tracing works without dict construction during trace. Internally calls
+    the model's combined forward path which returns both embeddings and the
+    learned logit scale.
+
+    Parameters
+    ----------
+    clip_model : nn.Module
+        The full CLIP model containing vision and text encoders.
+    """
+
+    def __init__(self, clip_model: nn.Module):
+        """Initialize CLIPCombinedEncoder."""
+        super().__init__()
+        self.model = clip_model
+
+    def forward(
+        self,
+        image: torch.Tensor,
+        input_ids: torch.Tensor,
+        attention_mask: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Forward pass through both encoders.
+
+        Parameters
+        ----------
+        image : torch.Tensor
+            Input image tensor of shape (B, C, H, W).
+        input_ids : torch.Tensor
+            Tokenized text input IDs of shape (B, seq_len).
+        attention_mask : torch.Tensor
+            Attention mask of shape (B, seq_len).
+
+        Returns
+        -------
+        Tuple[torch.Tensor, torch.Tensor, torch.Tensor]
+            (image_embedding, text_embedding, logit_scale) where embeddings
+            have shape (B, D) and logit_scale is a scalar tensor.
+        """
+        text_input = {'input_ids': input_ids, 'attention_mask': attention_mask}
+        image_features, text_features, logit_scale, _ = self.model(
+            image=image, text=text_input
+        )
+        return image_features, text_features, logit_scale
+
+
+def export_single_encoder(
+    pl_model: CLIPPlModel,
+    encoder_type: str,
+    export_config,
+    experiment_config: ExperimentConfig,
+    output_file: str,
+    device: str
+) -> str:
+    """Export a single encoder (vision or text) to ONNX.
+
+    Parameters
+    ----------
+    pl_model : CLIPPlModel
+        Loaded PyTorch Lightning model.
+    encoder_type : str
+        Type of encoder to export: 'vision' or 'text'.
+    export_config : ExportExpConfig
+        Export configuration.
+    experiment_config : ExperimentConfig
+        Full experiment configuration.
+    output_file : str
+        Output ONNX file path.
+    device : str
+        Device to use ('cpu' or 'cuda').
+
+    Returns
+    -------
+    str
+        Path to the exported ONNX file.
+    """
+    opset_version = export_config.opset_version
+    batch_size = export_config.batch_size
+    key = experiment_config.encryption_key
+
+    if batch_size is None or batch_size == -1:
+        input_batch_size = 1
+        is_dynamic = True
+    else:
+        input_batch_size = batch_size
+        is_dynamic = False
+
+    if encoder_type == 'vision':
+        encoder = CLIPVisionEncoder(pl_model.model)
+        input_channel = export_config.input_channel
+        input_width = export_config.input_width
+        input_height = export_config.input_height
+        input_shape = [input_channel, input_height, input_width]
+
+        dummy_input = torch.randn(
+            input_batch_size, *input_shape, device=device)
+        input_names = ['image']
+        output_names = ['image_embedding']
+
+        if is_dynamic:
+            dynamic_axes = {
+                'image': {0: 'batch_size'},
+                'image_embedding': {0: 'batch_size'}
+            }
+        else:
+            dynamic_axes = None
+
+        logging.info(
+            f"Exporting vision encoder with input shape: "
+            f"{[input_batch_size] + input_shape}"
+        )
+
+    else:  # text encoder
+        encoder = CLIPTextEncoder(pl_model.model)
+        # Infer sequence length from the model's tokenizer rather than
+        # hardcoding, since different text encoders have different context
+        # lengths (e.g., SigLIP2: 64, OpenCLIP/DFN CLIP: 77)
+        dummy_tokens = pl_model.tokenizer(["test"])[0]
+        seq_length = list(dummy_tokens.values())[0].shape[-1]
+
+        dummy_input_ids = torch.zeros(
+            input_batch_size, seq_length, dtype=torch.long, device=device
+        )
+        dummy_attention_mask = torch.ones(
+            input_batch_size, seq_length, dtype=torch.long, device=device
+        )
+        dummy_input = (dummy_input_ids, dummy_attention_mask)
+        input_names = ['input_ids', 'attention_mask']
+        output_names = ['text_embedding']
+
+        if is_dynamic:
+            dynamic_axes = {
+                'input_ids': {0: 'batch_size'},
+                'attention_mask': {0: 'batch_size'},
+                'text_embedding': {0: 'batch_size'}
+            }
+        else:
+            dynamic_axes = None
+
+        logging.info(
+            f"Exporting text encoder with sequence length: {seq_length}")
+
+    encoder.eval()
+    if device == 'cuda':
+        encoder.cuda()
+
+    # Determine actual output file (handle encryption)
+    if output_file.endswith('.etlt'):
+        tmp_onnx_file = output_file.replace('.etlt', '.onnx')
+    else:
+        tmp_onnx_file = output_file
+
+    logging.info(
+        f"Exporting {encoder_type} encoder to ONNX with opset "
+        f"version {opset_version}"
+    )
+
+    # Export to ONNX
+    with torch.no_grad():
+        torch.onnx.export(
+            encoder,
+            dummy_input,
+            tmp_onnx_file,
+            input_names=input_names,
+            output_names=output_names,
+            dynamic_axes=dynamic_axes,
+            opset_version=opset_version,
+            do_constant_folding=True,
+            verbose=export_config.verbose
+        )
+
+    logging.info(f"ONNX export completed: {tmp_onnx_file}")
+
+    # Verify ONNX model
+    try:
+        onnx_model = onnx.load(tmp_onnx_file)
+        onnx.checker.check_model(onnx_model)
+        logging.info(
+            f"ONNX model validation passed for {encoder_type} encoder"
+        )
+    except Exception as e:
+        logging.warning(f"ONNX model validation failed: {e}")
+
+    # Handle encryption if needed
+    if output_file.endswith('.etlt') and key:
+        encrypt_onnx(
+            tmp_file_name=tmp_onnx_file,
+            output_file_name=output_file,
+            key=key
+        )
+        os.remove(tmp_onnx_file)
+        logging.info(f"Encrypted ONNX file stored at {output_file}")
+        return output_file
+    else:
+        logging.info(f"ONNX file stored at {tmp_onnx_file}")
+        return tmp_onnx_file
+
+
+def export_combined_encoder(
+    pl_model: CLIPPlModel,
+    export_config,
+    experiment_config: ExperimentConfig,
+    output_file: str,
+    device: str
+) -> str:
+    """Export both vision and text encoders as a single combined ONNX model.
+
+    The combined model takes (image, input_ids, attention_mask) and produces
+    (image_embedding, text_embedding, logit_scale) in one graph.
+
+    Parameters
+    ----------
+    pl_model : CLIPPlModel
+        Loaded PyTorch Lightning model.
+    export_config : CLIPExportConfig
+        Export configuration.
+    experiment_config : ExperimentConfig
+        Full experiment configuration.
+    output_file : str
+        Output ONNX file path.
+    device : str
+        Device to use ('cpu' or 'cuda').
+
+    Returns
+    -------
+    str
+        Path to the exported ONNX file.
+    """
+    opset_version = export_config.opset_version
+    batch_size = export_config.batch_size
+    key = experiment_config.encryption_key
+
+    if batch_size is None or batch_size == -1:
+        input_batch_size = 1
+        is_dynamic = True
+    else:
+        input_batch_size = batch_size
+        is_dynamic = False
+
+    # Build combined encoder wrapper
+    encoder = CLIPCombinedEncoder(pl_model.model)
+    encoder.eval()
+    if device == 'cuda':
+        encoder.cuda()
+
+    # Vision dummy input
+    input_channel = export_config.input_channel
+    input_width = export_config.input_width
+    input_height = export_config.input_height
+    input_shape = [input_channel, input_height, input_width]
+    dummy_image = torch.randn(input_batch_size, *input_shape, device=device)
+
+    # Text dummy input -- infer sequence length from the model's tokenizer
+    dummy_tokens = pl_model.tokenizer(["test"])[0]
+    seq_length = list(dummy_tokens.values())[0].shape[-1]
+    dummy_input_ids = torch.zeros(
+        input_batch_size, seq_length, dtype=torch.long, device=device
+    )
+    dummy_attention_mask = torch.ones(
+        input_batch_size, seq_length, dtype=torch.long, device=device
+    )
+
+    dummy_input = (dummy_image, dummy_input_ids, dummy_attention_mask)
+
+    input_names = ['image', 'input_ids', 'attention_mask']
+    output_names = ['image_embedding', 'text_embedding', 'logit_scale']
+
+    if is_dynamic:
+        dynamic_axes = {
+            'image': {0: 'batch_size'},
+            'input_ids': {0: 'batch_size'},
+            'attention_mask': {0: 'batch_size'},
+            'image_embedding': {0: 'batch_size'},
+            'text_embedding': {0: 'batch_size'},
+        }
+    else:
+        dynamic_axes = None
+
+    logging.info(
+        f"Exporting combined encoder with image shape "
+        f"{[input_batch_size] + input_shape}, sequence length {seq_length}"
+    )
+
+    # Determine actual output file (handle encryption)
+    if output_file.endswith('.etlt'):
+        tmp_onnx_file = output_file.replace('.etlt', '.onnx')
+    else:
+        tmp_onnx_file = output_file
+
+    logging.info(
+        f"Exporting combined encoder to ONNX with opset version "
+        f"{opset_version}"
+    )
+
+    with torch.no_grad():
+        torch.onnx.export(
+            encoder,
+            dummy_input,
+            tmp_onnx_file,
+            input_names=input_names,
+            output_names=output_names,
+            dynamic_axes=dynamic_axes,
+            opset_version=opset_version,
+            do_constant_folding=True,
+            verbose=export_config.verbose,
+        )
+
+    logging.info(f"ONNX export completed: {tmp_onnx_file}")
+
+    # Verify ONNX model
+    try:
+        onnx_model = onnx.load(tmp_onnx_file)
+        onnx.checker.check_model(onnx_model)
+        logging.info("ONNX model validation passed for combined encoder")
+    except Exception as e:
+        logging.warning(f"ONNX model validation failed: {e}")
+
+    # Handle encryption if needed
+    if output_file.endswith('.etlt') and key:
+        encrypt_onnx(
+            tmp_file_name=tmp_onnx_file,
+            output_file_name=output_file,
+            key=key
+        )
+        os.remove(tmp_onnx_file)
+        logging.info(f"Encrypted ONNX file stored at {output_file}")
+        return output_file
+    else:
+        logging.info(f"ONNX file stored at {tmp_onnx_file}")
+        return tmp_onnx_file
+
+
+def run_export(experiment_config: ExperimentConfig) -> None:
+    """Run ONNX export for CLIP model.
+
+    The encoder_type config option controls the export mode:
+    - 'combined': Single ONNX with both vision and text encoders
+    - 'separate': Two ONNX files (vision + text)
+
+    Parameters
+    ----------
+    experiment_config : ExperimentConfig
+        Experiment configuration containing export settings.
+    """
+    export_config = experiment_config.export
+    gpu_id = export_config.gpu_id
+    on_cpu = export_config.on_cpu
+
+    if not on_cpu:
+        torch.cuda.set_device(gpu_id)
+
+    # Get export parameters
+    model_path = export_config.checkpoint
+    key = experiment_config.encryption_key
+    TLTPyTorchCookbook.set_passphrase(key)
+
+    output_file = export_config.onnx_file
+    encoder_type = getattr(export_config, 'encoder_type', 'combined')
+
+    # Validate encoder type
+    if encoder_type not in VALID_ENCODER_TYPES:
+        raise ValueError(
+            f"Invalid encoder_type '{encoder_type}'. "
+            f"Must be one of: {VALID_ENCODER_TYPES}"
+        )
+
+    # Set default output filename
+    if output_file is None:
+        split_name = os.path.splitext(model_path)[0]
+        output_file = f"{split_name}.onnx"
+
+    # Create output directory
+    output_root = os.path.dirname(os.path.realpath(output_file))
+    if output_root and not os.path.exists(output_root):
+        os.makedirs(output_root)
+
+    # Load model
+    logging.info(
+        f"Loading model from {model_path}"
+    )
+    device = 'cpu' if on_cpu else 'cuda'
+    # pylint: disable=no-value-for-parameter
+    pl_model = CLIPPlModel.load_from_checkpoint(
+        model_path,
+        map_location=device,
+        experiment_spec=experiment_config
+    )
+
+    # Replace nn.MultiheadAttention with export-friendly decomposed version.
+    # PyTorch's fused _native_multi_head_attention has no ONNX symbolic, so
+    # we swap in an equivalent module that uses standard ops the exporter
+    # understands (linear, reshape, softmax, matmul).
+    _replace_mha_for_export(pl_model)
+
+    # Export based on encoder_type
+    if encoder_type == 'combined':
+        if os.path.exists(output_file):
+            raise FileExistsError(
+                f"Output ONNX file already exists: {output_file}"
+            )
+        logging.info("Exporting combined (vision + text) encoder")
+        export_combined_encoder(
+            pl_model,
+            export_config,
+            experiment_config,
+            output_file,
+            device,
+        )
+
+    else:  # separate
+        base_name = os.path.splitext(output_file)[0]
+        ext = os.path.splitext(output_file)[1]
+
+        vision_file = f"{base_name}_vision{ext}"
+        text_file = f"{base_name}_text{ext}"
+
+        if os.path.exists(vision_file):
+            raise FileExistsError(
+                f"Output ONNX file already exists: {vision_file}"
+            )
+        if os.path.exists(text_file):
+            raise FileExistsError(
+                f"Output ONNX file already exists: {text_file}"
+            )
+
+        logging.info(
+            "Exporting vision and text encoders as separate ONNX files"
+        )
+        export_single_encoder(
+            pl_model,
+            'vision',
+            export_config,
+            experiment_config,
+            vision_file,
+            device,
+        )
+        export_single_encoder(
+            pl_model,
+            'text',
+            export_config,
+            experiment_config,
+            text_file,
+            device,
+        )
+
+        logging.info(f"Both encoders exported: {vision_file}, {text_file}")
+
+
+spec_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+@hydra_runner(
+    config_path=os.path.join(spec_root, "experiment_specs"),
+    config_name="experiment_spec",
+    schema=ExperimentConfig
+)
+@monitor_status(name="CLIP", mode="export")
+def main(cfg: ExperimentConfig) -> None:
+    """Run the ONNX export process.
+
+    Parameters
+    ----------
+    cfg : ExperimentConfig
+        Hydra configuration object populated from experiment spec.
+    """
+    torch.backends.cudnn.allow_tf32 = False
+    torch.backends.cuda.matmul.allow_tf32 = False
+    run_export(cfg)
+
+
+if __name__ == "__main__":
+    main()  # pylint: disable=no-value-for-parameter

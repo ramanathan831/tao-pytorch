@@ -90,6 +90,8 @@ setuptools.setup(
             'stylegan_xl=nvidia_tao_pytorch.sdg.stylegan_xl.entrypoint.stylegan_xl:main',
             'nvdinov2=nvidia_tao_pytorch.ssl.nvdinov2.entrypoint.nvdinov2:main',
             'mae=nvidia_tao_pytorch.ssl.mae.entrypoint.mae:main',
+            # Multimodal entry point
+            'clip=nvidia_tao_pytorch.multimodal.clip.entrypoint.clip:main',
         ]
     },
     cmdclass={'build_ext': BuildExtension},
