@@ -32,6 +32,9 @@ Modules:
 # Models
 from nvidia_tao_pytorch.multimodal.clip.model.adapters import (
     BaseCLIPAdapter,
+    CRADIO,
+    SigLIP2,
+    OpenCLIP,
 )
 
 # Tokenizers
@@ -46,13 +49,25 @@ from nvidia_tao_pytorch.multimodal.clip.model.transforms import (
     SigLIP2ImageTransform,
 )
 
+# Builders
+from nvidia_tao_pytorch.multimodal.clip.model.builders import (
+    build_radio_model,
+    build_siglip2_model,
+)
+
 __all__ = [
     # Models
     'BaseCLIPAdapter',
+    'CRADIO',
+    'SigLIP2',
+    'OpenCLIP',
     # Tokenizers
     'canonicalize_text',
     'SigLIP2WrappedTokenizer',
     'CLIPCompatibleTokenizer',
     # Transforms
     'SigLIP2ImageTransform',
+    # Builders
+    'build_radio_model',
+    'build_siglip2_model',
 ]
