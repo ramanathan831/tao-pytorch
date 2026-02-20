@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2026, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -148,6 +148,10 @@ from nvidia_tao_pytorch.cv.backbone_v2.open_clip import (
     vit_l_14_siglip_clipa_336,
     vit_h_14_siglip_clipa_224,
 )
+from nvidia_tao_pytorch.cv.backbone_v2.siglip2 import (
+    siglip2_so400m_patch16_512,
+    siglip2_so400m,
+)
 from nvidia_tao_pytorch.cv.backbone_v2.mit import (
     mit_b0,
     mit_b1,
@@ -266,4 +270,6 @@ __all__ = [
     "mit_b3",
     "mit_b4",
     "mit_b5",
+    "siglip2_so400m_patch16_512",
+    "siglip2_so400m",
 ]
