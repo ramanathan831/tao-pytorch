@@ -37,6 +37,9 @@ from nvidia_tao_pytorch.multimodal.clip.dataloader.pl_clip_data_module import (
 from nvidia_tao_pytorch.cv.deformable_detr.utils.misc import (
     load_pretrained_weights,
 )
+from nvidia_tao_pytorch.multimodal.clip.utils.utils import (
+    register_checkpoint_safe_globals,
+)
 
 from pytorch_lightning import Trainer
 from pytorch_lightning.strategies import DDPStrategy
@@ -44,6 +47,7 @@ from pytorch_lightning.strategies import DDPStrategy
 
 def run_experiment(experiment_config, key):
     """Start the training."""
+    register_checkpoint_safe_globals()
     resume_ckpt, trainer_kwargs = initialize_train_experiment(
         experiment_config,
     )

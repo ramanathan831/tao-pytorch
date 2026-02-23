@@ -224,30 +224,63 @@ map_clip_model_cfg = {
 # SigLIP2 model configurations (standalone, not via RADIO).
 # Uses Google's SigLIP2 vision + text encoders from HuggingFace.
 siglip2_model_configs = {
-    "siglip2-g-384": {
-        "model_type": "siglip2",
-        "hf_model": "google/siglip2-giant-opt-patch16-384",
-        "description": "SigLIP2 Giant model (ViT-G/16) with 384x384 images",
-        "image_size": 384,
-        "patch_size": 16,
-        "embed_dim": 1152,  # SigLIP2-G embedding dimension
-        "init_logit_scale": 2.3026,  # np.log(10) for SigLIP
-        "init_logit_bias": -10.0,    # SigLIP bias
-    },
-    "siglip2-so400m": {
+    # NaFlex (dynamic resolution)
+    "siglip2-so400m-patch16-naflex": {
         "model_type": "siglip2",
         "hf_model": "google/siglip2-so400m-patch16-naflex",
-        "description": "SigLIP2 SO400M model (NaFlex)",
+        "description": "SigLIP2 SO400M model (NaFlex, dynamic resolution)",
         "image_size": 384,
         "patch_size": 16,
         "embed_dim": 1152,
         "init_logit_scale": 2.3026,
         "init_logit_bias": -10.0,
     },
-    "siglip2-so400m-512": {
+    # Fixed resolution patch14 variants
+    "siglip2-so400m-patch14-224": {
+        "model_type": "siglip2",
+        "hf_model": "google/siglip2-so400m-patch14-224",
+        "description": "SigLIP2 SO400M model with patch14, 224x224 resolution",
+        "image_size": 224,
+        "patch_size": 14,
+        "embed_dim": 1152,
+        "init_logit_scale": 2.3026,
+        "init_logit_bias": -10.0,
+    },
+    "siglip2-so400m-patch14-384": {
+        "model_type": "siglip2",
+        "hf_model": "google/siglip2-so400m-patch14-384",
+        "description": "SigLIP2 SO400M model with patch14, 384x384 resolution",
+        "image_size": 384,
+        "patch_size": 14,
+        "embed_dim": 1152,
+        "init_logit_scale": 2.3026,
+        "init_logit_bias": -10.0,
+    },
+    # Fixed resolution patch16 variants
+    "siglip2-so400m-patch16-256": {
+        "model_type": "siglip2",
+        "hf_model": "google/siglip2-so400m-patch16-256",
+        "description": "SigLIP2 SO400M model with patch16, 256x256 resolution",
+        "image_size": 256,
+        "patch_size": 16,
+        "embed_dim": 1152,
+        "init_logit_scale": 2.3026,
+        "init_logit_bias": -10.0,
+    },
+    "siglip2-so400m-patch16-384": {
+        "model_type": "siglip2",
+        "hf_model": "google/siglip2-so400m-patch16-384",
+        "description": "SigLIP2 SO400M model with patch16, 384x384 resolution",
+        "image_size": 384,
+        "patch_size": 16,
+        "embed_dim": 1152,
+        "init_logit_scale": 2.3026,
+        "init_logit_bias": -10.0,
+    },
+    "siglip2-so400m-patch16-512": {
         "model_type": "siglip2",
         "hf_model": "google/siglip2-so400m-patch16-512",
-        "description": "SigLIP2 SO400M model with fixed 512x512 resolution",
+        "description": "SigLIP2 SO400M model with patch16, 512x512 resolution",
         "image_size": 512,
         "patch_size": 16,
         "embed_dim": 1152,

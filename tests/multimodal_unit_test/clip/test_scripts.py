@@ -37,6 +37,7 @@ from nvidia_tao_pytorch.multimodal.clip.utils.utils import (
 from nvidia_tao_pytorch.multimodal.clip.scripts.export import (
     CLIPVisionEncoder,
     CLIPTextEncoder,
+    ExportFriendlyMHA,
     VALID_ENCODER_TYPES,
 )
 
@@ -433,3 +434,117 @@ class TestLoadTextFile:
 
             assert len(texts) == 2
             assert texts[0] == "一只猫的照片"
+
+
+@pytest.mark.multimodal_unit
+class TestExportFriendlyMHA:
+    """Test ExportFriendlyMHA replacement for nn.MultiheadAttention."""
+
+    def test_self_attention(self):
+        """Test self-attention case where query, key, value have same seq_len."""
+        embed_dim = 256
+        num_heads = 8
+        seq_len = 16
+        batch_size = 2
+
+        # Create a standard MHA module
+        mha = torch.nn.MultiheadAttention(embed_dim, num_heads, batch_first=False)
+
+        # Create export-friendly replacement
+        export_mha = ExportFriendlyMHA(mha)
+
+        # Create input tensors (seq_len, batch, embed_dim)
+        query = torch.randn(seq_len, batch_size, embed_dim)
+        key = query.clone()
+        value = query.clone()
+
+        # Run forward pass
+        output, _ = export_mha(query, key, value)
+
+        # Check output shape
+        assert output.shape == (seq_len, batch_size, embed_dim)
+
+    def test_self_attention_batch_first(self):
+        """Test self-attention with batch_first=True."""
+        embed_dim = 256
+        num_heads = 8
+        seq_len = 16
+        batch_size = 2
+
+        # Create MHA with batch_first=True
+        mha = torch.nn.MultiheadAttention(embed_dim, num_heads, batch_first=True)
+        export_mha = ExportFriendlyMHA(mha)
+
+        # Create input tensors (batch, seq_len, embed_dim)
+        query = torch.randn(batch_size, seq_len, embed_dim)
+        key = query.clone()
+        value = query.clone()
+
+        output, _ = export_mha(query, key, value)
+
+        assert output.shape == (batch_size, seq_len, embed_dim)
+
+    def test_cross_attention_different_seq_len(self):
+        """Test cross/pooler attention where query has different seq_len than key/value."""
+        embed_dim = 1152
+        num_heads = 16
+        q_seq_len = 1  # Single pooling token
+        kv_seq_len = 256  # Image patches
+        batch_size = 1
+
+        # Create MHA module
+        mha = torch.nn.MultiheadAttention(embed_dim, num_heads, batch_first=False)
+        export_mha = ExportFriendlyMHA(mha)
+
+        # Create input tensors with different sequence lengths
+        query = torch.randn(q_seq_len, batch_size, embed_dim)
+        key = torch.randn(kv_seq_len, batch_size, embed_dim)
+        value = torch.randn(kv_seq_len, batch_size, embed_dim)
+
+        # Run forward pass - this should not raise an error
+        output, _ = export_mha(query, key, value)
+
+        # Output should have query's sequence length
+        assert output.shape == (q_seq_len, batch_size, embed_dim)
+
+    def test_cross_attention_batch_first(self):
+        """Test cross/pooler attention with batch_first=True."""
+        embed_dim = 768
+        num_heads = 12
+        q_seq_len = 1
+        kv_seq_len = 196  # 14x14 patches
+        batch_size = 4
+
+        mha = torch.nn.MultiheadAttention(embed_dim, num_heads, batch_first=True)
+        export_mha = ExportFriendlyMHA(mha)
+
+        # batch_first: (batch, seq_len, embed_dim)
+        query = torch.randn(batch_size, q_seq_len, embed_dim)
+        key = torch.randn(batch_size, kv_seq_len, embed_dim)
+        value = torch.randn(batch_size, kv_seq_len, embed_dim)
+
+        output, _ = export_mha(query, key, value)
+
+        assert output.shape == (batch_size, q_seq_len, embed_dim)
+
+    def test_output_matches_pytorch_mha_self_attention(self):
+        """Test that self-attention output matches PyTorch's MHA."""
+        embed_dim = 128
+        num_heads = 4
+        seq_len = 8
+        batch_size = 2
+
+        mha = torch.nn.MultiheadAttention(embed_dim, num_heads, batch_first=False)
+        export_mha = ExportFriendlyMHA(mha)
+
+        query = torch.randn(seq_len, batch_size, embed_dim)
+
+        # Compute outputs from both
+        with torch.no_grad():
+            mha.eval()
+            export_mha.eval()
+            expected_output, _ = mha(query, query, query)
+            actual_output, _ = export_mha(query, query, query)
+
+        # Outputs should be close (allowing for floating point differences)
+        torch.testing.assert_close(actual_output, expected_output, rtol=1e-4, atol=1e-4)

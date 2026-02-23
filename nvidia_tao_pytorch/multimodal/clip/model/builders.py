@@ -278,7 +278,12 @@ def build_siglip2_model(
     # Must match versions supported by backbone_v2/siglip2.py
     # get_siglip2_model()
     _SUPPORTED_SIGLIP2 = {
-        'siglip2-so400m', 'siglip2-g-384', 'siglip2-so400m-512',
+        'siglip2-so400m-patch16-naflex',  # NaFlex (dynamic resolution)
+        'siglip2-so400m-patch14-224',
+        'siglip2-so400m-patch14-384',
+        'siglip2-so400m-patch16-256',
+        'siglip2-so400m-patch16-384',
+        'siglip2-so400m-patch16-512',
     }
     if model_version not in _SUPPORTED_SIGLIP2:
         raise ValueError(

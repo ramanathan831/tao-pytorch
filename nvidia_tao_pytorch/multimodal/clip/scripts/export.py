@@ -36,6 +36,9 @@ from nvidia_tao_core.config.clip.default_config import (
     CLIPExperimentConfig as ExperimentConfig,
 )
 from nvidia_tao_pytorch.multimodal.clip.model.pl_clip_model import CLIPPlModel
+from nvidia_tao_pytorch.multimodal.clip.utils.utils import (
+    register_checkpoint_safe_globals,
+)
 
 
 # Register custom ONNX symbolic for anti-aliased bilinear upsample, which
@@ -105,24 +108,45 @@ class ExportFriendlyMHA(nn.Module):
         average_attn_weights: bool = True,
         is_causal: bool = False,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
-        """Forward pass using decomposed multi-head attention ops."""
+        """Forward pass using decomposed multi-head attention ops.
+
+        Handles both self-attention (query == key == value) and cross/pooler
+        attention (query differs from key/value) by detecting sequence length
+        mismatch and using separate projections when needed.
+        """
         if self.batch_first:
             query = query.transpose(0, 1)
             key = key.transpose(0, 1)
             value = value.transpose(0, 1)
 
         seq_len, batch_size, _ = query.shape
+        k_len = key.shape[0]
 
-        # QKV projection
-        qkv = F.linear(  # pylint: disable=not-callable
-            query, self.in_proj_weight, self.in_proj_bias
-        )
-        q, k, v = qkv.chunk(3, dim=-1)
+        # Detect if this is self-attention or cross/pooler attention
+        is_self_attention = (seq_len == k_len)
+
+        if is_self_attention:
+            # Self-attention: single projection for Q, K, V from query
+            qkv = F.linear(  # pylint: disable=not-callable
+                query, self.in_proj_weight, self.in_proj_bias
+            )
+            q, k, v = qkv.chunk(3, dim=-1)
+        else:
+            # Cross/pooler attention: separate projections for Q vs K/V
+            # Split the combined in_proj_weight into Q, K, V components
+            q_proj_weight, k_proj_weight, v_proj_weight = self.in_proj_weight.chunk(3, dim=0)
+            if self.in_proj_bias is not None:
+                q_bias, k_bias, v_bias = self.in_proj_bias.chunk(3, dim=0)
+            else:
+                q_bias, k_bias, v_bias = None, None, None
+
+            q = F.linear(query, q_proj_weight, q_bias)  # pylint: disable=not-callable
+            k = F.linear(key, k_proj_weight, k_bias)  # pylint: disable=not-callable
+            v = F.linear(value, v_proj_weight, v_bias)  # pylint: disable=not-callable
 
         # Reshape for multi-head: (S, B, D) -> (S, B, H, Dh) -> (B, H, S, Dh)
         q = q.reshape(seq_len, batch_size, self.num_heads, self.head_dim)
         q = q.permute(1, 2, 0, 3)
-        k_len = key.shape[0]
         k = k.reshape(k_len, batch_size, self.num_heads, self.head_dim)
         k = k.permute(1, 2, 0, 3)
         v = v.reshape(k_len, batch_size, self.num_heads, self.head_dim)
@@ -551,6 +575,25 @@ def export_combined_encoder(
         f"{opset_version}"
     )
 
+    # Estimate model size to determine if external data will be needed
+    # Protobuf has a 2GB limit - PyTorch will automatically use external data
+    param_size_bytes = sum(
+        p.numel() * p.element_size() for p in encoder.parameters()
+    )
+    size_gb = param_size_bytes / (1024 ** 3)
+    use_external_data = size_gb > 1.9  # Use 1.9GB threshold for safety margin
+
+    if use_external_data:
+        external_data_path = os.path.splitext(tmp_onnx_file)[0] + "_weights.bin"
+        external_data_name = os.path.basename(external_data_path)
+        logging.warning(
+            f"Model size (~{size_gb:.2f} GB) exceeds 2GB ONNX protobuf limit. "
+            f"Weights will be stored in external file: {external_data_name}. "
+            f"Both the .onnx file and {external_data_name} are required for inference."
+        )
+    else:
+        logging.info(f"Model size (~{size_gb:.2f} GB) fits in single ONNX file.")
+
     with torch.no_grad():
         torch.onnx.export(
             encoder,
@@ -564,12 +607,37 @@ def export_combined_encoder(
             verbose=export_config.verbose,
         )
 
-    logging.info(f"ONNX export completed: {tmp_onnx_file}")
+    # If model is large, consolidate external data into a single file
+    if use_external_data:
+        logging.info(f"Consolidating external data into: {external_data_name}")
+
+        # Load model with external data from scattered files
+        onnx_model = onnx.load(tmp_onnx_file, load_external_data=True)
+
+        # Save with all tensors in a single external file
+        onnx.save_model(
+            onnx_model,
+            tmp_onnx_file,
+            save_as_external_data=True,
+            all_tensors_to_one_file=True,
+            location=external_data_name,
+            size_threshold=0,  # Save all tensors externally
+        )
+
+        logging.info(
+            f"ONNX export completed: {tmp_onnx_file} + {external_data_name}"
+        )
+    else:
+        logging.info(f"ONNX export completed: {tmp_onnx_file}")
 
     # Verify ONNX model
     try:
-        onnx_model = onnx.load(tmp_onnx_file)
-        onnx.checker.check_model(onnx_model)
+        if use_external_data:
+            # For large models, check using file path to avoid loading into memory
+            onnx.checker.check_model(tmp_onnx_file)
+        else:
+            onnx_model = onnx.load(tmp_onnx_file)
+            onnx.checker.check_model(onnx_model)
         logging.info("ONNX model validation passed for combined encoder")
     except Exception as e:
         logging.warning(f"ONNX model validation failed: {e}")
@@ -601,6 +669,7 @@ def run_export(experiment_config: ExperimentConfig) -> None:
     experiment_config : ExperimentConfig
         Experiment configuration containing export settings.
     """
+    register_checkpoint_safe_globals()
     export_config = experiment_config.export
     gpu_id = export_config.gpu_id
     on_cpu = export_config.on_cpu
@@ -623,27 +692,39 @@ def run_export(experiment_config: ExperimentConfig) -> None:
             f"Must be one of: {VALID_ENCODER_TYPES}"
         )
 
-    # Set default output filename
+    # Set default output filename if checkpoint provided
     if output_file is None:
-        split_name = os.path.splitext(model_path)[0]
-        output_file = f"{split_name}.onnx"
+        if model_path:
+            split_name = os.path.splitext(model_path)[0]
+            output_file = f"{split_name}.onnx"
+        else:
+            raise ValueError(
+                "onnx_file must be specified when exporting without checkpoint"
+            )
 
     # Create output directory
     output_root = os.path.dirname(os.path.realpath(output_file))
     if output_root and not os.path.exists(output_root):
         os.makedirs(output_root)
 
-    # Load model
-    logging.info(
-        f"Loading model from {model_path}"
-    )
     device = 'cpu' if on_cpu else 'cuda'
-    # pylint: disable=no-value-for-parameter
-    pl_model = CLIPPlModel.load_from_checkpoint(
-        model_path,
-        map_location=device,
-        experiment_spec=experiment_config
-    )
+
+    # Load model from checkpoint or build from HuggingFace pretrained weights
+    if model_path:
+        logging.info(f"Loading model from checkpoint: {model_path}")
+        # pylint: disable=no-value-for-parameter
+        pl_model = CLIPPlModel.load_from_checkpoint(
+            model_path,
+            map_location=device,
+            experiment_spec=experiment_config
+        )
+    else:
+        logging.info(
+            f"No checkpoint provided. Building model from HuggingFace "
+            f"pretrained weights: {experiment_config.model.type}"
+        )
+        pl_model = CLIPPlModel(experiment_config)
+        pl_model = pl_model.to(device)
 
     # Replace nn.MultiheadAttention with export-friendly decomposed version.
     # PyTorch's fused _native_multi_head_attention has no ONNX symbolic, so

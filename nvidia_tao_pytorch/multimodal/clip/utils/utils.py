@@ -17,6 +17,7 @@
 import os
 
 import numpy as np
+import torch
 from apex.optimizers import FusedLAMB
 from tabulate import tabulate
 from torch.optim import AdamW
@@ -25,6 +26,29 @@ from nvidia_tao_pytorch.core.tlt_logging import logging
 
 
 SUPPORTED_CHECKPOINT_EXTENSIONS = {'.pth', '.ckpt'}
+
+
+def register_checkpoint_safe_globals():
+    """Register numpy types as safe globals for PyTorch 2.6+ checkpoint loading.
+
+    PyTorch 2.6+ uses weights_only=True by default when loading checkpoints,
+    which requires explicit allowlisting of non-tensor types. This function
+    registers numpy types commonly found in checkpoints (e.g., from HuggingFace
+    or older training runs) to allow safe loading.
+
+    Should be called early in scripts that load checkpoints via PyTorch Lightning
+    or torch.load with weights_only=True.
+    """
+    try:
+        from numpy._core.multiarray import scalar as np_scalar
+    except ImportError:
+        from numpy.core.multiarray import scalar as np_scalar
+
+    torch.serialization.add_safe_globals([
+        np_scalar,
+        np.dtype,
+        np.ndarray,
+    ])
 
 VALID_OPTIMIZER_TYPES = {'adamw', 'lamb'}
 VALID_SCHEDULERS = {'cosine', 'constant', 'linear'}
@@ -271,6 +295,7 @@ def load_model_from_checkpoint(model_path, experiment_config, model_class):
     NotImplementedError
         If the model format is not supported.
     """
+    register_checkpoint_safe_globals()
     ext = os.path.splitext(model_path)[1].lower()
 
     if ext in SUPPORTED_CHECKPOINT_EXTENSIONS:
