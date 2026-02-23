@@ -149,8 +149,12 @@ from nvidia_tao_pytorch.cv.backbone_v2.open_clip import (
     vit_h_14_siglip_clipa_224,
 )
 from nvidia_tao_pytorch.cv.backbone_v2.siglip2 import (
+    siglip2_so400m_patch16_naflex,
+    siglip2_so400m_patch14_224,
+    siglip2_so400m_patch14_384,
+    siglip2_so400m_patch16_256,
+    siglip2_so400m_patch16_384,
     siglip2_so400m_patch16_512,
-    siglip2_so400m,
 )
 from nvidia_tao_pytorch.cv.backbone_v2.mit import (
     mit_b0,
@@ -270,6 +274,10 @@ __all__ = [
     "mit_b3",
     "mit_b4",
     "mit_b5",
+    "siglip2_so400m_patch16_naflex",
+    "siglip2_so400m_patch14_224",
+    "siglip2_so400m_patch14_384",
+    "siglip2_so400m_patch16_256",
+    "siglip2_so400m_patch16_384",
     "siglip2_so400m_patch16_512",
-    "siglip2_so400m",
 ]

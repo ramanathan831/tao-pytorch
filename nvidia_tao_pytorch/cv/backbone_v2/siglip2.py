@@ -336,13 +336,24 @@ def get_siglip2_model(version: str):
     Returns:
         SigLIP2Wrapper: Wrapped SigLIP2 model.
     """
+    # Format: (hf_model_name, is_dynamic, patch_size)
     version_map = {
-        'siglip2-so400m-512': ('google/siglip2-so400m-patch16-512', False, 16),
-        'siglip2-so400m': ('google/siglip2-so400m-patch16-naflex', True, 16),
-        'siglip2-g-384': ('google/siglip2-giant-opt-patch16-384', False, 16),
+        # NaFlex (dynamic resolution)
+        'siglip2-so400m-patch16-naflex': ('google/siglip2-so400m-patch16-naflex', True, 16),
+        # Fixed resolution patch14 variants
+        'siglip2-so400m-patch14-224': ('google/siglip2-so400m-patch14-224', False, 14),
+        'siglip2-so400m-patch14-384': ('google/siglip2-so400m-patch14-384', False, 14),
+        # Fixed resolution patch16 variants
+        'siglip2-so400m-patch16-256': ('google/siglip2-so400m-patch16-256', False, 16),
+        'siglip2-so400m-patch16-384': ('google/siglip2-so400m-patch16-384', False, 16),
+        'siglip2-so400m-patch16-512': ('google/siglip2-so400m-patch16-512', False, 16),
     }
-    version_map['siglip2'] = version_map['siglip2-so400m']
-    version_map['siglip2-g'] = version_map['siglip2-g-384']
+
+    if version not in version_map:
+        raise ValueError(
+            f"Unknown SigLIP2 version: {version}. "
+            f"Available: {sorted(version_map.keys())}"
+        )
 
     hf_model_name, is_dynamic, patch_size = version_map[version]
 
@@ -363,10 +374,8 @@ def get_siglip2_model(version: str):
 
 
 @BACKBONE_REGISTRY.register()
-def siglip2_so400m_patch16_512(**kwargs):
-    """Create SigLIP2 SO400M Patch16 512 model.
-
-    This model uses fixed 512x512 input resolution.
+def siglip2_so400m_patch16_naflex(**kwargs):
+    """Create SigLIP2 SO400M model with NaFlex (flexible resolution).
 
     Args:
         **kwargs: Additional arguments (unused).
@@ -374,14 +383,12 @@ def siglip2_so400m_patch16_512(**kwargs):
     Returns:
         SigLIP2Wrapper: SigLIP2 model.
     """
-    return get_siglip2_model("siglip2-so400m-512")
+    return get_siglip2_model("siglip2-so400m-patch16-naflex")
 
 
 @BACKBONE_REGISTRY.register()
-def siglip2_so400m(**kwargs):
-    """Create SigLIP2 SO400M model with NaFlex.
-
-    This model uses flexible input resolution via NaFlex.
+def siglip2_so400m_patch14_224(**kwargs):
+    """Create SigLIP2 SO400M Patch14 224 model.
 
     Args:
         **kwargs: Additional arguments (unused).
@@ -389,4 +396,56 @@ def siglip2_so400m(**kwargs):
     Returns:
         SigLIP2Wrapper: SigLIP2 model.
     """
-    return get_siglip2_model("siglip2-so400m")
+    return get_siglip2_model("siglip2-so400m-patch14-224")
+
+
+@BACKBONE_REGISTRY.register()
+def siglip2_so400m_patch14_384(**kwargs):
+    """Create SigLIP2 SO400M Patch14 384 model.
+
+    Args:
+        **kwargs: Additional arguments (unused).
+
+    Returns:
+        SigLIP2Wrapper: SigLIP2 model.
+    """
+    return get_siglip2_model("siglip2-so400m-patch14-384")
+
+
+@BACKBONE_REGISTRY.register()
+def siglip2_so400m_patch16_256(**kwargs):
+    """Create SigLIP2 SO400M Patch16 256 model.
+
+    Args:
+        **kwargs: Additional arguments (unused).
+
+    Returns:
+        SigLIP2Wrapper: SigLIP2 model.
+    """
+    return get_siglip2_model("siglip2-so400m-patch16-256")
+
+
+@BACKBONE_REGISTRY.register()
+def siglip2_so400m_patch16_384(**kwargs):
+    """Create SigLIP2 SO400M Patch16 384 model.
+
+    Args:
+        **kwargs: Additional arguments (unused).
+
+    Returns:
+        SigLIP2Wrapper: SigLIP2 model.
+    """
+    return get_siglip2_model("siglip2-so400m-patch16-384")
+
+
+@BACKBONE_REGISTRY.register()
+def siglip2_so400m_patch16_512(**kwargs):
+    """Create SigLIP2 SO400M Patch16 512 model.
+
+    Args:
+        **kwargs: Additional arguments (unused).
+
+    Returns:
+        SigLIP2Wrapper: SigLIP2 model.
+    """
+    return get_siglip2_model("siglip2-so400m-patch16-512")

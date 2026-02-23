@@ -61,7 +61,8 @@ class ResumableShardList(IterableDataset):
         """
         super().__init__()
 
-        assert urls is not None or root is not None
+        if urls is None and root is None:
+            raise ValueError("Either 'urls' or 'root' must be provided")
 
         if urls is not None:
             if isinstance(urls, str):
@@ -80,7 +81,8 @@ class ResumableShardList(IterableDataset):
         else:
             self.urls = [str(i) for i in Path(root).rglob("*.tar")]
 
-        assert isinstance(self.urls[0], str)
+        if not self.urls or not isinstance(self.urls[0], str):
+            raise ValueError("No valid shard URLs found")
         logger.info(f"Found {len(self.urls)} shards")
 
         self.samples_per_file = samples_per_file
@@ -174,7 +176,8 @@ def group_by_keys_nothrow(
     """
     current_sample = None
     for filesample in data:
-        assert isinstance(filesample, dict)
+        if not isinstance(filesample, dict):
+            raise TypeError(f"Expected dict, got {type(filesample).__name__}")
         fname, value = filesample["fname"], filesample["data"]
         prefix, suffix = keys(fname)
         if prefix is None:
@@ -254,8 +257,10 @@ def url_opener(
         a stream of url+stream pairs.
     """
     for sample in data:
-        assert isinstance(sample, dict), sample
-        assert "url" in sample
+        if not isinstance(sample, dict):
+            raise TypeError(f"Expected dict, got {type(sample).__name__}: {sample}")
+        if "url" not in sample:
+            raise KeyError("Sample missing required 'url' key")
         url = sample["url"]
 
         try:
