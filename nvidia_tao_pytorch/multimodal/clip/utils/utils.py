@@ -50,6 +50,7 @@ def register_checkpoint_safe_globals():
         np.ndarray,
     ])
 
+
 VALID_OPTIMIZER_TYPES = {'adamw', 'lamb'}
 VALID_SCHEDULERS = {'cosine', 'constant', 'linear'}
 

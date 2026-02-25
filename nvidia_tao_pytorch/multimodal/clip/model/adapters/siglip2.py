@@ -47,6 +47,7 @@ class SigLIP2(BaseCLIPAdapter):
         logit_bias_init: Initial value for logit bias parameter
         freeze_vision_encoder: Freeze vision encoder parameters
         freeze_text_encoder: Freeze text encoder parameters
+        canonicalize_text: Apply text canonicalization before tokenization
     """
 
     def __init__(
@@ -56,7 +57,8 @@ class SigLIP2(BaseCLIPAdapter):
         logit_scale_init=2.3026,
         logit_bias_init=-10.0,
         freeze_vision_encoder=False,
-        freeze_text_encoder=False
+        freeze_text_encoder=False,
+        canonicalize_text=False,
     ):
         """Initialize SigLIP2 adapter."""
         super().__init__(
@@ -70,7 +72,9 @@ class SigLIP2(BaseCLIPAdapter):
         self.freeze_text_encoder = freeze_text_encoder
 
         # Create wrapped tokenizer using shared utilities
-        self._siglip2_tokenizer = SigLIP2WrappedTokenizer(processor)
+        self._siglip2_tokenizer = SigLIP2WrappedTokenizer(
+            processor, canonicalize=canonicalize_text
+        )
         self.tokenizer = CLIPCompatibleTokenizer(self._siglip2_tokenizer)
 
         # Configure trainable parameters

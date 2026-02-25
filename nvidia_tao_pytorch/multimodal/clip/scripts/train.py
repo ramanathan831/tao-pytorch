@@ -139,13 +139,13 @@ def run_experiment(experiment_config, key):
         precision=precision,
         use_distributed_sampler=False,
         sync_batchnorm=sync_batchnorm,
+        num_sanity_val_steps=0,
     )
     dm = CLIPDataModule(
         experiment_config.dataset,
         pt_model.tokenizer,
         resume_step=0,
         preprocess=(pt_model.preprocess_train, pt_model.preprocess_val),
-        mapping=pt_model.class_mapping,
         world_size=trainer.world_size,
     )
     trainer.fit(pt_model, dm, ckpt_path=resume_ckpt)

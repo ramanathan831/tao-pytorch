@@ -22,7 +22,9 @@ import onnx
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from omegaconf import OmegaConf
 from torch.onnx import symbolic_helper
+from transformers import AutoTokenizer
 
 from nvidia_tao_pytorch.core.cookbooks.tlt_pytorch_cookbook import (
     TLTPyTorchCookbook,
@@ -36,6 +38,10 @@ from nvidia_tao_core.config.clip.default_config import (
     CLIPExperimentConfig as ExperimentConfig,
 )
 from nvidia_tao_pytorch.multimodal.clip.model.pl_clip_model import CLIPPlModel
+from nvidia_tao_pytorch.multimodal.clip.model.tokenizers import (
+    CLIPCompatibleTokenizer,
+    SigLIP2WrappedTokenizer,
+)
 from nvidia_tao_pytorch.multimodal.clip.utils.utils import (
     register_checkpoint_safe_globals,
 )
@@ -197,6 +203,61 @@ def _replace_mha_for_export(model: nn.Module) -> None:
 
 # Valid encoder types for export (aligned with CLIPExportConfig.encoder_type)
 VALID_ENCODER_TYPES = {'combined', 'separate'}
+
+
+def save_tokenizer(
+    tokenizer: CLIPCompatibleTokenizer,
+    output_dir: str,
+    model_config,
+) -> str:
+    """Save tokenizer to disk for deployment.
+
+    For HuggingFace-based tokenizers (SigLIP2), saves using save_pretrained().
+    For OpenCLIP-based tokenizers (RADIO CLIP), saves the equivalent HuggingFace
+    tokenizer which produces identical token IDs.
+
+    Args:
+        tokenizer: The CLIPCompatibleTokenizer from the model.
+        output_dir: Directory to save tokenizer files.
+        model_config: Model configuration containing type and adaptor_name.
+
+    Returns:
+        Path to the saved tokenizer directory.
+    """
+    os.makedirs(output_dir, exist_ok=True)
+
+    inner_tokenizer = tokenizer._tokenizer
+
+    if isinstance(inner_tokenizer, SigLIP2WrappedTokenizer):
+        # SigLIP2: save the HuggingFace processor's tokenizer
+        processor = inner_tokenizer._processor
+        if hasattr(processor, 'tokenizer'):
+            processor.tokenizer.save_pretrained(output_dir)
+        else:
+            # Processor is the tokenizer itself
+            processor.save_pretrained(output_dir)
+        logging.info(f"Saved SigLIP2 tokenizer to {output_dir}")
+    else:
+        # OpenCLIP-based (RADIO CLIP, OpenCLIP): save equivalent HuggingFace tokenizer
+        # We verified that openai/clip-vit-large-patch14 produces identical tokens
+        model_type = model_config.type.lower()
+        adaptor_name = getattr(model_config, 'adaptor_name', None)
+
+        if 'radio' in model_type:
+            if adaptor_name and 'siglip' in adaptor_name.lower():
+                hf_tokenizer_name = "google/siglip2-so400m-patch14-384"
+            else:
+                hf_tokenizer_name = "openai/clip-vit-large-patch14"
+        else:
+            # OpenCLIP models
+            hf_tokenizer_name = "openai/clip-vit-large-patch14"
+
+        hf_tokenizer = AutoTokenizer.from_pretrained(hf_tokenizer_name)
+        hf_tokenizer.save_pretrained(output_dir)
+        logging.info(
+            f"Saved equivalent HuggingFace tokenizer ({hf_tokenizer_name}) "
+            f"to {output_dir}"
+        )
 
 
 class CLIPVisionEncoder(nn.Module):
@@ -784,6 +845,18 @@ def run_export(experiment_config: ExperimentConfig) -> None:
         )
 
         logging.info(f"Both encoders exported: {vision_file}, {text_file}")
+
+    # Save experiment config alongside ONNX for deployment inference
+    # This allows tao-deploy to auto-load settings like canonicalize_text
+    base_name = os.path.splitext(output_file)[0]
+    config_path = f"{base_name}_config.yaml"
+    OmegaConf.save(experiment_config, config_path)
+    logging.info(f"Experiment config saved to {config_path}")
+
+    # Save tokenizer alongside ONNX for deployment
+    tokenizer_dir = f"{base_name}_tokenizer"
+    save_tokenizer(pl_model.tokenizer, tokenizer_dir, experiment_config.model)
+    logging.info(f"Tokenizer saved to {tokenizer_dir}")
 
 
 spec_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

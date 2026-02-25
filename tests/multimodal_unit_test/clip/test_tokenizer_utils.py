@@ -14,13 +14,20 @@
 
 """Unit tests for tokenizer utilities."""
 
+import os
+import tempfile
+
 import pytest
 import torch
 
 from nvidia_tao_pytorch.multimodal.clip.model.tokenizers import (
     canonicalize_text,
     SigLIP2WrappedTokenizer,
+    OpenCLIPWrappedTokenizer,
     CLIPCompatibleTokenizer,
+    save_tokenizer,
+    load_tokenizer,
+    get_tokenizer_dir,
 )
 
 
@@ -103,8 +110,8 @@ class TestSigLIP2WrappedTokenizer:
         tokenizer = SigLIP2WrappedTokenizer(MockProcessor(), max_length=128)
         assert tokenizer._max_length == 128
 
-    def test_canonicalization_applied(self):
-        """Test that canonicalization is applied to input text."""
+    def test_canonicalization_disabled_by_default(self):
+        """Test that canonicalization is disabled by default."""
         received_text = []
 
         class MockProcessor:
@@ -118,7 +125,25 @@ class TestSigLIP2WrappedTokenizer:
         tokenizer = SigLIP2WrappedTokenizer(MockProcessor())
         tokenizer(["Hello, World!", "Test_String"])
 
-        # Text should be canonicalized before reaching processor
+        # Text should NOT be canonicalized (default canonicalize=False)
+        assert received_text == ["Hello, World!", "Test_String"]
+
+    def test_canonicalization_enabled(self):
+        """Test that canonicalization is applied when enabled."""
+        received_text = []
+
+        class MockProcessor:
+            def __call__(self, text, **kwargs):
+                received_text.extend(text)
+                return {
+                    'input_ids': torch.zeros(len(text), 64, dtype=torch.long),
+                    'attention_mask': torch.ones(len(text), 64, dtype=torch.long),
+                }
+
+        tokenizer = SigLIP2WrappedTokenizer(MockProcessor(), canonicalize=True)
+        tokenizer(["Hello, World!", "Test_String"])
+
+        # Text should be canonicalized when enabled
         assert received_text == ["hello world", "test string"]
 
     def test_returns_dict(self):
@@ -208,3 +233,133 @@ class TestCLIPCompatibleTokenizer:
         assert isinstance(result, dict)
         assert 'input_ids' in result
         assert 'attention_mask' in result
+
+
+@pytest.mark.multimodal_unit
+class TestOpenCLIPWrappedTokenizer:
+    """Test OpenCLIPWrappedTokenizer class."""
+
+    def test_initialization(self):
+        """Test tokenizer initialization."""
+        def mock_tokenizer(text):
+            return torch.zeros(len(text), 77, dtype=torch.long)
+
+        tokenizer = OpenCLIPWrappedTokenizer(mock_tokenizer)
+        assert tokenizer._canonicalize is False
+
+    def test_canonicalization_disabled_by_default(self):
+        """Test that canonicalization is disabled by default."""
+        received_text = []
+
+        def mock_tokenizer(text):
+            received_text.extend(text)
+            return torch.zeros(len(text), 77, dtype=torch.long)
+
+        tokenizer = OpenCLIPWrappedTokenizer(mock_tokenizer)
+        tokenizer(["Hello, World!", "Test_String"])
+
+        # Text should NOT be canonicalized (default canonicalize=False)
+        assert received_text == ["Hello, World!", "Test_String"]
+
+    def test_canonicalization_enabled(self):
+        """Test that canonicalization is applied when enabled."""
+        received_text = []
+
+        def mock_tokenizer(text):
+            received_text.extend(text)
+            return torch.zeros(len(text), 77, dtype=torch.long)
+
+        tokenizer = OpenCLIPWrappedTokenizer(mock_tokenizer, canonicalize=True)
+        tokenizer(["Hello, World!", "Test_String"])
+
+        # Text should be canonicalized when enabled
+        assert received_text == ["hello world", "test string"]
+
+    def test_returns_dict_with_input_ids(self):
+        """Test that tokenizer returns dict with 'input_ids' key."""
+        def mock_tokenizer(text):
+            return torch.zeros(len(text), 77, dtype=torch.long)
+
+        tokenizer = OpenCLIPWrappedTokenizer(mock_tokenizer)
+        result = tokenizer(["test"])
+
+        assert isinstance(result, dict)
+        assert 'input_ids' in result
+        assert result['input_ids'].shape == (1, 77)
+
+
+@pytest.mark.multimodal_unit
+class TestTokenizerSaveLoadFlow:
+    """Tests for tokenizer save/load flow used in training and deployment."""
+
+    def test_get_tokenizer_dir_derives_path_from_checkpoint(self):
+        """Test that get_tokenizer_dir returns sibling tokenizer directory."""
+        assert get_tokenizer_dir("/path/to/train/model.pth") == "/path/to/train/tokenizer"
+        assert get_tokenizer_dir("results/train/model.pth") == "results/train/tokenizer"
+
+    def test_load_tokenizer_raises_on_missing_directory(self):
+        """Test that load_tokenizer raises FileNotFoundError for missing directory."""
+        with pytest.raises(FileNotFoundError, match="Tokenizer directory not found"):
+            load_tokenizer("/nonexistent/path/tokenizer")
+
+    def test_save_tokenizer_creates_directory(self):
+        """Test that save_tokenizer creates output directory."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = os.path.join(tmpdir, "new_tokenizer_dir")
+
+            class MockOpenCLIPTokenizer:
+                pass
+
+            mock_tokenizer = CLIPCompatibleTokenizer(MockOpenCLIPTokenizer())
+
+            try:
+                save_tokenizer(mock_tokenizer, output_dir, "openclip", None)
+            except Exception:
+                pass  # Expected to fail on HF download
+
+            assert os.path.isdir(output_dir)
+
+    def test_save_tokenizer_siglip2_detection(self):
+        """Test that SigLIP2 tokenizers use save_pretrained directly."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = os.path.join(tmpdir, "tokenizer")
+
+            class MockHFTokenizer:
+                def save_pretrained(self, path):
+                    os.makedirs(path, exist_ok=True)
+                    with open(os.path.join(path, "marker.txt"), "w") as f:
+                        f.write("siglip2")
+
+            class MockProcessor:
+                def __init__(self):
+                    self.tokenizer = MockHFTokenizer()
+
+            mock_inner = SigLIP2WrappedTokenizer(MockProcessor())
+            mock_tokenizer = CLIPCompatibleTokenizer(mock_inner)
+
+            save_tokenizer(mock_tokenizer, output_dir, "siglip2-so400m-patch16-256", None)
+
+            assert os.path.exists(os.path.join(output_dir, "marker.txt"))
+
+    def test_export_tokenizer_copy_flow(self):
+        """Test the tokenizer copy flow used during ONNX export."""
+        import shutil
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Source: training saves tokenizer
+            source_dir = os.path.join(tmpdir, "train", "tokenizer")
+            os.makedirs(source_dir)
+            with open(os.path.join(source_dir, "vocab.json"), "w") as f:
+                f.write('{"test": 1}')
+
+            # Export: copies tokenizer to ONNX directory
+            export_dir = os.path.join(tmpdir, "export")
+            os.makedirs(export_dir)
+            output_dir = os.path.join(export_dir, "model_tokenizer")
+
+            shutil.copytree(source_dir, output_dir)
+
+            # Verify copy succeeded
+            assert os.path.exists(os.path.join(output_dir, "vocab.json"))
+            with open(os.path.join(output_dir, "vocab.json")) as f:
+                assert f.read() == '{"test": 1}'

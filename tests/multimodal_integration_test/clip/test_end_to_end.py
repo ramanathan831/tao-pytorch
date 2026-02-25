@@ -102,8 +102,8 @@ def temp_image_dataset():
         image_list.write_text("\n".join([f"img_{i}.jpg" for i in range(20)]))
 
         yield {
-            'root_dir': str(image_dir),
-            'label_dir': str(label_dir),
+            'image_dir': str(image_dir),
+            'caption_dir': str(label_dir),
             'image_list_file': str(image_list),
         }
 
@@ -256,8 +256,8 @@ class TestMultipleDatasets:
                 image_list.write_text("\n".join([f"img_{i}.jpg" for i in range(10)]))
 
                 datasets_configs.append({
-                    'root_dir': str(image_dir),
-                    'label_dir': str(label_dir),
+                    'image_dir': str(image_dir),
+                    'caption_dir': str(label_dir),
                     'image_list_file': str(image_list),
                 })
 

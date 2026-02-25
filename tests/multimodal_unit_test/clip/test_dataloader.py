@@ -51,13 +51,13 @@ def temp_dataset():
         image_list_file.write_text("\n".join([f"image_{i}.jpg" for i in range(5)]))
 
         yield {
-            'root_dir': str(image_dir),
-            'label_dir': str(label_dir),
+            'image_dir': str(image_dir),
+            'caption_dir': str(label_dir),
             'image_list_file': str(image_list_file),
-            'label_suffix': '.txt',
+            'caption_file_suffix': '.txt',
             'tmpdir': tmpdir,
-            'image_dir': image_dir,
-            'label_dir_path': label_dir,
+            'image_dir_path': image_dir,
+            'caption_dir_path': label_dir,
         }
 
 
@@ -68,10 +68,10 @@ class TestImageTextDataset:
     def test_initialization(self, temp_dataset):
         """Test dataset initialization with valid config."""
         dataset_config = [{
-            'root_dir': temp_dataset['root_dir'],
-            'label_dir': temp_dataset['label_dir'],
+            'image_dir': temp_dataset['image_dir'],
+            'caption_dir': temp_dataset['caption_dir'],
             'image_list_file': temp_dataset['image_list_file'],
-            'label_suffix': '.txt',
+            'caption_file_suffix': '.txt',
         }]
 
         dataset = ImageTextDataset(datasets=dataset_config, mode='train')
@@ -81,10 +81,10 @@ class TestImageTextDataset:
     def test_getitem_returns_image_and_text(self, temp_dataset):
         """Test that __getitem__ returns image and text."""
         dataset_config = [{
-            'root_dir': temp_dataset['root_dir'],
-            'label_dir': temp_dataset['label_dir'],
+            'image_dir': temp_dataset['image_dir'],
+            'caption_dir': temp_dataset['caption_dir'],
             'image_list_file': temp_dataset['image_list_file'],
-            'label_suffix': '.txt',
+            'caption_file_suffix': '.txt',
         }]
 
         dataset = ImageTextDataset(datasets=dataset_config, mode='train')
@@ -98,10 +98,10 @@ class TestImageTextDataset:
     def test_transform_applied(self, temp_dataset):
         """Test that transform is applied to images."""
         dataset_config = [{
-            'root_dir': temp_dataset['root_dir'],
-            'label_dir': temp_dataset['label_dir'],
+            'image_dir': temp_dataset['image_dir'],
+            'caption_dir': temp_dataset['caption_dir'],
             'image_list_file': temp_dataset['image_list_file'],
-            'label_suffix': '.txt',
+            'caption_file_suffix': '.txt',
         }]
 
         def dummy_transform(img):
@@ -121,10 +121,10 @@ class TestImageTextDataset:
     def test_tokenizer_applied(self, temp_dataset):
         """Test that tokenizer is applied to text."""
         dataset_config = [{
-            'root_dir': temp_dataset['root_dir'],
-            'label_dir': temp_dataset['label_dir'],
+            'image_dir': temp_dataset['image_dir'],
+            'caption_dir': temp_dataset['caption_dir'],
             'image_list_file': temp_dataset['image_list_file'],
-            'label_suffix': '.txt',
+            'caption_file_suffix': '.txt',
         }]
 
         def dummy_tokenizer(text):
@@ -145,16 +145,16 @@ class TestImageTextDataset:
         """Test initialization with multiple dataset configs."""
         # Create a second dataset
         image_dir2 = temp_dataset['tmpdir'] / "images2"
-        label_dir2 = temp_dataset['tmpdir'] / "labels2"
+        caption_dir2 = temp_dataset['tmpdir'] / "labels2"
         image_dir2.mkdir()
-        label_dir2.mkdir()
+        caption_dir2.mkdir()
 
         for i in range(3):
             img = Image.new('RGB', (64, 64), color=(100, 100, 100))
             img_path = image_dir2 / f"img2_{i}.jpg"
             img.save(img_path)
 
-            text_path = label_dir2 / f"img2_{i}.txt"
+            text_path = caption_dir2 / f"img2_{i}.txt"
             text_path.write_text(f"Caption for second dataset {i}")
 
         image_list_file2 = temp_dataset['tmpdir'] / "image_list2.txt"
@@ -162,16 +162,16 @@ class TestImageTextDataset:
 
         dataset_configs = [
             {
-                'root_dir': temp_dataset['root_dir'],
-                'label_dir': temp_dataset['label_dir'],
+                'image_dir': temp_dataset['image_dir'],
+                'caption_dir': temp_dataset['caption_dir'],
                 'image_list_file': temp_dataset['image_list_file'],
-                'label_suffix': '.txt',
+                'caption_file_suffix': '.txt',
             },
             {
-                'root_dir': str(image_dir2),
-                'label_dir': str(label_dir2),
+                'image_dir': str(image_dir2),
+                'caption_dir': str(caption_dir2),
                 'image_list_file': str(image_list_file2),
-                'label_suffix': '.txt',
+                'caption_file_suffix': '.txt',
             },
         ]
 
@@ -182,10 +182,10 @@ class TestImageTextDataset:
     def test_zero_shot_eval_single_dataset(self, temp_dataset):
         """Test zero-shot eval mode with single dataset."""
         dataset_config = [{
-            'root_dir': temp_dataset['root_dir'],
-            'label_dir': temp_dataset['label_dir'],
+            'image_dir': temp_dataset['image_dir'],
+            'caption_dir': temp_dataset['caption_dir'],
             'image_list_file': temp_dataset['image_list_file'],
-            'label_suffix': '.txt',
+            'caption_file_suffix': '.txt',
         }]
 
         mapping = {"Caption for image 0": "mapped_text_0"}
@@ -204,16 +204,16 @@ class TestImageTextDataset:
         """Test that zero-shot eval with multiple datasets raises error."""
         dataset_configs = [
             {
-                'root_dir': temp_dataset['root_dir'],
-                'label_dir': temp_dataset['label_dir'],
+                'image_dir': temp_dataset['image_dir'],
+                'caption_dir': temp_dataset['caption_dir'],
                 'image_list_file': temp_dataset['image_list_file'],
-                'label_suffix': '.txt',
+                'caption_file_suffix': '.txt',
             },
             {
-                'root_dir': temp_dataset['root_dir'],
-                'label_dir': temp_dataset['label_dir'],
+                'image_dir': temp_dataset['image_dir'],
+                'caption_dir': temp_dataset['caption_dir'],
                 'image_list_file': temp_dataset['image_list_file'],
-                'label_suffix': '.txt',
+                'caption_file_suffix': '.txt',
             },
         ]
 
@@ -236,7 +236,7 @@ class TestImageTextDataset:
             image_list_file.write_text("")  # Empty list
 
             dataset_config = [{
-                'root_dir': str(image_dir),
+                'image_dir': str(image_dir),
                 'image_list_file': str(image_list_file),
             }]
 
@@ -246,22 +246,9 @@ class TestImageTextDataset:
     def test_glob_fallback_without_image_list(self, temp_dataset):
         """Test that dataset globs for images without image_list_file."""
         dataset_config = [{
-            'root_dir': temp_dataset['root_dir'],
-            'label_dir': temp_dataset['label_dir'],
-            'label_suffix': '.txt',
-        }]
-
-        dataset = ImageTextDataset(datasets=dataset_config, mode='train')
-
-        assert len(dataset) == 5
-
-    def test_legacy_root_label_dir_support(self, temp_dataset):
-        """Test backward compatibility with root_label_dir field name."""
-        dataset_config = [{
-            'root_dir': temp_dataset['root_dir'],
-            'root_label_dir': temp_dataset['label_dir'],  # Legacy name
-            'image_list_file': temp_dataset['image_list_file'],
-            'label_suffix': '.txt',
+            'image_dir': temp_dataset['image_dir'],
+            'caption_dir': temp_dataset['caption_dir'],
+            'caption_file_suffix': '.txt',
         }]
 
         dataset = ImageTextDataset(datasets=dataset_config, mode='train')
@@ -276,10 +263,10 @@ class TestGetCustomDataloader:
     def test_creates_dataloader(self, temp_dataset):
         """Test that dataloader is created successfully."""
         dataset_configs = [{
-            'root_dir': temp_dataset['root_dir'],
-            'label_dir': temp_dataset['label_dir'],
+            'image_dir': temp_dataset['image_dir'],
+            'caption_dir': temp_dataset['caption_dir'],
             'image_list_file': temp_dataset['image_list_file'],
-            'label_suffix': '.txt',
+            'caption_file_suffix': '.txt',
         }]
 
         dataloader = get_custom_dataloader(
@@ -295,10 +282,10 @@ class TestGetCustomDataloader:
     def test_batch_size_respected(self, temp_dataset):
         """Test that batch size is respected."""
         dataset_configs = [{
-            'root_dir': temp_dataset['root_dir'],
-            'label_dir': temp_dataset['label_dir'],
+            'image_dir': temp_dataset['image_dir'],
+            'caption_dir': temp_dataset['caption_dir'],
             'image_list_file': temp_dataset['image_list_file'],
-            'label_suffix': '.txt',
+            'caption_file_suffix': '.txt',
         }]
 
         def dummy_transform(img):
@@ -319,10 +306,10 @@ class TestGetCustomDataloader:
     def test_val_mode_no_batch_sampler(self, temp_dataset):
         """Test that val mode doesn't use batch sampler."""
         dataset_configs = [{
-            'root_dir': temp_dataset['root_dir'],
-            'label_dir': temp_dataset['label_dir'],
+            'image_dir': temp_dataset['image_dir'],
+            'caption_dir': temp_dataset['caption_dir'],
             'image_list_file': temp_dataset['image_list_file'],
-            'label_suffix': '.txt',
+            'caption_file_suffix': '.txt',
         }]
 
         def dummy_transform(img):
@@ -342,10 +329,10 @@ class TestGetCustomDataloader:
     def test_seed_reproducibility(self, temp_dataset):
         """Test that seed produces reproducible results."""
         dataset_configs = [{
-            'root_dir': temp_dataset['root_dir'],
-            'label_dir': temp_dataset['label_dir'],
+            'image_dir': temp_dataset['image_dir'],
+            'caption_dir': temp_dataset['caption_dir'],
             'image_list_file': temp_dataset['image_list_file'],
-            'label_suffix': '.txt',
+            'caption_file_suffix': '.txt',
         }]
 
         def dummy_transform(img):
@@ -375,10 +362,10 @@ class TestGetCustomDataloader:
     def test_transform_and_tokenizer_passed(self, temp_dataset):
         """Test that transform and tokenizer are passed to dataset."""
         dataset_configs = [{
-            'root_dir': temp_dataset['root_dir'],
-            'label_dir': temp_dataset['label_dir'],
+            'image_dir': temp_dataset['image_dir'],
+            'caption_dir': temp_dataset['caption_dir'],
             'image_list_file': temp_dataset['image_list_file'],
-            'label_suffix': '.txt',
+            'caption_file_suffix': '.txt',
         }]
 
         def dummy_transform(img):

@@ -42,8 +42,6 @@ from nvidia_tao_pytorch.multimodal.clip.utils.model_configs import (
 )
 
 # Normalization constants
-IMAGENET_MEAN = (0.485, 0.456, 0.406)
-IMAGENET_STD = (0.229, 0.224, 0.225)
 OPENAI_CLIP_MEAN = (0.48145466, 0.4578275, 0.40821073)
 OPENAI_CLIP_STD = (0.26862954, 0.26130258, 0.27577711)
 
@@ -179,6 +177,7 @@ def build_radio_model(
     image_size=224,
     logit_scale_init=2.6592,
     logit_bias_init=-10.0,
+    canonicalize_text=False,
 ):
     """Build C-RADIO model with preprocessing transforms and tokenizer.
 
@@ -196,6 +195,7 @@ def build_radio_model(
         image_size: Input image resolution
         logit_scale_init: Initial logit scale (log-space)
         logit_bias_init: Initial logit bias
+        canonicalize_text: Apply text canonicalization before tokenization
 
     Returns:
         Tuple of (model, preprocess_train, preprocess_val, tokenizer)
@@ -215,14 +215,12 @@ def build_radio_model(
         logit_scale_init=logit_scale_init,
         logit_bias_init=logit_bias_init,
         freeze_vision_encoder=freeze_vision_encoder,
-        freeze_text_encoder=freeze_text_encoder
+        freeze_text_encoder=freeze_text_encoder,
+        canonicalize_text=canonicalize_text,
     )
 
-    # Determine normalization based on adaptor type
-    if adaptor_name == 'clip':
-        mean, std = OPENAI_CLIP_MEAN, OPENAI_CLIP_STD
-    else:
-        mean, std = IMAGENET_MEAN, IMAGENET_STD
+    # RADIO uses OpenAI CLIP normalization regardless of adaptor
+    mean, std = OPENAI_CLIP_MEAN, OPENAI_CLIP_STD
 
     preprocess_train, preprocess_val = _build_image_transforms(
         image_size=image_size,
@@ -242,6 +240,7 @@ def build_siglip2_model(
     image_size=384,
     logit_scale_init=2.6592,
     logit_bias_init=-10.0,
+    canonicalize_text=False,
 ):
     """Build SigLIP2 model with preprocessing transforms and tokenizer.
 
@@ -257,6 +256,7 @@ def build_siglip2_model(
         image_size: Input image resolution (not used with HF processor)
         logit_scale_init: Initial logit scale (log-space)
         logit_bias_init: Initial logit bias
+        canonicalize_text: Apply text canonicalization before tokenization
 
     Returns:
         Tuple of (model, preprocess_train, preprocess_val, tokenizer)
@@ -307,7 +307,8 @@ def build_siglip2_model(
         logit_scale_init=logit_scale_init,
         logit_bias_init=logit_bias_init,
         freeze_vision_encoder=freeze_vision_encoder,
-        freeze_text_encoder=freeze_text_encoder
+        freeze_text_encoder=freeze_text_encoder,
+        canonicalize_text=canonicalize_text,
     )
 
     # Use HuggingFace processor for image transforms
@@ -335,6 +336,7 @@ def build_openclip_model(
     image_size=224,
     logit_scale_init=2.6592,
     logit_bias_init=-10.0,
+    canonicalize_text=False,
 ):
     """Build OpenCLIP model with preprocessing transforms and tokenizer.
 
@@ -349,6 +351,7 @@ def build_openclip_model(
         image_size: Input image resolution
         logit_scale_init: Initial logit scale (log-space)
         logit_bias_init: Initial logit bias
+        canonicalize_text: Apply text canonicalization before tokenization
 
     Returns:
         Tuple of (model, preprocess_train, preprocess_val, tokenizer)
@@ -363,8 +366,10 @@ def build_openclip_model(
         )
 
     logging.info(f"Building OpenCLIP model: {model_version}")
+    # Disable canonicalization at backbone level - we handle it in the adapter
+    # wrapper to centralize control via the experiment config
     backbone_model = get_openclip_model(
-        model_version, canonicalize_text=True
+        model_version, canonicalize_text=False
     )
 
     model = OpenCLIP(
@@ -372,7 +377,8 @@ def build_openclip_model(
         logit_scale_init=logit_scale_init,
         logit_bias_init=logit_bias_init,
         freeze_vision_encoder=freeze_vision_encoder,
-        freeze_text_encoder=freeze_text_encoder
+        freeze_text_encoder=freeze_text_encoder,
+        canonicalize_text=canonicalize_text,
     )
 
     # OpenCLIP/NV-CLIP uses OpenAI CLIP normalization

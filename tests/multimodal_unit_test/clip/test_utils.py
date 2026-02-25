@@ -16,66 +16,15 @@
 
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
-import torch
 
-from nvidia_tao_pytorch.multimodal.clip.model.evaluation.zero_shot_classifier import (
-    accuracy,
-    batched,
-)
+from nvidia_tao_pytorch.multimodal.clip.model.evaluation.metrics import batched
 from nvidia_tao_pytorch.multimodal.clip.utils.utils import (
     load_model_from_checkpoint,
     SUPPORTED_CHECKPOINT_EXTENSIONS,
 )
-
-
-@pytest.mark.multimodal_unit
-class TestAccuracy:
-    """Test accuracy function."""
-
-    def test_perfect_accuracy(self):
-        """Test with perfect predictions."""
-        # Predictions exactly match targets (5 classes to support top-5)
-        output = torch.tensor([
-            [10.0, 0.0, 0.0, 0.0, 0.0],  # class 0
-            [0.0, 10.0, 0.0, 0.0, 0.0],  # class 1
-            [0.0, 0.0, 10.0, 0.0, 0.0],  # class 2
-        ])
-        target = torch.tensor([0, 1, 2])
-
-        acc1, acc5 = accuracy(output, target, topk=(1, 5))
-        assert acc1.item() == 3  # 3 correct
-        assert acc5.item() == 3  # 3 correct in top-5
-
-    def test_zero_accuracy(self):
-        """Test with completely wrong predictions."""
-        # 5 classes to support top-5
-        output = torch.tensor([
-            [0.0, 10.0, 0.0, 0.0, 0.0],  # predicts class 1
-            [0.0, 0.0, 10.0, 0.0, 0.0],  # predicts class 2
-            [10.0, 0.0, 0.0, 0.0, 0.0],  # predicts class 0
-        ])
-        target = torch.tensor([0, 1, 2])
-
-        acc1, _ = accuracy(output, target, topk=(1, 5))
-        assert acc1.item() == 0  # 0 correct
-
-    def test_top5_accuracy(self):
-        """Test top-5 accuracy includes lower ranked correct predictions."""
-        # 10 classes
-        output = torch.zeros(1, 10)
-        output[0, 5] = 10.0  # 1st
-        output[0, 3] = 8.0   # 2nd
-        output[0, 7] = 6.0   # 3rd
-        output[0, 1] = 4.0   # 4th
-        output[0, 0] = 2.0   # 5th - correct answer
-        target = torch.tensor([0])
-
-        acc1, acc5 = accuracy(output, target, topk=(1, 5))
-        assert acc1.item() == 0  # Not in top-1
-        assert acc5.item() == 1  # In top-5
 
 
 @pytest.mark.multimodal_unit

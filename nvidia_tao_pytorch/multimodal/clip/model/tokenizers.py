@@ -27,31 +27,40 @@ Classes:
 
 Functions:
     canonicalize_text: Text normalization (lowercase, punctuation removal)
+    save_tokenizer: Save tokenizer to disk for deployment
+    load_tokenizer: Load tokenizer from disk
 """
 
-from typing import List
+import os
+from typing import List, Optional
 
+from transformers import AutoTokenizer
+
+from nvidia_tao_pytorch.core.tlt_logging import logging
 from nvidia_tao_pytorch.cv.backbone_v2.text_utils import canonicalize_text
 
 
 class SigLIP2WrappedTokenizer:
-    """Tokenizer wrapper for SigLIP2 with text canonicalization.
+    """Tokenizer wrapper for SigLIP2 with optional text canonicalization.
 
-    This wrapper applies text canonicalization before tokenization to improve
-    zero-shot classification performance.
+    This wrapper optionally applies text canonicalization before tokenization.
+    Canonicalization (lowercase + punctuation removal) can improve zero-shot
+    classification but may hurt retrieval tasks where punctuation matters.
 
     Args:
         processor: The underlying processor from HuggingFace.
         max_length: Maximum sequence length for tokenization. Default: 64.
+        canonicalize: Whether to apply text canonicalization. Default: False.
     """
 
-    def __init__(self, processor, max_length: int = 64):
+    def __init__(self, processor, max_length: int = 64, canonicalize: bool = False):
         """Initialize the tokenizer wrapper."""
         self._processor = processor
         self._max_length = max_length
+        self._canonicalize = canonicalize
 
     def __call__(self, text: List[str]):
-        """Tokenize text with canonicalization.
+        """Tokenize text with optional canonicalization.
 
         Args:
             text: List of strings to tokenize.
@@ -59,7 +68,8 @@ class SigLIP2WrappedTokenizer:
         Returns:
             BatchEncoding dict with 'input_ids' and 'attention_mask'.
         """
-        text = [canonicalize_text(t) for t in text]
+        if self._canonicalize:
+            text = [canonicalize_text(t) for t in text]
         ret = self._processor(
             text=text,
             return_tensors='pt',
@@ -112,10 +122,10 @@ class CLIPCompatibleTokenizer:
 
 
 class OpenCLIPWrappedTokenizer:
-    """Tokenizer wrapper for OpenCLIP/DFN-CLIP with text canonicalization.
+    """Tokenizer wrapper for OpenCLIP/DFN-CLIP with optional text canonicalization.
 
-    This wrapper applies text canonicalization before tokenization and
-    converts the output to a dict format matching SigLIP2/RADIO for
+    This wrapper optionally applies text canonicalization before tokenization
+    and converts the output to a dict format matching SigLIP2/RADIO for
     consistency.
 
     Used for:
@@ -124,14 +134,16 @@ class OpenCLIPWrappedTokenizer:
 
     Args:
         tokenizer: The raw OpenCLIP tokenizer (callable that returns tensor).
+        canonicalize: Whether to apply text canonicalization. Default: False.
     """
 
-    def __init__(self, tokenizer):
+    def __init__(self, tokenizer, canonicalize: bool = False):
         """Initialize the tokenizer wrapper."""
         self._tokenizer = tokenizer
+        self._canonicalize = canonicalize
 
     def __call__(self, text: List[str]):
-        """Tokenize text with canonicalization and return dict format.
+        """Tokenize text with optional canonicalization and return dict format.
 
         Args:
             text: List of strings to tokenize.
@@ -139,11 +151,98 @@ class OpenCLIPWrappedTokenizer:
         Returns:
             Dict with 'input_ids' key containing the tokenized tensor.
         """
-        # Apply canonicalization (same as SigLIP2)
-        text = [canonicalize_text(t) for t in text]
+        if self._canonicalize:
+            text = [canonicalize_text(t) for t in text]
 
         # OpenCLIP tokenizer returns tensor directly
         result = self._tokenizer(text)
 
         # Wrap tensor in dict for consistency with SigLIP2/RADIO tokenizers
         return {'input_ids': result}
+
+
+def save_tokenizer(
+    tokenizer: CLIPCompatibleTokenizer,
+    output_dir: str,
+    model_type: str,
+    adaptor_name: Optional[str] = None,
+) -> str:
+    """Save tokenizer to disk for deployment.
+
+    For HuggingFace-based tokenizers (SigLIP2), saves using save_pretrained().
+    For OpenCLIP-based tokenizers (RADIO CLIP), saves the equivalent HuggingFace
+    tokenizer which produces identical token IDs.
+
+    Args:
+        tokenizer: The CLIPCompatibleTokenizer from the model.
+        output_dir: Directory to save tokenizer files.
+        model_type: Model type string (e.g., 'siglip2-so400m-patch16-256').
+        adaptor_name: For RADIO models, the adaptor name (e.g., 'clip', 'siglip').
+
+    Returns:
+        Path to the saved tokenizer directory.
+    """
+    os.makedirs(output_dir, exist_ok=True)
+
+    inner_tokenizer = tokenizer._tokenizer
+
+    if isinstance(inner_tokenizer, SigLIP2WrappedTokenizer):
+        # SigLIP2: save the HuggingFace processor's tokenizer
+        processor = inner_tokenizer._processor
+        if hasattr(processor, 'tokenizer'):
+            processor.tokenizer.save_pretrained(output_dir)
+        else:
+            # Processor is the tokenizer itself
+            processor.save_pretrained(output_dir)
+        logging.info("Saved SigLIP2 tokenizer to %s", output_dir)
+    else:
+        # OpenCLIP-based (RADIO CLIP, OpenCLIP): save equivalent HuggingFace tokenizer
+        model_type_lower = model_type.lower()
+
+        if 'radio' in model_type_lower:
+            if adaptor_name and 'siglip' in adaptor_name.lower():
+                hf_tokenizer_name = "google/siglip2-so400m-patch14-384"
+            else:
+                hf_tokenizer_name = "openai/clip-vit-large-patch14"
+        else:
+            # OpenCLIP models
+            hf_tokenizer_name = "openai/clip-vit-large-patch14"
+
+        hf_tokenizer = AutoTokenizer.from_pretrained(hf_tokenizer_name)
+        hf_tokenizer.save_pretrained(output_dir)
+        logging.info(
+            "Saved equivalent HuggingFace tokenizer (%s) to %s",
+            hf_tokenizer_name, output_dir
+        )
+
+    return output_dir
+
+
+def load_tokenizer(tokenizer_dir: str) -> AutoTokenizer:
+    """Load tokenizer from disk.
+
+    Args:
+        tokenizer_dir: Directory containing saved tokenizer files.
+
+    Returns:
+        HuggingFace AutoTokenizer instance.
+
+    Raises:
+        FileNotFoundError: If tokenizer directory doesn't exist.
+    """
+    if not os.path.isdir(tokenizer_dir):
+        raise FileNotFoundError(f"Tokenizer directory not found: {tokenizer_dir}")
+
+    return AutoTokenizer.from_pretrained(tokenizer_dir)
+
+
+def get_tokenizer_dir(checkpoint_path: str) -> str:
+    """Get the tokenizer directory path from a checkpoint path.
+
+    Args:
+        checkpoint_path: Path to model checkpoint file.
+
+    Returns:
+        Path to tokenizer directory (sibling to checkpoint).
+    """
+    return os.path.join(os.path.dirname(checkpoint_path), "tokenizer")
