@@ -1,4 +1,5 @@
 results_dir: ???
+
 train:
   num_epochs: 100
   checkpoint_interval: 10
@@ -16,52 +17,47 @@ train:
     eps: 1e-06
     weight_decay: 1e-4
     warmup_steps: 100
-  val_check_interval: 100
+  validation_interval: 1  # Run validation every N epochs
+  val_check_interval: null  # Or run validation every N steps (takes precedence if set)
 
 dataset:
   seed: 42
   train:
-    type: custom  # custom, wds, or classification
+    type: custom  # custom or wds
     datasets:
-    - root_dir: ???
-      image_list_file: ???
-      label_dir: ???
-      label_suffix: .txt
-    batch_size: 128
+    - image_dir: ???
+      caption_dir: ???
+      caption_file_suffix: .txt
+      image_list_file: null  # Optional: text file listing image filenames
+    batch_size: 16
     num_workers: 8
   val:
-    type: custom
-    dataset:
-      root_dir: ???
-      image_list_file: ???
-      label_dir: ???
-      label_suffix: .txt
-    batch_size: 64
+    datasets: []  # Same format as train.datasets
+    batch_size: 16
     num_workers: 8
-    split: val
-    classnames_file: null
   augmentation:
     scale: [0.4, 1.0]
     color_jitter: [0.8, 0.32, 0.32, 0.32, 0.08]  # [prob, brightness, contrast, saturation, hue]
     grayscale: 0.2
 
 model:
-  type: ???  # ViT-L-14-SigLIP-CLIPA-224, c-radio_v3-h, siglip2-so400m, etc.
+  type: ???  # siglip2-so400m-patch16-256, c-radio_v3-h, etc.
+  canonicalize_text: false 
 
 evaluate:
   checkpoint: ???
-  batch_size: 32
+  batch_size: 16
 
 inference:
   checkpoint: ???
-  batch_size: 32
-  image_dir: ???
+  datasets: []  # Same format as train.datasets
+  batch_size: 16
 
 export:
   checkpoint: ???
   onnx_file: ???
   encoder_type: combined  # vision, text, or combined
-  input_height: 224
-  input_width: 224
-  batch_size: -1
+  input_height: 256
+  input_width: 256
+  batch_size: 1
   opset_version: 17

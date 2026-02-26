@@ -63,13 +63,10 @@ class ImageTextDataset(Dataset):
         supported_extensions = ['*.jpg', '*.jpeg', '*.png']
         # Iterate over each dataset configuration
         for dataset in datasets:
-            root_dir = Path(dataset['root_dir'])
-            # Support both 'label_dir' (new) and 'root_label_dir' (legacy) field names
-            label_dir = dataset.get('label_dir') or dataset.get(
-                'root_label_dir') or root_dir
-            root_label_dir = Path(label_dir)
-            image_list_file = dataset.get('image_list_file', None)
-            label_suffix = dataset.get('label_suffix', '.txt')
+            image_dir = Path(dataset['image_dir'])
+            caption_dir = Path(dataset.get('caption_dir') or image_dir)
+            image_list_file = dataset.get('image_list_file')
+            caption_file_suffix = dataset.get('caption_file_suffix', '.txt')
 
             # If image_list_file is provided, read image list from the text file
             if image_list_file:
@@ -79,22 +76,22 @@ class ImageTextDataset(Dataset):
                     ]
                 # Trust the image list file - skip existence checks for speed
                 for image_name in image_list:
-                    image_path = root_dir / image_name
-                    text_path = root_label_dir / \
-                        Path(image_name).with_suffix(label_suffix)
+                    image_path = image_dir / image_name
+                    text_path = caption_dir / \
+                        Path(image_name).with_suffix(caption_file_suffix)
                     self.image_text_pairs.append((image_path, text_path))
             else:
                 # No image list - glob for files and verify existence
                 logging.info(
                     f"image_list_file not provided. Using all images with "
-                    f"extensions {supported_extensions} from {root_dir}"
+                    f"extensions {supported_extensions} from {image_dir}"
                 )
                 image_list = [
-                    p.name for ext in supported_extensions for p in root_dir.glob(ext)]
+                    p.name for ext in supported_extensions for p in image_dir.glob(ext)]
                 for image_name in image_list:
-                    image_path = root_dir / image_name
-                    text_path = root_label_dir / \
-                        Path(image_name).with_suffix(label_suffix)
+                    image_path = image_dir / image_name
+                    text_path = caption_dir / \
+                        Path(image_name).with_suffix(caption_file_suffix)
                     if text_path.exists():
                         self.image_text_pairs.append((image_path, text_path))
         logging.info(
@@ -124,12 +121,12 @@ class ImageTextDataset(Dataset):
 
         if self.transform:
             image = self.transform(image)
-        if self.tokenizer:
-            text = self.tokenizer(text)[0]
-        if self.zero_shot_eval:
-            # Get mapped text or use original
+        if self.zero_shot_eval and self.mapping:
+            # For zero-shot eval, map text to class index BEFORE tokenization
             text = self.mapping.get(text, text)
-            # return image, text, str(image_path) #TODO: externalise for evaluate.py
+            # If mapping found, text is now an integer class index - don't tokenize
+        elif self.tokenizer:
+            text = self.tokenizer(text)[0]
 
         return image, text
 

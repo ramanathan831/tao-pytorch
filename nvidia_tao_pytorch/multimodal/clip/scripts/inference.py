@@ -271,15 +271,21 @@ def run_image_inference(
     device : torch.device
         Device to run on.
     """
-    image_dir = inference_cfg.image_dir
     batch_size = max(1, inference_cfg.batch_size)
 
-    image_files = get_image_files(image_dir)
+    # Collect images from all datasets
+    image_files = []
+    for dataset_cfg in inference_cfg.datasets:
+        image_dir = dataset_cfg.image_dir
+        files = get_image_files(image_dir)
+        image_files.extend(files)
+        logging.info(f"Found {len(files)} images in {image_dir}")
+
     if not image_files:
-        logging.warning(f"No images found in {image_dir}")
+        logging.warning("No images found in any dataset")
         return
 
-    logging.info(f"Found {len(image_files)} images in {image_dir}")
+    logging.info(f"Total: {len(image_files)} images")
 
     all_embeddings = []
     all_paths = []
@@ -399,20 +405,20 @@ def run_experiment(experiment_config, key):
 
     # Get inference config
     inference_cfg = experiment_config.inference
-    image_dir = inference_cfg.image_dir
+    datasets = getattr(inference_cfg, 'datasets', None) or []
     text_file = getattr(inference_cfg, 'text_file', None)
     results_dir = experiment_config.results_dir or inference_cfg.results_dir
 
-    if not image_dir and not text_file:
+    if not datasets and not text_file:
         raise ValueError(
-            "At least one of inference.image_dir or inference.text_file "
+            "At least one of inference.datasets or inference.text_file "
             "must be specified"
         )
 
     os.makedirs(results_dir, exist_ok=True)
 
-    # Run image inference if image_dir provided
-    if image_dir:
+    # Run image inference if datasets provided
+    if datasets:
         run_image_inference(model, inference_cfg, results_dir, device)
 
     # Run text inference if text_file provided

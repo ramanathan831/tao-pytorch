@@ -12,4 +12,43 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Evaluation utilities for CLIP model."""
+"""Evaluation utilities for CLIP model.
+
+This module provides tools for evaluating CLIP models on:
+    - Text-to-image and image-to-text retrieval
+
+Module Structure:
+    metrics: Core metric computations (mAP, recall, NDCG, AUC)
+    retrieval: Retrieval evaluation (RetrievalEvaluator, RetrievalMetrics)
+
+Example:
+    >>> from nvidia_tao_pytorch.multimodal.clip.model.evaluation import (
+    ...     RetrievalEvaluator,
+    ...     RetrievalMetrics,
+    ... )
+"""
+
+from nvidia_tao_pytorch.multimodal.clip.model.evaluation.metrics import (
+    batched,
+    compute_ap,
+    compute_auc,
+    compute_ndcg,
+)
+from nvidia_tao_pytorch.multimodal.clip.model.evaluation.retrieval import (
+    log_retrieval_metrics,
+    RetrievalEvaluator,
+    RetrievalMetrics,
+)
+
+
+__all__ = [
+    # Core metrics
+    "batched",
+    "compute_ap",
+    "compute_auc",
+    "compute_ndcg",
+    # Retrieval
+    "log_retrieval_metrics",
+    "RetrievalEvaluator",
+    "RetrievalMetrics",
+]

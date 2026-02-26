@@ -18,53 +18,37 @@ import math
 
 import torch
 
-# Upper bound on logit_scale to prevent training instability.
-# exp(4.6052) ≈ 100, matching OpenAI CLIP's original clamp.
 _MAX_LOGIT_SCALE = math.log(100)
 
 from open_clip.loss import ClipLoss, SigLipLoss  # noqa: E402
 
 from nvidia_tao_pytorch.core.tlt_logging import logging  # noqa: E402
-
 from nvidia_tao_pytorch.core.lightning.tao_lightning_module import (  # noqa: E402
     TAOLightningModule,
-)  # noqa: E402
+)
 from nvidia_tao_pytorch.core.loggers import (  # noqa: E402
     api_logging as status_logging,
-)  # noqa: E402
-
-from nvidia_tao_pytorch.multimodal.clip.model.clip import (  # noqa: E402
-    build_model,
-)  # noqa: E402
-from nvidia_tao_pytorch.multimodal.clip.model.evaluation.utils import (  # noqa: E402
-    create_classifier_templates,
-    create_classnames_mapping,
-)  # noqa: E402
+)
+from nvidia_tao_pytorch.multimodal.clip.model.clip import build_model  # noqa: E402
 from nvidia_tao_pytorch.multimodal.clip.utils.utils import (  # noqa: E402
     build_optimizer,
     compute_lr,
-)  # noqa: E402
-from nvidia_tao_pytorch.multimodal.clip.model.evaluation.zero_shot_classifier import (  # noqa: E402,E501
-    build_zero_shot_classifier,
-    accuracy,
 )
-from nvidia_tao_pytorch.multimodal.clip.model.evaluation.zero_shot_metadata import (  # noqa: E402,E501
-    IMAGENET_CLASSNAMES,
-    OPENAI_IMAGENET_TEMPLATES,
-    GENERIC_TEMPLATES,
+from nvidia_tao_pytorch.multimodal.clip.model.evaluation.retrieval import (  # noqa: E402
+    RetrievalEvaluator,
+    log_retrieval_metrics,
 )
 
 
-# pylint:disable=too-many-ancestors
 class CLIPPlModel(TAOLightningModule):
-    """PTL module for CLIP Model."""
+    """PTL module for CLIP Model with retrieval-based validation."""
 
     def __init__(self, experiment_spec, export=False):
-        """Init training for Visual ChangeNet Model."""
+        """Initialize CLIP model for training."""
         super().__init__(experiment_spec)
-        # Overriding what's done in super()
         self.experiment_spec = experiment_spec
         self.checkpoint_filename = 'clip'
+
         clip_model = build_model(
             experiment_config=self.experiment_spec, export=export
         )
@@ -79,44 +63,24 @@ class CLIPPlModel(TAOLightningModule):
             self.model.set_grad_checkpointing()
             logging.info("Gradient checkpointing enabled")
 
-        # Setup validation (optional — not needed for export/inference)
-        val_cfg = getattr(self.experiment_spec.dataset, 'val', None)
-        val_type = getattr(val_cfg, 'type', None) if val_cfg else None
-        templates_file = getattr(val_cfg, 'templates_file', None) if val_cfg else None
-        classnames_file = getattr(val_cfg, 'classnames_file', None) if val_cfg else None
-
-        if templates_file:
-            self.templates = create_classifier_templates(templates_file)
-        elif val_type == 'classification':
-            self.templates = OPENAI_IMAGENET_TEMPLATES
-        else:
-            self.templates = GENERIC_TEMPLATES
-
-        if classnames_file:
-            self.classnames, self.class_mapping = create_classnames_mapping(
-                classnames_file
-            )
-        elif val_type == 'classification':
-            self.classnames = IMAGENET_CLASSNAMES
-            self.class_mapping = None
-        else:
-            self.classnames = None
-            self.class_mapping = None
-
         self.loss_type = self.experiment_spec.train.loss_type
+
+        # Check if retrieval validation is configured
+        val_cfg = getattr(self.experiment_spec.dataset, 'val', None)
+        self.retrieval_enabled = (
+            val_cfg is not None and
+            getattr(val_cfg, 'datasets', None) and
+            len(val_cfg.datasets) > 0
+        )
 
     def setup(self, stage=None):
         """Set up training after Trainer is initialized."""
         if stage == 'fit':
-            # TODO: verify this for multi-node, multi-gpu
-            # https://github.com/Lightning-AI/pytorch-lightning/
-            # pull/11599/files
             self.max_steps = self.trainer.estimated_stepping_batches
             self._build_criterion()
 
     def _build_criterion(self):
         """Build the loss function."""
-        # Setup loss
         if self.loss_type == 'siglip':
             self.loss = SigLipLoss(
                 rank=self.global_rank,
@@ -165,8 +129,6 @@ class CLIPPlModel(TAOLightningModule):
 
     def on_train_start(self):
         """Training epoch start."""
-        # Only update resume_step; do NOT call setup('fit') again as it causes
-        # redundant dataloader creation which can lead to process explosion
         self.trainer.datamodule.resume_step = self.trainer.global_step
 
     def _forward_pass(self, batch):
@@ -188,7 +150,6 @@ class CLIPPlModel(TAOLightningModule):
 
     def training_step(self, batch):
         """Training step."""
-        # Handle both tensor and dict (for SigLIP2) image formats
         image = batch[0]
         batch_size = (
             image['pixel_values'].shape[0]
@@ -240,8 +201,6 @@ class CLIPPlModel(TAOLightningModule):
             "train/lr", current_text_lr,
             on_step=True, on_epoch=False, prog_bar=True
         )
-        # Handle both scalar and dict loss
-        # (ClipLoss returns dict with 'contrastive_loss')
         loss_value = (
             loss['contrastive_loss'] if isinstance(loss, dict) else loss
         )
@@ -275,74 +234,96 @@ class CLIPPlModel(TAOLightningModule):
         )
 
     def on_validation_epoch_start(self) -> None:
-        """Reset evaluator and rebuild classifier for validation.
-
-        Note: Classifier is rebuilt each validation because text encoder
-        weights may have changed during training. If text encoder is frozen,
-        the classifier could be cached for better performance.
-        """
-        if self.classnames is None:
+        """Set up retrieval evaluator for validation."""
+        if self.retrieval_enabled:
+            self.retrieval_evaluator = RetrievalEvaluator(
+                k_values=(1, 5, 10),
+                device=self.device
+            )
+            self.image_embeddings = []
+            self.text_embeddings = []
+            logging.info("Retrieval evaluator initialized for validation.")
+        else:
+            self.retrieval_evaluator = None
+            self.image_embeddings = []
+            self.text_embeddings = []
             logging.warning(
-                "Skipping zero-shot classifier build: no classnames "
-                "configured. Set dataset.val.classnames_file or use "
-                "val.type=classification."
+                "No validation configured. Add datasets to val.datasets "
+                "to enable retrieval evaluation."
             )
-            self.classifier = None
-            self.record = torch.tensor(
-                [0, 0, 0], device="cpu", dtype=torch.long
-            )
-            return
-        self.classifier = build_zero_shot_classifier(
-            self.model, self.tokenizer, device=self.device,
-            distributed=False,  # TODO: Check
-            classnames=self.classnames,
-            templates=self.templates
-        )
-        self.record = torch.tensor([0, 0, 0], device="cpu", dtype=torch.long)
 
-    def validation_step(self, batch):
-        """Run zero-shot validation on a batch."""
-        if self.classifier is None:
+    def validation_step(self, batch, batch_idx):
+        """Run validation: collect image/text embeddings for retrieval."""
+        if self.retrieval_evaluator is None:
             return
+
         image = batch[0]
-        image_features = self.model(image=image)
+        text = batch[1]
+
+        # Get image features
+        output = self.model(image=image)
         image_features = (
-            image_features["image_features"]
-            if isinstance(image_features, dict)
-            else image_features[0]
+            output["image_features"]
+            if isinstance(output, dict)
+            else output[0]
         )
-        logits = 100.0 * image_features @ self.classifier
-        acc1, acc5 = accuracy(logits, batch[1], topk=(1, 5))
-        acc1, acc5 = acc1.cpu(), acc5.cpu()
-        batch_size = (
-            image['pixel_values'].shape[0]
-            if isinstance(image, dict)
-            else image.shape[0]
+
+        # Handle different text formats from dataloader
+        if isinstance(text, list) and len(text) > 0:
+            if isinstance(text[0], dict):
+                text = {
+                    k: torch.stack([t[k] for t in text])
+                    for k in text[0].keys()
+                }
+            elif isinstance(text[0], torch.Tensor):
+                text = torch.stack(text)
+            elif isinstance(text[0], str):
+                text = self.tokenizer(text)
+                if isinstance(text, list):
+                    text = text[0]
+
+        # Get text features
+        text_output = self.model(text=text)
+        text_features = (
+            text_output["text_features"]
+            if isinstance(text_output, dict)
+            else text_output[1]
         )
-        self.record += torch.concat(
-            [acc1, acc5, torch.tensor([batch_size], dtype=torch.long)]
-        )
+
+        self.image_embeddings.append(image_features.cpu())
+        self.text_embeddings.append(text_features.cpu())
 
     def on_validation_epoch_end(self):
-        """Compute and log final validation accuracy."""
-        acc1, acc5, n = self.record.cpu().tolist()
-        if n == 0:
-            logging.warning(
-                "Validation set was empty, skipping accuracy logging."
-            )
-            return
-        acc1 = acc1 / n
-        acc5 = acc5 / n
-        self.log("current_epoch", self.current_epoch, sync_dist=True)
-        self.log("val/accuracy_top1", acc1, sync_dist=True)
-        self.log("val/accuracy_top5", acc5, sync_dist=True)
-        logging.info(f"val/accuracy_top1: {acc1:.4f}")
-        logging.info(f"val/accuracy_top5: {acc5:.4f}")
+        """Compute and log retrieval metrics."""
+        self.status_logging_dict = {}
 
-        if not self.trainer.sanity_checking:
-            self.status_logging_dict = {}
-            self.status_logging_dict["val/accuracy_top1"] = str(acc1)
-            self.status_logging_dict["val/accuracy_top5"] = str(acc5)
+        if self.retrieval_evaluator is not None and self.image_embeddings:
+            image_emb = torch.cat(self.image_embeddings, dim=0).numpy()
+            text_emb = torch.cat(self.text_embeddings, dim=0).numpy()
+
+            retrieval_metrics = self.retrieval_evaluator.evaluate_bidirectional(
+                image_emb, text_emb
+            )
+            log_retrieval_metrics(retrieval_metrics, prefix="val")
+
+            # Log to PL and status
+            for direction in ['image_to_text', 'text_to_image']:
+                metrics = retrieval_metrics[direction]
+                dir_prefix = 'i2t' if direction == 'image_to_text' else 't2i'
+                self.log(f"val/{dir_prefix}_mAP", metrics.map_score, sync_dist=True)
+                self.log(f"val/{dir_prefix}_R@1", metrics.recall_at_k[1], sync_dist=True)
+                self.log(f"val/{dir_prefix}_R@5", metrics.recall_at_k[5], sync_dist=True)
+                self.log(f"val/{dir_prefix}_MedR", metrics.median_rank, sync_dist=True)
+                self.log(f"val/{dir_prefix}_MeanR", metrics.mean_rank, sync_dist=True)
+                self.log(f"val/{dir_prefix}_AUC", metrics.auc, sync_dist=True)
+                self.status_logging_dict[f"val/{dir_prefix}_mAP"] = str(metrics.map_score)
+                self.status_logging_dict[f"val/{dir_prefix}_R@1"] = str(
+                    metrics.recall_at_k[1]
+                )
+                self.status_logging_dict[f"val/{dir_prefix}_MedR"] = str(metrics.median_rank)
+                self.status_logging_dict[f"val/{dir_prefix}_AUC"] = str(metrics.auc)
+
+        if not self.trainer.sanity_checking and self.status_logging_dict:
             status_logging.get_status_logger().kpi = self.status_logging_dict
             status_logging.get_status_logger().write(
                 message="Eval metrics generated.",
@@ -356,26 +337,41 @@ class CLIPPlModel(TAOLightningModule):
 
     def test_step(self, batch, batch_idx):
         """Test step - reuse validation step."""
-        return self.validation_step(batch)
+        return self.validation_step(batch, batch_idx)
 
     def on_test_epoch_end(self):
-        """Test epoch end - compute and log final accuracy."""
-        acc1, acc5, n = self.record.cpu().tolist()
-        if n == 0:
-            logging.warning("Test set was empty, skipping accuracy logging.")
-            return
-        acc1 = acc1 / n
-        acc5 = acc5 / n
-        self.log("test/accuracy_top1", acc1, sync_dist=True)
-        self.log("test/accuracy_top5", acc5, sync_dist=True)
-        logging.info(f"test/accuracy_top1: {acc1:.4f}")
-        logging.info(f"test/accuracy_top5: {acc5:.4f}")
-
+        """Test epoch end - compute and log retrieval metrics."""
         self.status_logging_dict = {}
-        self.status_logging_dict["test/accuracy_top1"] = str(acc1)
-        self.status_logging_dict["test/accuracy_top5"] = str(acc5)
-        status_logging.get_status_logger().kpi = self.status_logging_dict
-        status_logging.get_status_logger().write(
-            message="Test metrics generated.",
-            status_level=status_logging.Status.RUNNING
-        )
+
+        if self.retrieval_evaluator is not None and self.image_embeddings:
+            image_emb = torch.cat(self.image_embeddings, dim=0).numpy()
+            text_emb = torch.cat(self.text_embeddings, dim=0).numpy()
+
+            retrieval_metrics = self.retrieval_evaluator.evaluate_bidirectional(
+                image_emb, text_emb
+            )
+            log_retrieval_metrics(retrieval_metrics, prefix="test")
+
+            # Log to PL and status
+            for direction in ['image_to_text', 'text_to_image']:
+                metrics = retrieval_metrics[direction]
+                dir_prefix = 'i2t' if direction == 'image_to_text' else 't2i'
+                self.log(f"test/{dir_prefix}_mAP", metrics.map_score, sync_dist=True)
+                self.log(f"test/{dir_prefix}_R@1", metrics.recall_at_k[1], sync_dist=True)
+                self.log(f"test/{dir_prefix}_R@5", metrics.recall_at_k[5], sync_dist=True)
+                self.log(f"test/{dir_prefix}_MedR", metrics.median_rank, sync_dist=True)
+                self.log(f"test/{dir_prefix}_MeanR", metrics.mean_rank, sync_dist=True)
+                self.log(f"test/{dir_prefix}_AUC", metrics.auc, sync_dist=True)
+                self.status_logging_dict[f"test/{dir_prefix}_mAP"] = str(metrics.map_score)
+                self.status_logging_dict[f"test/{dir_prefix}_R@1"] = str(
+                    metrics.recall_at_k[1]
+                )
+                self.status_logging_dict[f"test/{dir_prefix}_MedR"] = str(metrics.median_rank)
+                self.status_logging_dict[f"test/{dir_prefix}_AUC"] = str(metrics.auc)
+
+        if self.status_logging_dict:
+            status_logging.get_status_logger().kpi = self.status_logging_dict
+            status_logging.get_status_logger().write(
+                message="Test metrics generated.",
+                status_level=status_logging.Status.RUNNING
+            )

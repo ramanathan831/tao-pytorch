@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Evaluate CLIP model."""
+"""Evaluate CLIP model using retrieval metrics."""
 
 import os
 
@@ -38,7 +38,7 @@ from nvidia_tao_pytorch.multimodal.clip.utils.utils import (
 
 
 def run_experiment(experiment_config, key):
-    """Run evaluation experiment.
+    """Run retrieval evaluation experiment.
 
     Parameters
     ----------
@@ -47,8 +47,27 @@ def run_experiment(experiment_config, key):
         and evaluation settings.
     key : str
         Encryption key (unused, kept for TAO API compatibility).
+
+    Raises
+    ------
+    ValueError
+        If no evaluation data is configured (missing captions_dir).
     """
     del key  # Unused but required by TAO API
+
+    # Validate that retrieval evaluation is configured
+    val_cfg = getattr(experiment_config.dataset, 'val', None)
+    if val_cfg is None or not getattr(val_cfg, 'datasets', None):
+        raise ValueError(
+            "No evaluation data configured. For evaluate task, you must provide:\n"
+            "  dataset.val.datasets:\n"
+            "  - image_dir: /path/to/images\n"
+            "    caption_dir: /path/to/captions"
+        )
+
+    logging.info(f"Retrieval evaluation: {len(val_cfg.datasets)} dataset(s)")
+    for i, ds in enumerate(val_cfg.datasets):
+        logging.info(f"  Dataset {i + 1}: images={ds.image_dir}, captions={ds.caption_dir}")
 
     model_path, trainer_kwargs = initialize_evaluation_experiment(
         experiment_config, experiment_config.encryption_key
@@ -63,12 +82,11 @@ def run_experiment(experiment_config, key):
         model.tokenizer,
         resume_step=0,
         preprocess=(model.preprocess_train, model.preprocess_val),
-        mapping=model.class_mapping,
         world_size=1
     )
     dm.setup(stage="test")
 
-    logging.info("Starting evaluation")
+    logging.info("Starting retrieval evaluation")
     trainer = Trainer(**trainer_kwargs)
     trainer.test(model, datamodule=dm)
 

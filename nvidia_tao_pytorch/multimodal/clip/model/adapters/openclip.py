@@ -46,6 +46,7 @@ class OpenCLIP(BaseCLIPAdapter):
         logit_bias_init: Initial value for logit bias parameter
         freeze_vision_encoder: Freeze vision encoder parameters
         freeze_text_encoder: Freeze text encoder parameters
+        canonicalize_text: Apply text canonicalization before tokenization
     """
 
     def __init__(
@@ -54,7 +55,8 @@ class OpenCLIP(BaseCLIPAdapter):
         logit_scale_init=2.3026,
         logit_bias_init=-10.0,
         freeze_vision_encoder=False,
-        freeze_text_encoder=False
+        freeze_text_encoder=False,
+        canonicalize_text=False,
     ):
         """Initialize OpenCLIP adapter."""
         super().__init__(
@@ -68,7 +70,7 @@ class OpenCLIP(BaseCLIPAdapter):
 
         # Create wrapped tokenizer for CLIP dataloader compatibility
         self._wrapped_tokenizer = OpenCLIPWrappedTokenizer(
-            self.backbone.tokenizer
+            self.backbone.tokenizer, canonicalize=canonicalize_text
         )
         self.tokenizer = CLIPCompatibleTokenizer(self._wrapped_tokenizer)
 

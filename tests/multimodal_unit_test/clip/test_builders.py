@@ -20,8 +20,6 @@ from nvidia_tao_pytorch.multimodal.clip.model.builders import (
     _parse_aug_config,
     _build_image_transforms,
     _resolve_adaptor_name,
-    IMAGENET_MEAN,
-    IMAGENET_STD,
     OPENAI_CLIP_MEAN,
     OPENAI_CLIP_STD,
 )
@@ -30,16 +28,6 @@ from nvidia_tao_pytorch.multimodal.clip.model.builders import (
 @pytest.mark.multimodal_unit
 class TestNormalizationConstants:
     """Test normalization constants."""
-
-    def test_imagenet_mean(self):
-        """Test ImageNet mean values."""
-        assert len(IMAGENET_MEAN) == 3
-        assert all(0 <= v <= 1 for v in IMAGENET_MEAN)
-
-    def test_imagenet_std(self):
-        """Test ImageNet std values."""
-        assert len(IMAGENET_STD) == 3
-        assert all(0 < v <= 1 for v in IMAGENET_STD)
 
     def test_openai_clip_mean(self):
         """Test OpenAI CLIP mean values."""
@@ -136,8 +124,8 @@ class TestBuildImageTransforms:
         train_transform, val_transform = _build_image_transforms(
             image_size=224,
             aug_cfg=None,
-            mean=IMAGENET_MEAN,
-            std=IMAGENET_STD
+            mean=OPENAI_CLIP_MEAN,
+            std=OPENAI_CLIP_STD
         )
 
         assert train_transform is not None
@@ -148,8 +136,8 @@ class TestBuildImageTransforms:
         train_transform, val_transform = _build_image_transforms(
             image_size=224,
             aug_cfg={'scale': [0.4, 1.0]},
-            mean=IMAGENET_MEAN,
-            std=IMAGENET_STD
+            mean=OPENAI_CLIP_MEAN,
+            std=OPENAI_CLIP_STD
         )
 
         # They should be different objects (train has augmentation)
@@ -160,8 +148,8 @@ class TestBuildImageTransforms:
         train_transform, val_transform = _build_image_transforms(
             image_size=512,
             aug_cfg=None,
-            mean=IMAGENET_MEAN,
-            std=IMAGENET_STD
+            mean=OPENAI_CLIP_MEAN,
+            std=OPENAI_CLIP_STD
         )
 
         # Transforms should be created successfully

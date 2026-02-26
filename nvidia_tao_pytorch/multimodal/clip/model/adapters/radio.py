@@ -40,6 +40,7 @@ from nvidia_tao_pytorch.multimodal.clip.model.adapters.base import (
 from nvidia_tao_pytorch.multimodal.clip.model.tokenizers import (
     CLIPCompatibleTokenizer,
     OpenCLIPWrappedTokenizer,
+    SigLIP2WrappedTokenizer,
 )
 
 
@@ -58,6 +59,7 @@ class CRADIO(BaseCLIPAdapter):
         logit_bias_init: Initial value for logit bias parameter.
         freeze_vision_encoder: Freeze vision encoder parameters.
         freeze_text_encoder: Freeze text encoder parameters.
+        canonicalize_text: Apply text canonicalization before tokenization.
     """
 
     # Map adaptor names to text model attribute inside the adaptor module.
@@ -75,6 +77,7 @@ class CRADIO(BaseCLIPAdapter):
         logit_bias_init=-10.0,
         freeze_vision_encoder=False,
         freeze_text_encoder=False,
+        canonicalize_text=False,
     ):
         """Initialize CRADIO adapter."""
         super().__init__(
@@ -102,10 +105,19 @@ class CRADIO(BaseCLIPAdapter):
         self.adaptor = self.radio_model.adaptors[adaptor_name]
 
         # Wrap the adaptor's built-in tokenizer for dataloader compatibility.
-        # OpenCLIP tokenizer returns raw tensors; wrap to produce dicts.
+        # Apply canonicalization wrapper based on config.
         raw_tokenizer = self.adaptor.tokenizer
         if adaptor_name == 'clip':
-            raw_tokenizer = OpenCLIPWrappedTokenizer(raw_tokenizer)
+            # OpenCLIP tokenizer returns raw tensors; wrap to produce dicts
+            raw_tokenizer = OpenCLIPWrappedTokenizer(
+                raw_tokenizer, canonicalize=canonicalize_text
+            )
+        else:
+            # SigLIP2 adaptor: wrap with SigLIP2WrappedTokenizer for
+            # canonicalization control
+            raw_tokenizer = SigLIP2WrappedTokenizer(
+                raw_tokenizer, canonicalize=canonicalize_text
+            )
         self.tokenizer = CLIPCompatibleTokenizer(raw_tokenizer)
 
         self._configure_trainable_params()

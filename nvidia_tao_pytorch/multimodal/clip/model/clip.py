@@ -69,6 +69,8 @@ def build_model(experiment_config,
         experiment_config.model, 'freeze_vision_encoder', False)
     freeze_text = getattr(
         experiment_config.model, 'freeze_text_encoder', False)
+    canonicalize_text = getattr(
+        experiment_config.model, 'canonicalize_text', False)
 
     image_size = experiment_config.model.image_size
 
@@ -94,6 +96,7 @@ def build_model(experiment_config,
                 image_size=image_size,
                 logit_scale_init=init_logit_scale,
                 logit_bias_init=init_logit_bias,
+                canonicalize_text=canonicalize_text,
             ))
 
     elif model_name in siglip2_model_configs:
@@ -106,6 +109,7 @@ def build_model(experiment_config,
                 image_size=image_size,
                 logit_scale_init=init_logit_scale,
                 logit_bias_init=init_logit_bias,
+                canonicalize_text=canonicalize_text,
             ))
 
     elif model_name in openclip_model_configs:
@@ -118,6 +122,7 @@ def build_model(experiment_config,
                 image_size=image_size,
                 logit_scale_init=init_logit_scale,
                 logit_bias_init=init_logit_bias,
+                canonicalize_text=canonicalize_text,
             ))
 
     else:
