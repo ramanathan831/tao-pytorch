@@ -73,6 +73,8 @@ class Mask2formerPlModule(TAOLightningModule):
         self.status_logging_dict = {}
 
         metadata = get_metadata(self.cfg)
+        if "custom" in MetadataCatalog:
+            MetadataCatalog.remove("custom")
         self.metadata = MetadataCatalog.get("custom").set(
             thing_classes=metadata["thing_classes"],
             thing_colors=metadata["thing_colors"],

@@ -71,6 +71,8 @@ class NVPanoptix3DPlModule(TAOLightningModule):
 
         # Initialize 3D evaluation metrics
         self.metadata = get_metadata(self.cfg)
+        if "custom" in MetadataCatalog:
+            MetadataCatalog.remove("custom")
         self.metadata = MetadataCatalog.get("custom").set(
             thing_classes=self.metadata["thing_classes"],
             thing_colors=self.metadata["thing_colors"],
