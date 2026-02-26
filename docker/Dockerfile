@@ -46,6 +46,26 @@ COPY docker/requirements-pip-quantization.txt requirements-pip-quantization.txt
 RUN pip install --no-build-isolation --upgrade --no-deps -r requirements-pip-quantization.txt \
   && rm requirements-pip-quantization.txt
 
+COPY docker/requirements-pip-nvpanoptix3d.txt requirements-pip-nvpanoptix3d.txt
+RUN pip install meson-python meson ninja \
+  && pip install --no-build-isolation --upgrade --no-deps -r requirements-pip-nvpanoptix3d.txt \
+  && rm requirements-pip-nvpanoptix3d.txt
+
+################## Install WarpConvNet ##################
+# Install PyTorch first (specify your CUDA version)
+ENV CUDA=cu130
+
+# Install core dependencies
+RUN pip install --no-deps cupy-cuda13x==13.6.0  # use cupy-cuda13x for CUDA 13.x
+# Build torch-scatter from source against the current torch/cuda stack.
+RUN FORCE_CUDA=1 pip install --no-build-isolation --no-cache-dir --no-binary=torch-scatter torch-scatter
+
+# Install patched WarpConvNet for CUDA 13.x
+RUN git clone https://github.com/daocongtuyen2x/WarpConvNet.git
+RUN cd WarpConvNet && \
+    if [ -d .git ]; then git submodule sync --recursive && git submodule update --init --recursive; fi && \
+    pip install --no-build-isolation .
+
 ################## Build onnxruntime-gpu ##################
 # We need to build onnxruntime-gpu from source because the official wheel is not available for CUDA 13.0
 # TODO: Update to the official wheel when it is available for CUDA 13.0
