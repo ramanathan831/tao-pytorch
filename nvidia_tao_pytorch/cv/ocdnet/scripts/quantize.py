@@ -27,7 +27,7 @@ from nvidia_tao_pytorch.core.tlt_logging import obfuscate_logs, logging
 
 from nvidia_tao_core.config.ocdnet.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.quantization import ModelQuantizer
-from nvidia_tao_pytorch.cv.ocdnet.model.pl_ocd_model import OCDNetModel
+from nvidia_tao_pytorch.cv.ocdnet.model.pl_ocd_model import OCDnetModel
 from nvidia_tao_pytorch.cv.ocdnet.data_loader.pl_ocd_data_module import OCDDataModule
 
 
@@ -58,7 +58,7 @@ def main(cfg: ExperimentConfig) -> None:
     # Build the Lightning model and extract the underlying nn.Module
     logging.debug("Loading OCDNet checkpoint")
     if not cfg.quantize.model_path.endswith(".onnx"):
-        pl_model = OCDNetModel.load_from_checkpoint(
+        pl_model = OCDnetModel.load_from_checkpoint(
             cfg.quantize.model_path,
             map_location="cpu",
             experiment_spec=cfg,

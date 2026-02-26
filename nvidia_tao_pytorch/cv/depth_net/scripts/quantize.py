@@ -27,7 +27,7 @@ from nvidia_tao_pytorch.core.tlt_logging import obfuscate_logs, logging
 
 from nvidia_tao_core.config.depth_net.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.quantization import ModelQuantizer
-from nvidia_tao_pytorch.cv.depth_net.model.build_pl_model import build_model
+from nvidia_tao_pytorch.cv.depth_net.model.build_pl_model import build_pl_model
 from nvidia_tao_pytorch.cv.depth_net.dataloader.pl_mono_data_module import MonoDepthNetDataModule
 
 
@@ -58,7 +58,7 @@ def main(cfg: ExperimentConfig) -> None:
     # Build the Lightning model and extract the underlying nn.Module
     logging.debug("Loading DepthNet checkpoint")
     if not cfg.quantize.model_path.endswith(".onnx"):
-        pl_model = build_model(cfg)
+        pl_model = build_pl_model(cfg)
         pl_model.load_state_dict_from_checkpoint(cfg.quantize.model_path)
         orig_model = pl_model.model
     else:
