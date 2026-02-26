@@ -53,3 +53,6 @@ dataset:
     workers: 8
     quant_calibration_dataset:
       images_dir: ???
+  classify:
+    quant_calibration_dataset:
+      images_dir: ???
