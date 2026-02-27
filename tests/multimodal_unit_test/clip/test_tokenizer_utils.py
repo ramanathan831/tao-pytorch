@@ -162,6 +162,35 @@ class TestSigLIP2WrappedTokenizer:
         assert 'input_ids' in result
         assert 'attention_mask' in result
 
+    def test_unwraps_radio_tokenizer(self):
+        """Test that passing RADIO's SigLIP2WrappedTokenizer (which stores
+        the HF processor in ._proc) is automatically unwrapped."""
+        class MockHFProcessor:
+            def __call__(self, text, **kwargs):
+                return {
+                    'input_ids': torch.zeros(len(text), 64, dtype=torch.long),
+                    'attention_mask': torch.ones(len(text), 64, dtype=torch.long),
+                }
+
+        class MockRadioTokenizer:
+            """Mimics RADIO's SigLIP2WrappedTokenizer."""
+            def __init__(self, proc):
+                self._proc = proc
+
+            def __call__(self, text):
+                return self._proc(text=text, return_tensors='pt',
+                                  max_length=64, padding='max_length',
+                                  truncation=True)
+
+        hf_proc = MockHFProcessor()
+        radio_tok = MockRadioTokenizer(hf_proc)
+        tokenizer = SigLIP2WrappedTokenizer(radio_tok)
+
+        # Should have unwrapped to the underlying HF processor
+        assert tokenizer._processor is hf_proc
+        result = tokenizer(["test"])
+        assert 'input_ids' in result
+
 
 @pytest.mark.multimodal_unit
 class TestCLIPCompatibleTokenizer:

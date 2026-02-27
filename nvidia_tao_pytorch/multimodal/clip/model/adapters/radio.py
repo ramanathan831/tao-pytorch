@@ -113,10 +113,13 @@ class CRADIO(BaseCLIPAdapter):
                 raw_tokenizer, canonicalize=canonicalize_text
             )
         else:
-            # SigLIP2 adaptor: wrap with SigLIP2WrappedTokenizer for
-            # canonicalization control
+            # RADIO's SigLIP2 adaptor already wraps the HF processor in
+            # its own SigLIP2WrappedTokenizer (stored as ._proc). Extract
+            # the underlying processor to avoid double-wrapping and to
+            # give us control over canonicalization.
+            processor = getattr(raw_tokenizer, '_proc', raw_tokenizer)
             raw_tokenizer = SigLIP2WrappedTokenizer(
-                raw_tokenizer, canonicalize=canonicalize_text
+                processor, canonicalize=canonicalize_text
             )
         self.tokenizer = CLIPCompatibleTokenizer(raw_tokenizer)
 

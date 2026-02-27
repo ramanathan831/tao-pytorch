@@ -55,6 +55,13 @@ class SigLIP2WrappedTokenizer:
 
     def __init__(self, processor, max_length: int = 64, canonicalize: bool = False):
         """Initialize the tokenizer wrapper."""
+        # Guard against double-wrapping: if processor is already a wrapped
+        # tokenizer (e.g. RADIO's SigLIP2WrappedTokenizer), extract the
+        # underlying HuggingFace processor.
+        for attr in ('_proc', '_processor'):
+            if hasattr(processor, attr):
+                processor = getattr(processor, attr)
+                break
         self._processor = processor
         self._max_length = max_length
         self._canonicalize = canonicalize
