@@ -68,13 +68,33 @@ check_jenkins_status:
   stage: check-jenkins-status
   script:
     - |
-      # Define Jenkins parameters
+      # Curl wrapper with retry and exponential backoff for transient failures
+      curl_with_retry() {
+          local max_attempts=5
+          local wait=5
+          local attempt=1
+          while [ $attempt -le $max_attempts ]; do
+              if response=$(curl --connect-timeout 30 --max-time 120 "$@" 2>/dev/null); then
+                  echo "$response"
+                  return 0
+              fi
+              if [ $attempt -lt $max_attempts ]; then
+                  echo "WARNING: curl failed (attempt $attempt/$max_attempts), retrying in ${wait}s..." >&2
+                  sleep $wait
+                  wait=$((wait * 2))
+              fi
+              attempt=$((attempt + 1))
+          done
+          echo "ERROR: curl failed after $max_attempts attempts" >&2
+          return 1
+      }
+
       FORKED_REPO_URL=$CI_MERGE_REQUEST_SOURCE_PROJECT_URL
       SOURCE_BRANCH=$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME
       TARGET_BRANCH=$CI_MERGE_REQUEST_TARGET_BRANCH_NAME
 
       JENKINS_URL="https://prod.blsm.nvidia.com/metropolis-iva-tlt-jenkins"
-      
+
       # Determine which Jenkins pipeline to trigger based on source/target branch names
       # Priority: dev/* -> default (develop)
       # Note: Release pipelines are NOT triggered during MRs, only on direct commits to release branches
@@ -87,7 +107,6 @@ check_jenkins_status:
       elif [[ "$SOURCE_BRANCH" =~ ^renovate/.* || "$SOURCE_BRANCH" =~ ^build-base-image/.* ]]; then
         echo "Renovate/build-base-image branch detected: $SOURCE_BRANCH"
         echo "Triggering tao-pytorch-develop pipeline with BASE_IMAGE_REPO and BASE_IMAGE_TAG params"
-        # use DYN_TAG from dotenv or recompute the same way
         : "${DYN_TAG:=${CI_COMMIT_REF_SLUG}-${CI_PIPELINE_ID}}"
         JENKINS_JOB="tao-pytorch-develop"
         BRANCH_TO_BUILD="$SOURCE_BRANCH"
@@ -98,24 +117,58 @@ check_jenkins_status:
         BRANCH_TO_BUILD="$SOURCE_BRANCH"
         JENKINS_PARAMS="token=$JENKINS_JOB_TOKEN&GITLAB_REPO_URL=$FORKED_REPO_URL&GITLAB_BRANCH=$BRANCH_TO_BUILD&BRANCH_NAME=$BRANCH_TO_BUILD"
       fi
-      
+
       echo "Jenkins Job: $JENKINS_JOB"
       echo "Jenkins Parameters: $JENKINS_PARAMS"
-      
+
       # Step 1: Fetch the last build number before triggering a new build
-      last_build_number=$(curl -s -X POST -u "$JENKINS_USER:$JENKINS_TOKEN" "$JENKINS_URL/job/$JENKINS_JOB/lastBuild/buildNumber")
+      last_build_number=$(curl_with_retry -s -X POST -u "$JENKINS_USER:$JENKINS_TOKEN" \
+          "$JENKINS_URL/job/$JENKINS_JOB/lastBuild/buildNumber") || {
+          echo "ERROR: Failed to reach Jenkins API to fetch last build number"
+          exit 1
+      }
+      if ! [[ "$last_build_number" =~ ^[0-9]+$ ]]; then
+          echo "ERROR: Unexpected response for last build number: '$last_build_number'"
+          exit 1
+      fi
+      echo "Last build number: $last_build_number"
 
       # Step 2: Trigger the new build
-      curl -s -X POST -u "$JENKINS_USER:$JENKINS_TOKEN" \
-      "$JENKINS_URL/view/tao-pytorch/job/$JENKINS_JOB/buildWithParameters?$JENKINS_PARAMS"
+      curl_with_retry -s -X POST -u "$JENKINS_USER:$JENKINS_TOKEN" \
+          "$JENKINS_URL/view/tao-pytorch/job/$JENKINS_JOB/buildWithParameters?$JENKINS_PARAMS" || {
+          echo "ERROR: Failed to trigger Jenkins build after retries"
+          exit 1
+      }
+      echo "Jenkins build triggered successfully"
 
-      # Step 3: Poll until a new build number is detected
+      # Step 3: Poll until a new build number is detected (with timeout)
+      MAX_POLL_WAIT=300
+      poll_start=$(date +%s)
+      consecutive_failures=0
       while true; do
-          current_build_number=$(curl -s -X POST -u "$JENKINS_USER:$JENKINS_TOKEN" "$JENKINS_URL/job/$JENKINS_JOB/lastBuild/buildNumber")
-          
-          if [ "$current_build_number" -gt "$last_build_number" ]; then
+          current_build_number=$(curl_with_retry -s -X POST -u "$JENKINS_USER:$JENKINS_TOKEN" \
+              "$JENKINS_URL/job/$JENKINS_JOB/lastBuild/buildNumber" 2>/dev/null) || true
+
+          if [[ "$current_build_number" =~ ^[0-9]+$ ]] && [ "$current_build_number" -gt "$last_build_number" ]; then
               echo "New build detected: Build Number $current_build_number"
               break
+          fi
+
+          if ! [[ "$current_build_number" =~ ^[0-9]+$ ]]; then
+              consecutive_failures=$((consecutive_failures + 1))
+              echo "WARNING: Failed to poll build number (consecutive failures: $consecutive_failures)"
+              if [ $consecutive_failures -ge 3 ]; then
+                  echo "ERROR: Cannot reach Jenkins API after $consecutive_failures consecutive polling failures"
+                  exit 1
+              fi
+          else
+              consecutive_failures=0
+          fi
+
+          elapsed=$(($(date +%s) - poll_start))
+          if [ $elapsed -gt $MAX_POLL_WAIT ]; then
+              echo "ERROR: Timed out waiting for new Jenkins build (${MAX_POLL_WAIT}s elapsed)"
+              exit 1
           fi
 
           sleep 1
@@ -124,36 +177,54 @@ check_jenkins_status:
       build_url="$JENKINS_URL/job/$JENKINS_JOB/${current_build_number}/"
       echo "You can view the build details at: $build_url"
 
-      # Step 4 : Poll Jenkins job status and get details for each stage
+      # Step 4: Poll Jenkins job status and stream console output
       # Reference:
       # - https://stackoverflow.com/a/64660976
       # - https://prod.blsm.nvidia.com/metropolis-iva-tlt-jenkins/api/
       echo "---------- Console Output of the Jenkins job ----------"
       start=0
+      consecutive_failures=0
+      MAX_CONSECUTIVE_FAILURES=30
       while true; do
-          # Fetch the Console Output of the job
-          response=$(curl -si -w "\n%{size_header},%{size_download}" -u "$JENKINS_USER:$JENKINS_TOKEN" \
-          "$JENKINS_URL/job/$JENKINS_JOB/${current_build_number}/logText/progressiveText?start=${start}")
+          response=$(curl -si --connect-timeout 30 --max-time 120 \
+              -w "\n%{size_header},%{size_download}" \
+              -u "$JENKINS_USER:$JENKINS_TOKEN" \
+              "$JENKINS_URL/job/$JENKINS_JOB/${current_build_number}/logText/progressiveText?start=${start}" 2>/dev/null) || true
 
-          # Extract the header and the body
-          header_size=$(sed -n '$ s/^\([0-9]*\),.*$/\1/ p' <<< "${response}")
-          body_size=$(sed -n '$ s/^.*,\([0-9]*\)$/\1/ p' <<< "${response}")
-          header="${response:0:${header_size}}"
-          body="$(sed '$d' <<< ${response:${header_size}:${body_size}})"
+          job_status=$(curl -s --connect-timeout 30 --max-time 60 \
+              -u "$JENKINS_USER:$JENKINS_TOKEN" \
+              "$JENKINS_URL/job/$JENKINS_JOB/${current_build_number}/api/json?tree=result" 2>/dev/null | \
+              jq -r '.result' 2>/dev/null) || true
 
-          # Extract the start value by from the header
-          start=$(echo "$header" | grep "X-Text-Size" | sed "s/[^0-9]//g")
+          # If both API calls failed, track consecutive failures
+          if [ -z "$response" ] && { [ -z "$job_status" ] || [ "$job_status" = "null" ]; }; then
+              consecutive_failures=$((consecutive_failures + 1))
+              echo "WARNING: Jenkins API unreachable (consecutive failures: $consecutive_failures/$MAX_CONSECUTIVE_FAILURES)"
+              if [ $consecutive_failures -ge $MAX_CONSECUTIVE_FAILURES ]; then
+                  echo "ERROR: Lost connection to Jenkins after $consecutive_failures consecutive failures (~$((consecutive_failures * 10))s)"
+                  echo "Jenkins build may still be running at: $build_url"
+                  exit 1
+              fi
+              sleep 10
+              continue
+          fi
+          consecutive_failures=0
 
-          # Fetch the job status (SUCCESS, FAILURE, ABORTED, etc.)
-          # Use `|| true` to prevent the script from failing if `jq` encounters an error.
-          job_status=$(curl -s -u "$JENKINS_USER:$JENKINS_TOKEN" \
-          "$JENKINS_URL/job/$JENKINS_JOB/${current_build_number}/api/json?tree=result" | \
-          jq -r '.result') || true
+          # Parse and display console output when available
+          if [ -n "$response" ]; then
+              header_size=$(sed -n '$ s/^\([0-9]*\),.*$/\1/ p' <<< "${response}") || true
+              body_size=$(sed -n '$ s/^.*,\([0-9]*\)$/\1/ p' <<< "${response}") || true
+              if [ -n "$header_size" ] && [ -n "$body_size" ]; then
+                  header="${response:0:${header_size}}"
+                  body="$(sed '$d' <<< ${response:${header_size}:${body_size}})"
+                  new_start=$(echo "$header" | grep "X-Text-Size" | sed "s/[^0-9]//g") || true
+                  if [ -n "$new_start" ]; then
+                      start=$new_start
+                  fi
+                  echo "$body"
+              fi
+          fi
 
-          # Output the log
-          echo "$body"
-
-          # Handle the overall job status
           if [ "$job_status" == "SUCCESS" ]; then
               echo "-------------- End of the Console Output --------------"
               echo "Jenkins job succeeded"
