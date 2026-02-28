@@ -79,13 +79,23 @@ spec:
             operator: In
             values:
             - A100_PCIE_40GB
-            - A40
-            - L40
-            - A100_80GB_PCIe
+            - A100_80GB_PCIE
+            - A100_PCIE_80GB
+            - A100_SXM4_80GB
+            - H100_80GB_HBM3
+            - H100_PCIE
+            - H100_NVL
+            - H200_144GB_HBM3
             - NVIDIA_GH200_480GB
           - key: nvidia.com/driver_version
             operator: In
             values:
+            - 550.54.14
+            - 550.54.15
+            - 550.90.07
+            - 550.107.02
+            - 550.127.05
+            - 550.127.08
             - 580.35
             - 580.66
             - 580.82.07
