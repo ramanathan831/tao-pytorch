@@ -88,6 +88,29 @@ class TestRADIOAdapterMocked:
         assert hasattr(mock_radio, 'patch_size')
         assert mock_radio.embed_dim == 1280
 
+    def test_make_preprocessor_external_called(self):
+        """Test that CRADIO.__init__ calls make_preprocessor_external() to
+        avoid double-normalizing images (external transforms + internal
+        input_conditioner)."""
+        from unittest.mock import patch, MagicMock
+
+        mock_radio = MockRADIOModel()
+        mock_radio.make_preprocessor_external = MagicMock()
+
+        mock_adaptor = MagicMock()
+        mock_adaptor.tokenizer = MagicMock()
+        mock_adaptor.parameters.return_value = []
+        mock_radio.adaptors = {'clip': mock_adaptor}
+
+        with patch('torch.hub.load', return_value=mock_radio):
+            from nvidia_tao_pytorch.multimodal.clip.model.adapters.radio import CRADIO
+            model = CRADIO(
+                model_version='c-radio_v3-h',
+                adaptor_name='clip',
+            )
+
+        mock_radio.make_preprocessor_external.assert_called_once()
+
     def test_radio_model_forward(self):
         """Test mock RADIO model forward."""
         mock_radio = MockRADIOModel()
