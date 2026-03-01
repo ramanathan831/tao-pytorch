@@ -101,6 +101,7 @@ class CRADIO(BaseCLIPAdapter):
             skip_validation=True,
             adaptor_names=adaptor_name,
         )
+        self.radio_model.make_preprocessor_external()
 
         self.adaptor = self.radio_model.adaptors[adaptor_name]
 
