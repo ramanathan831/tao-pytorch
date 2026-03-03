@@ -304,45 +304,55 @@ class TestLoadModelFromCheckpoint:
 class TestCLIPVisionEncoder:
     """Test CLIPVisionEncoder wrapper class."""
 
+    @staticmethod
+    def _make_mock_model(embed_dim=768):
+        """Create a mock CLIP model with logit_scale and logit_bias."""
+        class MockModel:
+            def __init__(self):
+                self.logit_scale = torch.nn.Parameter(torch.ones([]) * 2.3026)
+                self.logit_bias = torch.nn.Parameter(torch.ones([]) * -10.0)
+
+            def __call__(self, image=None, text=None):
+                batch_size = image.shape[0]
+                return {"image_features": torch.randn(batch_size, embed_dim)}
+
+        return MockModel()
+
     def test_forward_with_dict_output(self):
         """Test forward pass when model returns dict output."""
-        class MockModel:
-            def __call__(self, image):
-                batch_size = image.shape[0]
-                return {"image_features": torch.randn(batch_size, 768)}
-
-        encoder = CLIPVisionEncoder(MockModel())
+        encoder = CLIPVisionEncoder(self._make_mock_model())
         dummy_input = torch.randn(2, 3, 224, 224)
-        output = encoder(dummy_input)
+        embedding, logit_scale, logit_bias = encoder(dummy_input)
 
-        assert output.shape == (2, 768)
+        assert embedding.shape == (2, 768)
+        assert logit_scale.shape == ()
+        assert logit_bias.shape == ()
 
     def test_forward_with_tuple_output(self):
         """Test forward pass when model returns tuple output."""
         class MockModel:
-            def __call__(self, image):
+            def __init__(self):
+                self.logit_scale = torch.nn.Parameter(torch.ones([]) * 2.3026)
+                self.logit_bias = torch.nn.Parameter(torch.ones([]) * -10.0)
+
+            def __call__(self, image=None, text=None):
                 batch_size = image.shape[0]
                 return (torch.randn(batch_size, 768), torch.randn(batch_size, 768))
 
         encoder = CLIPVisionEncoder(MockModel())
         dummy_input = torch.randn(2, 3, 224, 224)
-        output = encoder(dummy_input)
+        embedding, _, _ = encoder(dummy_input)
 
-        assert output.shape == (2, 768)
+        assert embedding.shape == (2, 768)
 
     def test_forward_preserves_batch_size(self):
         """Test that batch size is preserved through forward pass."""
-        class MockModel:
-            def __call__(self, image):
-                batch_size = image.shape[0]
-                return {"image_features": torch.randn(batch_size, 512)}
-
-        encoder = CLIPVisionEncoder(MockModel())
+        encoder = CLIPVisionEncoder(self._make_mock_model(embed_dim=512))
 
         for batch_size in [1, 4, 16]:
             dummy_input = torch.randn(batch_size, 3, 224, 224)
-            output = encoder(dummy_input)
-            assert output.shape[0] == batch_size
+            embedding, _, _ = encoder(dummy_input)
+            assert embedding.shape[0] == batch_size
 
 
 @pytest.mark.multimodal_unit
@@ -352,30 +362,40 @@ class TestCLIPTextEncoder:
     def test_forward_with_dict_output(self):
         """Test forward pass when model returns dict output."""
         class MockModel:
-            def __call__(self, text):
+            def __init__(self):
+                self.logit_scale = torch.nn.Parameter(torch.ones([]) * 2.3026)
+                self.logit_bias = torch.nn.Parameter(torch.ones([]) * -10.0)
+
+            def __call__(self, image=None, text=None):
                 batch_size = text['input_ids'].shape[0]
                 return {"text_features": torch.randn(batch_size, 768)}
 
         encoder = CLIPTextEncoder(MockModel())
         dummy_input_ids = torch.zeros(2, 64, dtype=torch.long)
         dummy_attention_mask = torch.ones(2, 64, dtype=torch.long)
-        output = encoder(dummy_input_ids, dummy_attention_mask)
+        embedding, logit_scale, logit_bias = encoder(dummy_input_ids, dummy_attention_mask)
 
-        assert output.shape == (2, 768)
+        assert embedding.shape == (2, 768)
+        assert logit_scale.shape == ()
+        assert logit_bias.shape == ()
 
     def test_forward_with_tuple_output(self):
         """Test forward pass when model returns tuple output."""
         class MockModel:
-            def __call__(self, text):
+            def __init__(self):
+                self.logit_scale = torch.nn.Parameter(torch.ones([]) * 2.3026)
+                self.logit_bias = torch.nn.Parameter(torch.ones([]) * -10.0)
+
+            def __call__(self, image=None, text=None):
                 batch_size = text['input_ids'].shape[0]
                 return (torch.randn(batch_size, 768), torch.randn(batch_size, 768))
 
         encoder = CLIPTextEncoder(MockModel())
         dummy_input_ids = torch.zeros(2, 64, dtype=torch.long)
         dummy_attention_mask = torch.ones(2, 64, dtype=torch.long)
-        output = encoder(dummy_input_ids, dummy_attention_mask)
+        embedding, _, _ = encoder(dummy_input_ids, dummy_attention_mask)
 
-        assert output.shape == (2, 768)
+        assert embedding.shape == (2, 768)
 
 
 @pytest.mark.multimodal_unit

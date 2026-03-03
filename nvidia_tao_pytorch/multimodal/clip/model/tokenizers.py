@@ -207,7 +207,8 @@ def save_tokenizer(
         model_type_lower = model_type.lower()
 
         if 'radio' in model_type_lower:
-            if adaptor_name and 'siglip' in adaptor_name.lower():
+            # adaptor_name=None defaults to siglip at runtime (see builders.py)
+            if adaptor_name is None or 'siglip' in adaptor_name.lower():
                 hf_tokenizer_name = "google/siglip2-so400m-patch14-384"
             else:
                 hf_tokenizer_name = "openai/clip-vit-large-patch14"
