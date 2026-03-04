@@ -79,6 +79,7 @@ setuptools.setup(
             'ocdnet=nvidia_tao_pytorch.cv.ocdnet.entrypoint.ocdnet:main',
             'bevfusion=nvidia_tao_pytorch.cv.bevfusion.entrypoint.bevfusion:main',
             'sparse4d=nvidia_tao_pytorch.cv.sparse4d.entrypoint.sparse4d:main',
+            'nvpanoptix3d=nvidia_tao_pytorch.cv.nvpanoptix3d.entrypoint.nvpanoptix3d:main',
             # Pointpillars entry point
             'optical_inspection=nvidia_tao_pytorch.cv.optical_inspection.entrypoint.optical_inspection:main',
             'pointpillars=nvidia_tao_pytorch.pointcloud.pointpillars.entrypoint.pointpillars:main',
