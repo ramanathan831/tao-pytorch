@@ -44,8 +44,8 @@ TaoConfig.init([
     
     // Docker images
     images: [
-        BASE_IMAGE_X86: 'nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:286ab984654216b17d7b26cd9e13da94f5b90363f207e73b7430f236eff2de65',
-        BASE_IMAGE_ARM64: 'nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:217698d58e05df0f6a9a66f96f9cbe505268c39a3aac0dd02de98298f4f97596',
+        BASE_IMAGE_X86: 'nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:09d57702c7445b0bb6b37ac307dbb96ff304aa7da222eb24ff9094c9eefa46a8',
+        BASE_IMAGE_ARM64: 'nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:580dfb22fece9295a3529a94583ceeaa00f24288ebf3c1ffa4305140979a3302',
         DOCKER_DIND: 'docker:24.0.5-dind',
         SONAR_SCANNER: 'sonarsource/sonar-scanner-cli:11',
         IMAGE_NAME_PYT: 'nvcr.io/nvstaging/tao/tao-toolkit-pyt',
