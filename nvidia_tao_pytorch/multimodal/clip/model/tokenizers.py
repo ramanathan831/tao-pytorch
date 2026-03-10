@@ -197,10 +197,12 @@ def save_tokenizer(
         # SigLIP2: save the HuggingFace processor's tokenizer
         processor = inner_tokenizer._processor
         if hasattr(processor, 'tokenizer'):
-            processor.tokenizer.save_pretrained(output_dir)
+            hf_tokenizer = processor.tokenizer
         else:
             # Processor is the tokenizer itself
-            processor.save_pretrained(output_dir)
+            hf_tokenizer = processor
+        hf_tokenizer.model_max_length = inner_tokenizer._max_length  # e.g. 64 for SigLIP2
+        hf_tokenizer.save_pretrained(output_dir)
         logging.info("Saved SigLIP2 tokenizer to %s", output_dir)
     else:
         # OpenCLIP-based (RADIO CLIP, OpenCLIP): save equivalent HuggingFace tokenizer
@@ -217,6 +219,7 @@ def save_tokenizer(
             hf_tokenizer_name = "openai/clip-vit-large-patch14"
 
         hf_tokenizer = AutoTokenizer.from_pretrained(hf_tokenizer_name)
+        hf_tokenizer.model_max_length = 77  # canonical CLIP context length
         hf_tokenizer.save_pretrained(output_dir)
         logging.info(
             "Saved equivalent HuggingFace tokenizer (%s) to %s",
