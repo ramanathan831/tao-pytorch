@@ -21,7 +21,6 @@ import torch
 import torch.nn.functional as F
 import torchvision.ops as ops
 import torch.distributed as dist
-from collections import defaultdict
 from tabulate import tabulate
 
 from nvidia_tao_pytorch.core.tlt_logging import logger
@@ -30,7 +29,7 @@ from nvidia_tao_pytorch.core.distributed.comm import synchronize, get_world_size
 # --- Metrics Utility ---
 
 
-def ap_per_mask(pstats: torch.Tensor) -> torch.Tensor:
+def ap_per_mask(pstats: torch.Tensor, total_gt: int = None) -> torch.Tensor:
     """Compute AP@[0.5:0.95] treating all masks as a single class."""
     device = pstats.device
     niou = pstats.shape[1] - 2
@@ -40,7 +39,10 @@ def ap_per_mask(pstats: torch.Tensor) -> torch.Tensor:
     pstats = pstats[torch.argsort(-conf)]
 
     # Ground truth count estimate (max TP across IoUs)
-    n_gt = pstats[:, :niou].sum(dim=0).max().item()
+    if total_gt is None:
+        n_gt = pstats[:, :niou].sum(dim=0).max().item()
+    else:
+        n_gt = total_gt
     if n_gt == 0:
         return torch.zeros(niou, device=device)
 
@@ -75,7 +77,7 @@ class BaseEvaluator:
     def __init__(self, dataset_name, device, output_dir):
         """Initialize common evaluator attributes."""
         self.dataset_name = dataset_name
-        self.device = device or torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.device = device
         self.output_dir = output_dir
         self.iouv = torch.linspace(0.5, 0.95, 10).to(self.device)
 
@@ -94,7 +96,8 @@ class BaseEvaluator:
         dist.all_gather(size_list, local_size)
         size_list = [int(sz.item()) for sz in size_list]
         max_size = max(size_list)
-
+        if max_size == 0:
+            return torch.empty((0, *tensor.shape[1:]), dtype=tensor.dtype, device=self.device)
         # Pad local tensor to match max_size for all_gather
         if tensor.shape[0] < max_size:
             padding_shape = (max_size - tensor.shape[0], *tensor.shape[1:])
@@ -125,7 +128,6 @@ class OD_Evaluator(BaseEvaluator):
     def reset(self):
         """Reset accumulated OD statistics."""
         self.stats = {task: [] for task in self.iou_types}
-        self.gt_ious = {task: defaultdict(list) for task in self.iou_types}
         self.seen_images = 0
 
     def update(self, predictions, targets):
@@ -149,16 +151,14 @@ class OD_Evaluator(BaseEvaluator):
         t_img_ids = torch.full((len(t_labels),), img_id_val, dtype=torch.long)
 
         if len(p_scores) == 0:
-            if len(t_labels) > 0:
-                for cls in t_labels:
-                    self.gt_ious[task][cls.item()].append((0.0, img_id_val))
-            self.stats[task].append((torch.zeros(0, 10, dtype=torch.bool), p_scores, p_labels, t_labels, p_img_ids, t_img_ids))
+            best_iou_per_gt = torch.zeros(len(t_labels), device=self.device)
+            self.stats[task].append((torch.zeros(0, 10, dtype=torch.bool), p_scores, p_labels, t_labels, p_img_ids, t_img_ids, best_iou_per_gt))
             return
 
         if task == 'bbox':
             p_boxes, t_boxes = pred['boxes'].detach().cpu(), target['boxes'].detach().cpu()
-            if len(t_boxes) == 0:
-                iou_matrix = torch.zeros(0, len(p_boxes))
+            if len(t_boxes) == 0 or len(p_boxes) == 0:
+                iou_matrix = torch.zeros(len(t_boxes), len(p_boxes))
             else:
                 img_h, img_w = target.get("orig_size", (1.0, 1.0))
                 if t_boxes.numel() > 0 and t_boxes.max() <= 1.0:
@@ -170,22 +170,26 @@ class OD_Evaluator(BaseEvaluator):
         else:
             return
 
-        if len(t_labels) > 0:
+        best_iou_per_gt = torch.zeros(len(t_labels), device=self.device)
+        if len(t_labels) > 0 and iou_matrix.numel() > 0:
             class_match = (t_labels.unsqueeze(1) == p_labels.unsqueeze(0)).float()
             best_iou_per_gt, _ = (iou_matrix * class_match).max(dim=1)
-            for i, cls in enumerate(t_labels):
-                self.gt_ious[task][cls.item()].append((best_iou_per_gt[i].item(), img_id_val))
 
         correct = torch.zeros(len(p_scores), 10, dtype=torch.bool)
-        for i, thresh in enumerate(self.iouv.cpu()):
-            matches = self._match_predictions(p_labels, t_labels, iou_matrix, thresh)
-            if matches.shape[0] > 0:
-                correct[matches[:, 0].long(), i] = True
-        self.stats[task].append((correct, p_scores, p_labels, t_labels, p_img_ids, t_img_ids))
+        if iou_matrix.numel() > 0:
+            for i, thresh in enumerate(self.iouv.cpu()):
+                matches = self._match_predictions(p_labels, t_labels, iou_matrix, thresh)
+                if matches.shape[0] > 0:
+                    correct[matches[:, 0].long(), i] = True
+        # Append best_iou_per_gt as the 7th element
+        self.stats[task].append((correct, p_scores, p_labels, t_labels, p_img_ids, t_img_ids, best_iou_per_gt))
 
     def _process_segm(self, pred, target):
         """Process segmentation predictions and targets."""
         p_masks, t_masks = pred['masks'].detach(), target['masks'].detach()
+        # Safeguard: Prevent empty tensor interpolation
+        if len(p_masks) == 0 or len(t_masks) == 0:
+            return torch.zeros((len(t_masks), len(p_masks)), device=self.device)
         org_h, org_w = target.get("orig_size", t_masks.shape[-2:])
         aug_h, aug_w = target.get("size", t_masks.shape[-2:])
 
@@ -223,24 +227,16 @@ class OD_Evaluator(BaseEvaluator):
         merged_stats = {task: [] for task in self.iou_types}
         for task in self.iou_types:
             if self.stats[task]:
-                cor, conf, p_cls, t_cls, p_img, t_img = zip(*self.stats[task])
+                cor, conf, p_cls, t_cls, p_img, t_img, best_iou = zip(*self.stats[task])
                 local_p = torch.cat([torch.cat(cor, 0).float(), torch.cat(conf, 0).unsqueeze(1),
                                      torch.cat(p_cls, 0).unsqueeze(1).float(), torch.cat(p_img, 0).unsqueeze(1).float()], 1).to(self.device)
-                local_t = torch.stack([torch.cat(t_cls, 0).float(), torch.cat(t_img, 0).float()], 1).to(self.device)
+                local_t = torch.stack([torch.cat(t_cls, 0).float(), torch.cat(t_img, 0).float(), torch.cat(best_iou, 0).float()], 1).to(self.device)
             else:
-                local_p, local_t = torch.zeros((0, 13), device=self.device), torch.zeros((0, 2), device=self.device)
+                local_p, local_t = torch.zeros((0, 13), device=self.device), torch.zeros((0, 3), device=self.device)
 
             gp, gt = self.all_tensor_gather(local_p).cpu(), self.all_tensor_gather(local_t).cpu()
-            merged_stats[task] = [(gp[:, :10].bool(), gp[:, 10], gp[:, 11].long(), gt[:, 0].long(), gp[:, 12].long(), gt[:, 1].long())]
-
+            merged_stats[task] = [(gp[:, :10].bool(), gp[:, 10], gp[:, 11].long(), gt[:, 0].long(), gp[:, 12].long(), gt[:, 1].long(), gt[:, 2].float())]
         self.stats = merged_stats
-        merged_gt_ious = {task: defaultdict(list) for task in self.iou_types}
-        for task in self.iou_types:
-            flat = [[v, c, i] for c, items in self.gt_ious[task].items() for v, i in items]
-            gp = self.all_tensor_gather(torch.tensor(flat, device=self.device) if flat else torch.zeros((0, 3), device=self.device)).cpu().numpy()
-            for v, c, i in gp:
-                merged_gt_ious[task][int(c)].append((float(v), int(i)))
-        self.gt_ious = merged_gt_ious
 
     def summarize(self):
         """Summarize evaluation results."""
@@ -258,13 +254,14 @@ class OD_Evaluator(BaseEvaluator):
         """Summarize evaluation results for a specific task."""
         if not self.stats[task]:
             return {}
-        correct, conf, pred_cls, target_cls, p_img_ids, t_img_ids = zip(*self.stats[task])
+        correct, conf, pred_cls, target_cls, p_img_ids, t_img_ids, best_iou_gt = zip(*self.stats[task])
         tp, conf, pred_cls = torch.cat(correct, 0), torch.cat(conf, 0), torch.cat(pred_cls, 0)
         target_cls, p_img_ids, t_img_ids = torch.cat(target_cls, 0), torch.cat(p_img_ids, 0), torch.cat(t_img_ids, 0)
-
+        best_iou_gt = torch.cat(best_iou_gt, 0)
         # Standard indexing
         v_t, v_p = np.arange(len(t_img_ids)), np.arange(len(p_img_ids))
-        target_cls, tp, conf, pred_cls = target_cls[v_t], tp[v_p], conf[v_p], pred_cls[v_p]
+        # Sliced best_iou_gt alongside target_cls
+        target_cls, tp, conf, pred_cls, best_iou_gt = target_cls[v_t], tp[v_p], conf[v_p], pred_cls[v_p], best_iou_gt[v_t]
 
         idx = torch.argsort(conf, descending=True)
         tp, pred_cls = tp[idx], pred_cls[idx]
@@ -283,10 +280,9 @@ class OD_Evaluator(BaseEvaluator):
                 fpc = (1 - tp[i].float()).cumsum(0)
                 recall, precision = tpc / (n_gt + 1e-16), tpc / (tpc + fpc + 1e-16)
                 ap_per_iou = [self._compute_ap(recall[:, j].numpy(), precision[:, j].numpy()) for j in range(10)]
-                miou_list = [v for v, img in self.gt_ious[task][c]]
-                miou = np.mean(miou_list) if miou_list else 0.0
+                # Direct Tensor mIoU calculation (Replacing dictionary loop)
+                miou = best_iou_gt[target_cls == c].mean().item() if n_gt > 0 else 0.0
                 metrics = [precision[:, 0][-1].item(), recall[:, 0][-1].item(), ap_per_iou[0], np.mean(ap_per_iou), miou]
-
             name = self.class_names[c] if self.class_names and c < len(self.class_names) else str(c)
             results[name] = dict(zip(['P', 'R', 'mAP@50', 'mAP@50-95', 'mIoU'], metrics))
             stats_table.append([name, n_gt] + metrics)
@@ -309,7 +305,7 @@ class OD_Evaluator(BaseEvaluator):
         mrec = np.concatenate(([0.0], recall, [1.0]))
         mpre = np.concatenate(([1.0], precision, [0.0]))
         mpre = np.flip(np.maximum.accumulate(np.flip(mpre)))
-        return np.trapz(np.interp(np.linspace(0, 1, 101), mrec, mpre), np.linspace(0, 1, 101))
+        return np.mean(np.interp(np.linspace(0, 1, 101), mrec, mpre))
 
 # --- VG Evaluator ---
 
@@ -323,45 +319,49 @@ class VG_Evaluator(BaseEvaluator):
                          kwargs.get('device'),
                          kwargs.get('output_dir'))
         self.pr_thresholds = [0.5, 0.7, 0.9]
-        self.reset()
+        self.predictions = []
+        self.pstats = []
 
     def reset(self):
         """Reset accumulated VG predictions and statistics."""
-        self.predictions = []
-        self.pstats = []
+        self.predictions.clear()
+        self.pstats.clear()
 
     def update(self, results, targets, no_targets=None):
         """Update evaluator with predictions and targets from one batch."""
         for i, (pred, target) in enumerate(zip(results, targets)):
             img_id = target.get("image_id", 0)
+            expr_id = target.get("caption_id", target.get("sent_id", 0))
             gt_empty = target.get("empty", False)
             org_h, org_w = target["orig_size"]
 
             # Ground Truth Mask Processing
             gt_mask = None
-            if not gt_empty:
-                raw_gt = target["masks"][:, : target["size"][0], : target["size"][1]]
+            raw_gt = target["masks"]
+            if not gt_empty and len(raw_gt) > 0:
+                raw_gt = raw_gt[:, : target["size"][0], : target["size"][1]]
                 gt_mask = F.interpolate(raw_gt.unsqueeze(0).float(),
                                         size=(org_h, org_w), mode='nearest')[0].any(dim=0) > 0.5
 
             # Prediction Processing
             pred_nt = (pred["scores"].numel() == 0) or (no_targets is not None and no_targets[i].bool())
             pred_mask, conf = None, torch.tensor(0.0, device=self.device)
-            if not pred_nt:
-                p_masks = F.interpolate(pred["masks"].unsqueeze(0),
+            raw_pred = pred["masks"]
+            if not pred_nt and len(raw_pred) > 0:
+                p_masks = F.interpolate(raw_pred.unsqueeze(0),
                                         size=(org_h, org_w), mode='bilinear', align_corners=False)[0] > 0.5
                 pred_mask = p_masks.any(dim=0)
                 conf = pred["scores"].mean()
 
             # IoU and Binary Logic
-            inter = union = iou = 0.0
-            if gt_empty:
-                iou = 1.0 if pred_nt else 0.0
+            if gt_mask is None and pred_mask is None:
+                inter, union, iou = 0.0, 0.0, 1.0
+            elif gt_mask is None or pred_mask is None:
+                inter, union, iou = 0.0, (gt_mask.sum().item() if gt_mask is not None else pred_mask.sum().item()), 0.0
             else:
-                if not pred_nt:
-                    inter = (gt_mask & pred_mask).sum().item()
-                    union = (gt_mask | pred_mask).sum().item()
-                    iou = inter / max(union, 1e-6)
+                inter = (gt_mask & pred_mask).sum().item()
+                union = (gt_mask | pred_mask).sum().item()
+                iou = inter / max(union, 1e-6)
 
             # [correct_flags, confidence, dummy_class]
             pstat = torch.cat([(iou >= self.iouv)[None].to(torch.bool),
@@ -369,35 +369,48 @@ class VG_Evaluator(BaseEvaluator):
                                torch.zeros((1, 1), device=self.device)], dim=1)
             self.pstats.append(pstat)
 
-            # [img_id, gt_empty, pred_nt, inter, union, iou]
-            self.predictions.append(torch.tensor([int(img_id), int(gt_empty), int(pred_nt), inter, union, iou], device=self.device))
+            # Store row: [img_id, expr_id, gt_empty, pred_nt, inter, union, iou]
+            self.predictions.append(torch.tensor([int(img_id), int(expr_id), int(gt_empty), int(pred_nt), inter, union, iou], device=self.device))
 
     @synchronize
     def evaluate(self) -> dict | None:
         """Evaluate VG predictions and targets."""
         if not self.predictions:
             return None
-        all_preds = self.all_tensor_gather(torch.stack(self.predictions))
-        all_pstats = self.all_tensor_gather(torch.cat(self.pstats))
+        # Protect against empty arrays on some ranks during DDP Gathering
+        local_preds = torch.stack(self.predictions) if self.predictions else torch.empty((0, 7), device=self.device)
+        local_pstats = torch.cat(self.pstats, dim=0) if self.pstats else torch.empty((0, 12), device=self.device)
+        all_preds = self.all_tensor_gather(local_preds)
+        all_pstats = self.all_tensor_gather(local_pstats)
 
         if get_global_rank() != 0:
             return None
-
+        # Robust DDP Deduplication (Images/Expressions only counted once)
+        unique_keys = [f"{int(img)}_{int(exp)}" for img, exp in zip(all_preds[:, 0].cpu().numpy(), all_preds[:, 1].cpu().numpy())]
+        seen = set()
+        valid_indices = []
+        for i, k in enumerate(unique_keys):
+            if k not in seen:
+                seen.add(k)
+                valid_indices.append(i)
+        all_preds = all_preds[valid_indices]
+        all_pstats = all_pstats[valid_indices]
         # Accuracy Metrics
-        gt_empty_mask = all_preds[:, 1] == 1
-        gt_content_mask = all_preds[:, 1] == 0
+        gt_empty_mask = all_preds[:, 2] == 1
+        gt_content_mask = all_preds[:, 2] == 0
+        pred_empty_mask = all_preds[:, 3] == 1
+        n_acc = pred_empty_mask[gt_empty_mask].float().mean().item() if gt_empty_mask.any() else 0.0
+        t_acc = (~pred_empty_mask[gt_content_mask]).float().mean().item() if gt_content_mask.any() else 0.0
 
-        # N_acc: Correctly predicted "no target" when target was empty
-        n_acc = all_preds[gt_empty_mask, 2].mean().item() if gt_empty_mask.any() else 0.0
-        # T_acc: Correctly predicted "content exists" when target had content
-        t_acc = (1 - all_preds[gt_content_mask, 2]).mean().item() if gt_content_mask.any() else 0.0
-
-        ap = ap_per_mask(all_pstats.to(self.device))
+        # Safely compute AP skipping True Negatives to prevent inflating AP artificially
+        valid_ap_mask = ~pred_empty_mask  # Only actual predictions go into the PR curve
+        total_gt = gt_content_mask.sum().item()
+        ap = ap_per_mask(all_pstats[valid_ap_mask], total_gt=total_gt)
 
         final_res = {
             "dataset": self.dataset_name,
-            "mIoU": 100.0 * all_preds[:, 5].mean().item(),
-            "overall_IoU": 100.0 * all_preds[:, 3].sum().item() / max(all_preds[:, 4].sum().item(), 1e-6),
+            "mIoU": 100.0 * all_preds[:, 6].mean().item(),
+            "overall_IoU": 100.0 * all_preds[:, 4].sum().item() / max(all_preds[:, 5].sum().item(), 1e-6),
             "mAP50": 100.0 * ap[0].item(),
             "mAP": 100.0 * ap.mean().item(),
             "T_acc": 100.0 * t_acc,
@@ -405,7 +418,7 @@ class VG_Evaluator(BaseEvaluator):
         }
 
         # Recall at thresholds (Pr@X)
-        valid_ious = all_preds[gt_content_mask, 5]
+        valid_ious = all_preds[gt_content_mask, 6]
         for th in self.pr_thresholds:
             final_res[f"Pr@{th}"] = 100.0 * (valid_ious >= th).float().mean().item() if valid_ious.numel() > 0 else 0.0
 
