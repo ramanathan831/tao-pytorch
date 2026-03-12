@@ -34,6 +34,7 @@ from nvidia_tao_pytorch.cv.nvpanoptix3d.model.reconstruction.resnet import (
     SparseBasicBlock3D,
 )
 from nvidia_tao_pytorch.cv.nvpanoptix3d.utils.sparse_utils import (
+    _is_empty_sparse,
     sparse_cat_union,
     add_voxels,
 )
@@ -415,7 +416,13 @@ class FrustumDecoder(nn.Module):
                 )
 
                 pruning_mask = (occupancy_scores > 0.5) & valid_mask
+                valid_support = SparsePrune()(decoded, valid_mask)
                 sparse_out = SparsePrune()(decoded, pruning_mask)
+                if _is_empty_sparse(sparse_out):
+                    # Preserve a valid sparse support set so downstream sparse
+                    # heads still receive coordinates and produce a penalized
+                    # prediction instead of failing on an empty tensor.
+                    sparse_out = valid_support if not _is_empty_sparse(valid_support) else decoded
 
                 if idx > 0:
                     sparse_out = sparse_cat_union(encoder_outputs[idx - 1], sparse_out)
