@@ -347,6 +347,17 @@ class NVPanoptix3DPlModule(TAOLightningModule):
         self.log("RSQ", all_batch_metrics["sq"] * 100, on_epoch=True, prog_bar=True, sync_dist=True)
         self.log("RRQ", all_batch_metrics["rq"] * 100, on_epoch=True, prog_bar=True, sync_dist=True)
 
+        s_logger = status_logging.get_status_logger()
+        s_logger.kpi = {
+            "PRQ": all_batch_metrics["pq"] * 100,
+            "RSQ": all_batch_metrics["sq"] * 100,
+            "RRQ": all_batch_metrics["rq"] * 100,
+        }
+        s_logger.write(
+            message="Validation metrics generated.",
+            status_level=status_logging.Status.RUNNING,
+        )
+
         classes = self.pq_evaluator.class_id_to_name.values()
 
         # print metrics only once (from global rank 0)
