@@ -271,7 +271,8 @@ class CLIPTextEncoder(nn.Module):
         input_ids : torch.Tensor
             Tokenized text input IDs of shape (B, seq_len).
         attention_mask : torch.Tensor
-            Attention mask of shape (B, seq_len).
+            Attention mask of shape (B, seq_len). Accepted for backward
+            compatibility but ignored — all-ones is used internally.
 
         Returns
         -------
@@ -279,7 +280,13 @@ class CLIPTextEncoder(nn.Module):
             (text_embedding, logit_scale, logit_bias) where embedding has
             shape (B, D) and logit_scale/logit_bias are scalar tensors.
         """
-        text_input = {'input_ids': input_ids, 'attention_mask': attention_mask}
+        # Ignore user-provided attention_mask: SigLIP2 requires all-ones,
+        # and CLIP/OpenCLIP adapters discard it anyway.
+        # Tie attention_mask into input_ids via `+ mask * 0` so the ONNX tracer
+        # keeps it as a graph input for backward compatibility. This works even
+        # when the adapter only consumes input_ids (OpenCLIP/CLIP path).
+        input_ids = input_ids + (attention_mask * 0).to(input_ids.dtype)
+        text_input = {'input_ids': input_ids, 'attention_mask': torch.ones_like(input_ids)}
         output = self.model(text=text_input)
         if isinstance(output, dict):
             text_features = output["text_features"]
@@ -322,7 +329,8 @@ class CLIPCombinedEncoder(nn.Module):
         input_ids : torch.Tensor
             Tokenized text input IDs of shape (B, seq_len).
         attention_mask : torch.Tensor
-            Attention mask of shape (B, seq_len).
+            Attention mask of shape (B, seq_len). Accepted for backward
+            compatibility but ignored — all-ones is used internally.
 
         Returns
         -------
@@ -331,7 +339,9 @@ class CLIPCombinedEncoder(nn.Module):
             embeddings have shape (B, D) and logit_scale/logit_bias are
             scalar tensors.
         """
-        text_input = {'input_ids': input_ids, 'attention_mask': attention_mask}
+        # Ignore user-provided attention_mask (see CLIPTextEncoder for rationale)
+        input_ids = input_ids + (attention_mask * 0).to(input_ids.dtype)
+        text_input = {'input_ids': input_ids, 'attention_mask': torch.ones_like(input_ids)}
         image_features, text_features, logit_scale, logit_bias = self.model(
             image=image, text=text_input
         )
