@@ -81,7 +81,6 @@ spec:
             - A100_PCIE_40GB
             - A100_80GB_PCIE
             - A100_PCIE_80GB
-            - A100_SXM4_80GB
             - H100_80GB_HBM3
             - H100_PCIE
             - H100_NVL
