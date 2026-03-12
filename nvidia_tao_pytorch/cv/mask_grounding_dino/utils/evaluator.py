@@ -75,7 +75,7 @@ class BaseEvaluator:
     def __init__(self, dataset_name, device, output_dir):
         """Initialize common evaluator attributes."""
         self.dataset_name = dataset_name
-        self.device = device or torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.device = device
         self.output_dir = output_dir
         self.iouv = torch.linspace(0.5, 0.95, 10).to(self.device)
 
@@ -94,7 +94,8 @@ class BaseEvaluator:
         dist.all_gather(size_list, local_size)
         size_list = [int(sz.item()) for sz in size_list]
         max_size = max(size_list)
-
+        if max_size == 0:
+            return torch.empty((0, *tensor.shape[1:]), dtype=tensor.dtype, device=self.device)
         # Pad local tensor to match max_size for all_gather
         if tensor.shape[0] < max_size:
             padding_shape = (max_size - tensor.shape[0], *tensor.shape[1:])
@@ -157,8 +158,8 @@ class OD_Evaluator(BaseEvaluator):
 
         if task == 'bbox':
             p_boxes, t_boxes = pred['boxes'].detach().cpu(), target['boxes'].detach().cpu()
-            if len(t_boxes) == 0:
-                iou_matrix = torch.zeros(0, len(p_boxes))
+            if len(t_boxes) == 0 or len(p_boxes) == 0:
+                iou_matrix = torch.zeros(len(t_boxes), len(p_boxes))
             else:
                 img_h, img_w = target.get("orig_size", (1.0, 1.0))
                 if t_boxes.numel() > 0 and t_boxes.max() <= 1.0:
@@ -170,22 +171,26 @@ class OD_Evaluator(BaseEvaluator):
         else:
             return
 
-        if len(t_labels) > 0:
+        if len(t_labels) > 0 and iou_matrix.numel() > 0:
             class_match = (t_labels.unsqueeze(1) == p_labels.unsqueeze(0)).float()
             best_iou_per_gt, _ = (iou_matrix * class_match).max(dim=1)
             for i, cls in enumerate(t_labels):
                 self.gt_ious[task][cls.item()].append((best_iou_per_gt[i].item(), img_id_val))
 
         correct = torch.zeros(len(p_scores), 10, dtype=torch.bool)
-        for i, thresh in enumerate(self.iouv.cpu()):
-            matches = self._match_predictions(p_labels, t_labels, iou_matrix, thresh)
-            if matches.shape[0] > 0:
-                correct[matches[:, 0].long(), i] = True
+        if iou_matrix.numel() > 0:
+            for i, thresh in enumerate(self.iouv.cpu()):
+                matches = self._match_predictions(p_labels, t_labels, iou_matrix, thresh)
+                if matches.shape[0] > 0:
+                    correct[matches[:, 0].long(), i] = True
         self.stats[task].append((correct, p_scores, p_labels, t_labels, p_img_ids, t_img_ids))
 
     def _process_segm(self, pred, target):
         """Process segmentation predictions and targets."""
         p_masks, t_masks = pred['masks'].detach(), target['masks'].detach()
+        # Safeguard: Prevent empty tensor interpolation
+        if len(p_masks) == 0 or len(t_masks) == 0:
+            return torch.zeros((len(t_masks), len(p_masks)), device=self.device)
         org_h, org_w = target.get("orig_size", t_masks.shape[-2:])
         aug_h, aug_w = target.get("size", t_masks.shape[-2:])
 
@@ -323,12 +328,13 @@ class VG_Evaluator(BaseEvaluator):
                          kwargs.get('device'),
                          kwargs.get('output_dir'))
         self.pr_thresholds = [0.5, 0.7, 0.9]
-        self.reset()
+        self.predictions = []
+        self.pstats = []
 
     def reset(self):
         """Reset accumulated VG predictions and statistics."""
-        self.predictions = []
-        self.pstats = []
+        self.predictions.clear()
+        self.pstats.clear()
 
     def update(self, results, targets, no_targets=None):
         """Update evaluator with predictions and targets from one batch."""
@@ -339,29 +345,31 @@ class VG_Evaluator(BaseEvaluator):
 
             # Ground Truth Mask Processing
             gt_mask = None
-            if not gt_empty:
-                raw_gt = target["masks"][:, : target["size"][0], : target["size"][1]]
+            raw_gt = target["masks"]
+            if not gt_empty and len(raw_gt) > 0:
+                raw_gt = raw_gt[:, : target["size"][0], : target["size"][1]]
                 gt_mask = F.interpolate(raw_gt.unsqueeze(0).float(),
                                         size=(org_h, org_w), mode='nearest')[0].any(dim=0) > 0.5
 
             # Prediction Processing
             pred_nt = (pred["scores"].numel() == 0) or (no_targets is not None and no_targets[i].bool())
             pred_mask, conf = None, torch.tensor(0.0, device=self.device)
-            if not pred_nt:
-                p_masks = F.interpolate(pred["masks"].unsqueeze(0),
+            raw_pred = pred["masks"]
+            if not pred_nt and len(raw_pred) > 0:
+                p_masks = F.interpolate(raw_pred.unsqueeze(0),
                                         size=(org_h, org_w), mode='bilinear', align_corners=False)[0] > 0.5
                 pred_mask = p_masks.any(dim=0)
                 conf = pred["scores"].mean()
 
             # IoU and Binary Logic
-            inter = union = iou = 0.0
-            if gt_empty:
-                iou = 1.0 if pred_nt else 0.0
+            if gt_mask is None and pred_mask is None:
+                inter, union, iou = 0.0, 0.0, 1.0
+            elif gt_mask is None or pred_mask is None:
+                inter, union, iou = 0.0, (gt_mask.sum().item() if gt_mask is not None else pred_mask.sum().item()), 0.0
             else:
-                if not pred_nt:
-                    inter = (gt_mask & pred_mask).sum().item()
-                    union = (gt_mask | pred_mask).sum().item()
-                    iou = inter / max(union, 1e-6)
+                inter = (gt_mask & pred_mask).sum().item()
+                union = (gt_mask | pred_mask).sum().item()
+                iou = inter / max(union, 1e-6)
 
             # [correct_flags, confidence, dummy_class]
             pstat = torch.cat([(iou >= self.iouv)[None].to(torch.bool),
