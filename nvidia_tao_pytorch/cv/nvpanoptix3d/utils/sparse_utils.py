@@ -25,6 +25,19 @@ from warpconvnet.geometry.features.cat import CatFeatures
 from warpconvnet.nn.modules.prune import SparsePrune
 
 
+def _is_empty_sparse(voxels: Voxels) -> bool:
+    """Check whether a sparse voxel tensor has any active coordinates.
+
+    Args:
+        voxels: Sparse voxel tensor whose active features should be inspected.
+
+    Returns:
+        ``True`` when the sparse tensor contains no active feature rows and
+        therefore no active coordinates; ``False`` otherwise.
+    """
+    return voxels.feature_tensor.numel() == 0 or voxels.feature_tensor.shape[0] == 0
+
+
 def sparse_cat_union(a: Voxels, b: Voxels) -> Voxels:
     """Union coordinates and concatenate features from two sparse voxel tensors.
 
@@ -33,18 +46,16 @@ def sparse_cat_union(a: Voxels, b: Voxels) -> Voxels:
         b: Second :class:`~warpconvnet.geometry.types.voxels.Voxels` object.
 
     Returns:
-        A new ``Voxels`` instance with unioned coordinates and concatenated features.
+        A new ``Voxels`` instance with unioned coordinates and concatenated
+        features. When one input is empty, the result still preserves the full
+        concatenated channel dimension by zero-padding the missing side instead
+        of returning the non-empty tensor unchanged.
 
     Raises:
         AssertionError: If ``tensor_stride`` or ``batch_size`` do not match.
     """
     assert a.tensor_stride == b.tensor_stride, "different tensor_stride"
     assert a.batch_size == b.batch_size, "different batch size"
-
-    if a.feature_tensor.numel() == 0 or a.feature_tensor.shape[0] == 0:
-        return b
-    if b.feature_tensor.numel() == 0 or b.feature_tensor.shape[0] == 0:
-        return a
 
     coords_a = a.batch_indexed_coordinates
     coords_b = b.batch_indexed_coordinates

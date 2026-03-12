@@ -658,11 +658,16 @@ class SetCriterion(nn.Module):
                 features = pred_lvl.feature_tensor[batch_mask]
                 coords = pred_lvl.coordinate_tensor[batch_mask].long()
                 coords = coords.clone()
-                pred_vals = features.T[src_idx]
-                target_mask = target_masks[lvl][:, coords[:, 0], coords[:, 1], coords[:, 2]]
-                target_weighting = target_weightings[lvl][coords[:, 0], coords[:, 1], coords[:, 2]]
-                loss = F.binary_cross_entropy_with_logits(pred_vals, target_mask, reduction="none")
-                loss = (loss * target_weighting).mean(-1).sum()
+                if coords.numel() == 0 or features.numel() == 0:
+                    # Empty sparse predictions must remain finite so training
+                    # can continue and matched GT masks still contribute loss.
+                    loss = target_masks[lvl].flatten(1).any(dim=1).to(dtype).sum()
+                else:
+                    pred_vals = features.T[src_idx]
+                    target_mask = target_masks[lvl][:, coords[:, 0], coords[:, 1], coords[:, 2]]
+                    target_weighting = target_weightings[lvl][coords[:, 0], coords[:, 1], coords[:, 2]]
+                    loss = F.binary_cross_entropy_with_logits(pred_vals, target_mask, reduction="none")
+                    loss = (loss * target_weighting).mean(-1).sum()
 
                 if len(level_losses) <= lvl:
                     level_losses.append(loss * w)
