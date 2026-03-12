@@ -98,6 +98,7 @@ spec:
             - 580.35
             - 580.66
             - 580.82.07
+            - 580.95.05
           - key: kubernetes.io/os
             operator: In
             values:
