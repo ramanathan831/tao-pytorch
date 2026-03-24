@@ -126,6 +126,7 @@ def _seed_and_cleanup():
         MetadataCatalog.remove("custom")
 
 
+
 @pytest.fixture(scope="module")
 def _test_sample_3d_json(
     _tmp_top_dir: str,
