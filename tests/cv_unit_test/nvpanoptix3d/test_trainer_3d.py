@@ -14,6 +14,7 @@
 
 """Test NVPanoptix3D trainer for 3D stage."""
 
+import gc
 import json
 import os
 import tempfile
@@ -22,6 +23,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import numpy as np
+import torch
 from PIL import Image
 from omegaconf import OmegaConf
 from pytorch_lightning import Trainer
@@ -33,6 +35,7 @@ from nvidia_tao_pytorch.cv.nvpanoptix3d.dataloader.pl_data_module import \
 from nvidia_tao_pytorch.cv.nvpanoptix3d.dataloader import preprocessor as preproc_mod
 from nvidia_tao_pytorch.cv.nvpanoptix3d.model.pl_model_3d import \
     NVPanoptix3DPlModule
+from nvidia_tao_pytorch.cv.mask2former.utils.d2.catalog import MetadataCatalog
 from nvidia_tao_pytorch.core.utilities import check_and_create
 
 
@@ -69,8 +72,9 @@ def mock_pyexr_for_dataset():
     """Create a mock pyexr module for testing."""
     mock_pyexr = MagicMock()
     depth_shape = (TEST_HEIGHT, TEST_WIDTH, 1)
+    rng = np.random.RandomState(42)
     mock_pyexr.read = MagicMock(
-        return_value=np.random.rand(*depth_shape).astype(np.float32)
+        return_value=rng.rand(*depth_shape).astype(np.float32)
     )
     return mock_pyexr
 
@@ -104,6 +108,25 @@ def _frustum_mask_file(_tmp_top_dir: str) -> str:
     return os.path.join(_tmp_top_dir, "frustum_mask.npz")
 
 
+@pytest.fixture(autouse=True)
+def _seed_and_cleanup():
+    """Seed RNGs before each test and clean up GPU memory + global state after."""
+    np.random.seed(42)
+    torch.manual_seed(42)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(42)
+
+    yield
+
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+    if "custom" in MetadataCatalog:
+        MetadataCatalog.remove("custom")
+
+
+
 @pytest.fixture(scope="module")
 def _test_sample_3d_json(
     _tmp_top_dir: str,
@@ -112,6 +135,7 @@ def _test_sample_3d_json(
     _frustum_mask_file: str,
 ) -> None:
     """Create test data following Front3D dataset format for 3D stage."""
+    np.random.seed(42)
     check_and_create(_tmp_top_dir)
 
     # Write colormap
@@ -298,8 +322,8 @@ def _train_spec_3d(
     experiment_config.model.frustum3d.panoptic_weight = 25.0
     experiment_config.model.frustum3d.completion_weights = [50.0, 25.0, 10.0]
     experiment_config.model.frustum3d.surface_weight = 5.0
-    experiment_config.model.frustum3d.unet_output_channels = 16
-    experiment_config.model.frustum3d.unet_features = 16
+    experiment_config.model.frustum3d.unet_output_channels = 8
+    experiment_config.model.frustum3d.unet_features = 8
     experiment_config.model.frustum3d.use_multi_scale = True
     experiment_config.model.frustum3d.grid_dimensions = GRID_DIM
     experiment_config.model.frustum3d.frustum_dims = GRID_DIM
@@ -309,6 +333,7 @@ def _train_spec_3d(
     experiment_config.model.projection.voxel_size = 0.03
     experiment_config.model.projection.sign_channel = True
     experiment_config.model.projection.depth_feature_dim = 256
+    experiment_config.model.mask_former.num_object_queries = 10
 
     yield experiment_config
 
@@ -368,10 +393,13 @@ def _eval_spec_3d(
     experiment_config.model.sem_seg_head.num_classes = 13
     experiment_config.model.backbone.backbone_type = "vggt"
     experiment_config.model.backbone.pretrained_model_path = ""
-    experiment_config.model.mask_former.num_object_queries = 100
+    experiment_config.model.mask_former.num_object_queries = 10
     experiment_config.model.mask_former.dec_layers = 10
     experiment_config.model.frustum3d.grid_dimensions = GRID_DIM
     experiment_config.model.frustum3d.frustum_dims = GRID_DIM
+    experiment_config.model.frustum3d.unet_output_channels = 8
+    experiment_config.model.frustum3d.unet_features = 8
+    experiment_config.model.projection.depth_feature_dim = 256
 
     yield experiment_config
 
@@ -431,10 +459,13 @@ def _infer_spec_3d(
     experiment_config.model.sem_seg_head.num_classes = 13
     experiment_config.model.backbone.backbone_type = "vggt"
     experiment_config.model.backbone.pretrained_model_path = ""
-    experiment_config.model.mask_former.num_object_queries = 100
+    experiment_config.model.mask_former.num_object_queries = 10
     experiment_config.model.mask_former.dec_layers = 10
     experiment_config.model.frustum3d.grid_dimensions = GRID_DIM
     experiment_config.model.frustum3d.frustum_dims = GRID_DIM
+    experiment_config.model.frustum3d.unet_output_channels = 8
+    experiment_config.model.frustum3d.unet_features = 8
+    experiment_config.model.projection.depth_feature_dim = 256
     experiment_config.inference.images_dir = os.path.join(
         _tmp_top_dir, "data", "test_scene"
     )
@@ -460,6 +491,8 @@ def test_trainer_3d_fit(_test_sample_3d_json, _train_spec_3d):
         accelerator="auto",
         gradient_clip_val=_train_spec_3d.train.clip_grad_norm,
         use_distributed_sampler=False,
+        precision="16-mixed",
+        num_sanity_val_steps=0,
         fast_dev_run=FAST_DEV_RUN
     )
     # Test train
@@ -480,6 +513,7 @@ def test_trainer_3d_evaluate(_test_sample_3d_json, _eval_spec_3d):
         devices=_eval_spec_3d.evaluate.num_gpus,
         default_root_dir=_eval_spec_3d.results_dir,
         accelerator="auto",
+        precision="16-mixed",
         fast_dev_run=FAST_DEV_RUN
     )
 
@@ -500,6 +534,7 @@ def test_trainer_3d_inference(_test_sample_3d_json, _infer_spec_3d):
         devices=_infer_spec_3d.inference.num_gpus,
         default_root_dir=_infer_spec_3d.results_dir,
         accelerator="auto",
+        precision="16-mixed",
         fast_dev_run=FAST_DEV_RUN
     )
 

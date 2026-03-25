@@ -101,6 +101,7 @@ class CRADIO(BaseCLIPAdapter):
             skip_validation=True,
             adaptor_names=adaptor_name,
         )
+        self.radio_model.make_preprocessor_external()
 
         self.adaptor = self.radio_model.adaptors[adaptor_name]
 
@@ -113,10 +114,13 @@ class CRADIO(BaseCLIPAdapter):
                 raw_tokenizer, canonicalize=canonicalize_text
             )
         else:
-            # SigLIP2 adaptor: wrap with SigLIP2WrappedTokenizer for
-            # canonicalization control
+            # RADIO's SigLIP2 adaptor already wraps the HF processor in
+            # its own SigLIP2WrappedTokenizer (stored as ._proc). Extract
+            # the underlying processor to avoid double-wrapping and to
+            # give us control over canonicalization.
+            processor = getattr(raw_tokenizer, '_proc', raw_tokenizer)
             raw_tokenizer = SigLIP2WrappedTokenizer(
-                raw_tokenizer, canonicalize=canonicalize_text
+                processor, canonicalize=canonicalize_text
             )
         self.tokenizer = CLIPCompatibleTokenizer(raw_tokenizer)
 

@@ -55,6 +55,13 @@ class SigLIP2WrappedTokenizer:
 
     def __init__(self, processor, max_length: int = 64, canonicalize: bool = False):
         """Initialize the tokenizer wrapper."""
+        # Guard against double-wrapping: if processor is already a wrapped
+        # tokenizer (e.g. RADIO's SigLIP2WrappedTokenizer), extract the
+        # underlying HuggingFace processor.
+        for attr in ('_proc', '_processor'):
+            if hasattr(processor, attr):
+                processor = getattr(processor, attr)
+                break
         self._processor = processor
         self._max_length = max_length
         self._canonicalize = canonicalize
@@ -190,25 +197,40 @@ def save_tokenizer(
         # SigLIP2: save the HuggingFace processor's tokenizer
         processor = inner_tokenizer._processor
         if hasattr(processor, 'tokenizer'):
-            processor.tokenizer.save_pretrained(output_dir)
+            hf_tokenizer = processor.tokenizer
         else:
             # Processor is the tokenizer itself
-            processor.save_pretrained(output_dir)
+            hf_tokenizer = processor
+        hf_tokenizer.model_max_length = inner_tokenizer._max_length  # e.g. 64 for SigLIP2
+        hf_tokenizer.save_pretrained(output_dir)
         logging.info("Saved SigLIP2 tokenizer to %s", output_dir)
     else:
         # OpenCLIP-based (RADIO CLIP, OpenCLIP): save equivalent HuggingFace tokenizer
+        from nvidia_tao_pytorch.multimodal.clip.utils.model_configs import (
+            map_clip_model_cfg,
+        )
+
         model_type_lower = model_type.lower()
 
         if 'radio' in model_type_lower:
-            if adaptor_name and 'siglip' in adaptor_name.lower():
+            # adaptor_name=None defaults to siglip at runtime (see builders.py)
+            if adaptor_name is None or 'siglip' in adaptor_name.lower():
                 hf_tokenizer_name = "google/siglip2-so400m-patch14-384"
             else:
                 hf_tokenizer_name = "openai/clip-vit-large-patch14"
+            ctx_len = 77
         else:
-            # OpenCLIP models
-            hf_tokenizer_name = "openai/clip-vit-large-patch14"
+            # OpenCLIP models: look up the correct tokenizer from the
+            # detailed clip model config (map_clip_model_cfg has text_cfg)
+            cfg = map_clip_model_cfg.get(model_type, {})
+            text_cfg = cfg.get("text_cfg", {})
+            hf_tokenizer_name = text_cfg.get(
+                "hf_tokenizer_name", "openai/clip-vit-large-patch14"
+            )
+            ctx_len = text_cfg.get("context_length", 77)
 
         hf_tokenizer = AutoTokenizer.from_pretrained(hf_tokenizer_name)
+        hf_tokenizer.model_max_length = ctx_len
         hf_tokenizer.save_pretrained(output_dir)
         logging.info(
             "Saved equivalent HuggingFace tokenizer (%s) to %s",

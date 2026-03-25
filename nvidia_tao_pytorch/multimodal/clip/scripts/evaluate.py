@@ -73,9 +73,16 @@ def run_experiment(experiment_config, key):
         experiment_config, experiment_config.encryption_key
     )
 
-    logging.info(f"Loading model from {model_path}")
-    model = load_model_from_checkpoint(
-        model_path, experiment_config, CLIPPlModel)
+    if model_path:
+        logging.info(f"Loading model from {model_path}")
+        model = load_model_from_checkpoint(
+            model_path, experiment_config, CLIPPlModel)
+    else:
+        logging.info(
+            f"No checkpoint provided. Building model from pretrained "
+            f"weights: {experiment_config.model.type}"
+        )
+        model = CLIPPlModel(experiment_config)
 
     dm = CLIPDataModule(
         experiment_config.dataset,

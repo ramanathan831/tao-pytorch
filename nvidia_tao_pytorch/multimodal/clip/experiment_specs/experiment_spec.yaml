@@ -56,8 +56,12 @@ inference:
 export:
   checkpoint: ???
   onnx_file: ???
-  encoder_type: combined  # vision, text, or combined
+  encoder_type: combined  # combined or separate
   input_height: 256
   input_width: 256
   batch_size: 1
   opset_version: 17
+  # NOTE: NaFlex models (e.g. siglip2-so400m-patch16-naflex) are not supported
+  # for ONNX/TRT export due to dynamic patch embeddings that cannot be traced
+  # to a static graph. Use a fixed-resolution SigLIP2 variant instead
+  # (e.g. siglip2-so400m-patch16-384).

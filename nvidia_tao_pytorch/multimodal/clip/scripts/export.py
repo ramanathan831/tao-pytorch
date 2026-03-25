@@ -24,7 +24,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from omegaconf import OmegaConf
 from torch.onnx import symbolic_helper
-from transformers import AutoTokenizer
 
 from nvidia_tao_pytorch.core.cookbooks.tlt_pytorch_cookbook import (
     TLTPyTorchCookbook,
@@ -38,10 +37,7 @@ from nvidia_tao_core.config.clip.default_config import (
     CLIPExperimentConfig as ExperimentConfig,
 )
 from nvidia_tao_pytorch.multimodal.clip.model.pl_clip_model import CLIPPlModel
-from nvidia_tao_pytorch.multimodal.clip.model.tokenizers import (
-    CLIPCompatibleTokenizer,
-    SigLIP2WrappedTokenizer,
-)
+from nvidia_tao_pytorch.multimodal.clip.model.tokenizers import save_tokenizer
 from nvidia_tao_pytorch.multimodal.clip.utils.utils import (
     register_checkpoint_safe_globals,
 )
@@ -205,61 +201,6 @@ def _replace_mha_for_export(model: nn.Module) -> None:
 VALID_ENCODER_TYPES = {'combined', 'separate'}
 
 
-def save_tokenizer(
-    tokenizer: CLIPCompatibleTokenizer,
-    output_dir: str,
-    model_config,
-) -> str:
-    """Save tokenizer to disk for deployment.
-
-    For HuggingFace-based tokenizers (SigLIP2), saves using save_pretrained().
-    For OpenCLIP-based tokenizers (RADIO CLIP), saves the equivalent HuggingFace
-    tokenizer which produces identical token IDs.
-
-    Args:
-        tokenizer: The CLIPCompatibleTokenizer from the model.
-        output_dir: Directory to save tokenizer files.
-        model_config: Model configuration containing type and adaptor_name.
-
-    Returns:
-        Path to the saved tokenizer directory.
-    """
-    os.makedirs(output_dir, exist_ok=True)
-
-    inner_tokenizer = tokenizer._tokenizer
-
-    if isinstance(inner_tokenizer, SigLIP2WrappedTokenizer):
-        # SigLIP2: save the HuggingFace processor's tokenizer
-        processor = inner_tokenizer._processor
-        if hasattr(processor, 'tokenizer'):
-            processor.tokenizer.save_pretrained(output_dir)
-        else:
-            # Processor is the tokenizer itself
-            processor.save_pretrained(output_dir)
-        logging.info(f"Saved SigLIP2 tokenizer to {output_dir}")
-    else:
-        # OpenCLIP-based (RADIO CLIP, OpenCLIP): save equivalent HuggingFace tokenizer
-        # We verified that openai/clip-vit-large-patch14 produces identical tokens
-        model_type = model_config.type.lower()
-        adaptor_name = getattr(model_config, 'adaptor_name', None)
-
-        if 'radio' in model_type:
-            if adaptor_name and 'siglip' in adaptor_name.lower():
-                hf_tokenizer_name = "google/siglip2-so400m-patch14-384"
-            else:
-                hf_tokenizer_name = "openai/clip-vit-large-patch14"
-        else:
-            # OpenCLIP models
-            hf_tokenizer_name = "openai/clip-vit-large-patch14"
-
-        hf_tokenizer = AutoTokenizer.from_pretrained(hf_tokenizer_name)
-        hf_tokenizer.save_pretrained(output_dir)
-        logging.info(
-            f"Saved equivalent HuggingFace tokenizer ({hf_tokenizer_name}) "
-            f"to {output_dir}"
-        )
-
-
 class CLIPVisionEncoder(nn.Module):
     """Wrapper to export only the vision encoder of CLIP.
 
@@ -277,7 +218,9 @@ class CLIPVisionEncoder(nn.Module):
         super().__init__()
         self.model = clip_model
 
-    def forward(self, image: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, image: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Forward pass through vision encoder.
 
         Parameters
@@ -287,13 +230,16 @@ class CLIPVisionEncoder(nn.Module):
 
         Returns
         -------
-        torch.Tensor
-            Image embeddings of shape (B, D) where D is embedding dimension.
+        Tuple[torch.Tensor, torch.Tensor, torch.Tensor]
+            (image_embedding, logit_scale, logit_bias) where embedding has
+            shape (B, D) and logit_scale/logit_bias are scalar tensors.
         """
         output = self.model(image=image)
         if isinstance(output, dict):
-            return output["image_features"]
-        return output[0]
+            image_features = output["image_features"]
+        else:
+            image_features = output[0]
+        return image_features, self.model.logit_scale.exp(), self.model.logit_bias
 
 
 class CLIPTextEncoder(nn.Module):
@@ -317,7 +263,7 @@ class CLIPTextEncoder(nn.Module):
         self,
         input_ids: torch.Tensor,
         attention_mask: torch.Tensor,
-    ) -> torch.Tensor:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Forward pass through text encoder.
 
         Parameters
@@ -325,18 +271,28 @@ class CLIPTextEncoder(nn.Module):
         input_ids : torch.Tensor
             Tokenized text input IDs of shape (B, seq_len).
         attention_mask : torch.Tensor
-            Attention mask of shape (B, seq_len).
+            Attention mask of shape (B, seq_len). Accepted for backward
+            compatibility but ignored — all-ones is used internally.
 
         Returns
         -------
-        torch.Tensor
-            Text embeddings of shape (B, D) where D is embedding dimension.
+        Tuple[torch.Tensor, torch.Tensor, torch.Tensor]
+            (text_embedding, logit_scale, logit_bias) where embedding has
+            shape (B, D) and logit_scale/logit_bias are scalar tensors.
         """
-        text_input = {'input_ids': input_ids, 'attention_mask': attention_mask}
+        # Ignore user-provided attention_mask: SigLIP2 requires all-ones,
+        # and CLIP/OpenCLIP adapters discard it anyway.
+        # Tie attention_mask into input_ids via `+ mask * 0` so the ONNX tracer
+        # keeps it as a graph input for backward compatibility. This works even
+        # when the adapter only consumes input_ids (OpenCLIP/CLIP path).
+        input_ids = input_ids + (attention_mask * 0).to(input_ids.dtype)
+        text_input = {'input_ids': input_ids, 'attention_mask': torch.ones_like(input_ids)}
         output = self.model(text=text_input)
         if isinstance(output, dict):
-            return output["text_features"]
-        return output[1]
+            text_features = output["text_features"]
+        else:
+            text_features = output[1]
+        return text_features, self.model.logit_scale.exp(), self.model.logit_bias
 
 
 class CLIPCombinedEncoder(nn.Module):
@@ -363,7 +319,7 @@ class CLIPCombinedEncoder(nn.Module):
         image: torch.Tensor,
         input_ids: torch.Tensor,
         attention_mask: torch.Tensor,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """Forward pass through both encoders.
 
         Parameters
@@ -373,19 +329,23 @@ class CLIPCombinedEncoder(nn.Module):
         input_ids : torch.Tensor
             Tokenized text input IDs of shape (B, seq_len).
         attention_mask : torch.Tensor
-            Attention mask of shape (B, seq_len).
+            Attention mask of shape (B, seq_len). Accepted for backward
+            compatibility but ignored — all-ones is used internally.
 
         Returns
         -------
-        Tuple[torch.Tensor, torch.Tensor, torch.Tensor]
-            (image_embedding, text_embedding, logit_scale) where embeddings
-            have shape (B, D) and logit_scale is a scalar tensor.
+        Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
+            (image_embedding, text_embedding, logit_scale, logit_bias) where
+            embeddings have shape (B, D) and logit_scale/logit_bias are
+            scalar tensors.
         """
-        text_input = {'input_ids': input_ids, 'attention_mask': attention_mask}
-        image_features, text_features, logit_scale, _ = self.model(
+        # Ignore user-provided attention_mask (see CLIPTextEncoder for rationale)
+        input_ids = input_ids + (attention_mask * 0).to(input_ids.dtype)
+        text_input = {'input_ids': input_ids, 'attention_mask': torch.ones_like(input_ids)}
+        image_features, text_features, logit_scale, logit_bias = self.model(
             image=image, text=text_input
         )
-        return image_features, text_features, logit_scale
+        return image_features, text_features, logit_scale, logit_bias
 
 
 def export_single_encoder(
@@ -439,7 +399,7 @@ def export_single_encoder(
         dummy_input = torch.randn(
             input_batch_size, *input_shape, device=device)
         input_names = ['image']
-        output_names = ['image_embedding']
+        output_names = ['image_embedding', 'logit_scale', 'logit_bias']
 
         if is_dynamic:
             dynamic_axes = {
@@ -470,7 +430,7 @@ def export_single_encoder(
         )
         dummy_input = (dummy_input_ids, dummy_attention_mask)
         input_names = ['input_ids', 'attention_mask']
-        output_names = ['text_embedding']
+        output_names = ['text_embedding', 'logit_scale', 'logit_bias']
 
         if is_dynamic:
             dynamic_axes = {
@@ -499,6 +459,29 @@ def export_single_encoder(
         f"version {opset_version}"
     )
 
+    # Estimate model size to determine if external data will be needed
+    param_size_bytes = sum(
+        p.numel() * p.element_size() for p in encoder.parameters()
+    )
+    size_gb = param_size_bytes / (1024 ** 3)
+    use_external_data = size_gb > 1.9
+
+    if use_external_data:
+        external_data_path = (
+            os.path.splitext(tmp_onnx_file)[0] + "_weights.bin"
+        )
+        external_data_name = os.path.basename(external_data_path)
+        logging.warning(
+            f"Model size (~{size_gb:.2f} GB) exceeds 2GB ONNX protobuf "
+            f"limit. Weights will be stored in external file: "
+            f"{external_data_name}. Both the .onnx file and "
+            f"{external_data_name} are required for inference."
+        )
+    else:
+        logging.info(
+            f"Model size (~{size_gb:.2f} GB) fits in single ONNX file."
+        )
+
     # Export to ONNX
     with torch.no_grad():
         torch.onnx.export(
@@ -513,12 +496,31 @@ def export_single_encoder(
             verbose=export_config.verbose
         )
 
-    logging.info(f"ONNX export completed: {tmp_onnx_file}")
+    # If model is large, consolidate external data into a single file
+    if use_external_data:
+        logging.info(f"Consolidating external data into: {external_data_name}")
+        onnx_model = onnx.load(tmp_onnx_file, load_external_data=True)
+        onnx.save_model(
+            onnx_model,
+            tmp_onnx_file,
+            save_as_external_data=True,
+            all_tensors_to_one_file=True,
+            location=external_data_name,
+            size_threshold=0,
+        )
+        logging.info(
+            f"ONNX export completed: {tmp_onnx_file} + {external_data_name}"
+        )
+    else:
+        logging.info(f"ONNX export completed: {tmp_onnx_file}")
 
     # Verify ONNX model
     try:
-        onnx_model = onnx.load(tmp_onnx_file)
-        onnx.checker.check_model(onnx_model)
+        if use_external_data:
+            onnx.checker.check_model(tmp_onnx_file)
+        else:
+            onnx_model = onnx.load(tmp_onnx_file)
+            onnx.checker.check_model(onnx_model)
         logging.info(
             f"ONNX model validation passed for {encoder_type} encoder"
         )
@@ -550,7 +552,7 @@ def export_combined_encoder(
     """Export both vision and text encoders as a single combined ONNX model.
 
     The combined model takes (image, input_ids, attention_mask) and produces
-    (image_embedding, text_embedding, logit_scale) in one graph.
+    (image_embedding, text_embedding, logit_scale, logit_bias) in one graph.
 
     Parameters
     ----------
@@ -607,7 +609,7 @@ def export_combined_encoder(
     dummy_input = (dummy_image, dummy_input_ids, dummy_attention_mask)
 
     input_names = ['image', 'input_ids', 'attention_mask']
-    output_names = ['image_embedding', 'text_embedding', 'logit_scale']
+    output_names = ['image_embedding', 'text_embedding', 'logit_scale', 'logit_bias']
 
     if is_dynamic:
         dynamic_axes = {
@@ -846,6 +848,15 @@ def run_export(experiment_config: ExperimentConfig) -> None:
 
         logging.info(f"Both encoders exported: {vision_file}, {text_file}")
 
+    # Inject learned logit parameters into the config so the saved YAML
+    # contains trained values, not just initial ones.
+    experiment_config.model.init_logit_scale = (
+        pl_model.model.logit_scale.item()
+    )
+    experiment_config.model.init_logit_bias = (
+        pl_model.model.logit_bias.item()
+    )
+
     # Save experiment config alongside ONNX for deployment inference
     # This allows tao-deploy to auto-load settings like canonicalize_text
     base_name = os.path.splitext(output_file)[0]
@@ -855,7 +866,12 @@ def run_export(experiment_config: ExperimentConfig) -> None:
 
     # Save tokenizer alongside ONNX for deployment
     tokenizer_dir = f"{base_name}_tokenizer"
-    save_tokenizer(pl_model.tokenizer, tokenizer_dir, experiment_config.model)
+    save_tokenizer(
+        pl_model.tokenizer,
+        tokenizer_dir,
+        model_type=experiment_config.model.type,
+        adaptor_name=getattr(experiment_config.model, 'adaptor_name', None),
+    )
     logging.info(f"Tokenizer saved to {tokenizer_dir}")
 
 

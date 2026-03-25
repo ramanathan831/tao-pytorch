@@ -44,8 +44,8 @@ TaoConfig.init([
     
     // Docker images
     images: [
-        BASE_IMAGE_X86: 'nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:286ab984654216b17d7b26cd9e13da94f5b90363f207e73b7430f236eff2de65',
-        BASE_IMAGE_ARM64: 'nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:217698d58e05df0f6a9a66f96f9cbe505268c39a3aac0dd02de98298f4f97596',
+        BASE_IMAGE_X86: 'nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:825b6a265486ef3ba963f48ec7c16e7a4638343541731f25138f896bcd216a50',
+        BASE_IMAGE_ARM64: 'nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:383c88d802765254e9ae5105db8f46d61b1a355e9d075e5f4d60c85b45b0bb3a',
         DOCKER_DIND: 'docker:24.0.5-dind',
         SONAR_SCANNER: 'sonarsource/sonar-scanner-cli:11',
         IMAGE_NAME_PYT: 'nvcr.io/nvstaging/tao/tao-toolkit-pyt',
@@ -122,7 +122,7 @@ PodTemplates.init([
     affinityPools: [
         'tao-gpu-x86-pool': [
             gpuTypes: ['A100_80GB_PCIE', 'A100_PCIE_40GB', 'A40', 'L40'],
-            driverVersions: ['580.35', '580.66', '580.82.07'],
+            driverVersions: ['580.35', '580.66', '580.82.07', '580.95.05'],
             os: 'linux',
             arch: 'amd64'
         ],
@@ -182,6 +182,7 @@ pipeline {
         booleanParam(name: 'RC', defaultValue: true, description: 'Build RC version')
         booleanParam(name: 'FORCE_REBUILD', defaultValue: false, description: 'Force rebuild even if no code changes')
         booleanParam(name: 'SKIP_PROD_PROMOTE', defaultValue: false, description: 'Skip final wheel publish and production image tagging')
+        booleanParam(name: 'SKIP_TEST', defaultValue: false, description: 'Skip functional tests')
         string(name: 'GITLAB_BRANCH', defaultValue: '', description: 'GitLab branch for SonarQube (auto-detected if empty)')
         string(name: 'GITLAB_REPO_URL', defaultValue: 'https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-pytorch.git', description: 'GitLab repository URL')
     }
@@ -377,7 +378,7 @@ pipeline {
                         // Functional tests (RC only)
                         stage('x86_functional_tests_rc') {
                             when {
-                                expression { params.RC }
+                                expression { params.RC && !params.SKIP_TEST }
                             }
                             steps {
                                 container('cuda-x86') {

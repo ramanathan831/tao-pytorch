@@ -3,7 +3,7 @@ def TAO_VERSION = "6.25.7"
 def BUILD_TYPE = "dev"
 
 // Resolve base image from params if provided; otherwise use default digest
-def BASE_IMAGE_DEFAULT = "nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:286ab984654216b17d7b26cd9e13da94f5b90363f207e73b7430f236eff2de65"
+def BASE_IMAGE_DEFAULT = "nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:825b6a265486ef3ba963f48ec7c16e7a4638343541731f25138f896bcd216a50"
 def baseImage = (params.BASE_IMAGE_REPO?.trim() && params.BASE_IMAGE_TAG?.trim()) ? "${params.BASE_IMAGE_REPO}:${params.BASE_IMAGE_TAG}" : BASE_IMAGE_DEFAULT
 echo "Using base image ${baseImage}"
 
@@ -79,16 +79,26 @@ spec:
             operator: In
             values:
             - A100_PCIE_40GB
-            - A40
-            - L40
-            - A100_80GB_PCIe
+            - A100_80GB_PCIE
+            - A100_PCIE_80GB
+            - H100_80GB_HBM3
+            - H100_PCIE
+            - H100_NVL
+            - H200_144GB_HBM3
             - NVIDIA_GH200_480GB
           - key: nvidia.com/driver_version
             operator: In
             values:
+            - 550.54.14
+            - 550.54.15
+            - 550.90.07
+            - 550.107.02
+            - 550.127.05
+            - 550.127.08
             - 580.35
             - 580.66
             - 580.82.07
+            - 580.95.05
           - key: kubernetes.io/os
             operator: In
             values:
