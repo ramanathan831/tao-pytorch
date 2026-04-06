@@ -517,6 +517,7 @@ class RADIOBase(nn.Module):
         vit_backbone.head = nn.Identity()
 
         # Enable cropped position embedding.
+        # resolution is nominal for init; ViTPatchGenerator.forward uses x.shape[2:] for pos enc and supports variable input size
         vit_backbone = self._enable_cpe(
             vit_backbone,
             resolution=self.resolution,
@@ -570,10 +571,11 @@ class RADIOBase(nn.Module):
         cls_token = model.cls_token is not None
         max_img_size = int(round(max_img_size / patch_size) * patch_size)
 
+        # input_dims: nominal resolution for init; forward uses actual x.shape[2:] in apply_pos_enc (variable resolution)
         patch_generator = ViTPatchGenerator(
             patch_size=patch_size,
             embed_dim=embed_dim,
-            input_dims=resolution,  # Ensure the correct resolution is passed to ViTPatchGenerator.
+            input_dims=resolution,
             normalize_patches=normalize_patches,
             cls_token=cls_token,
             max_input_dims=max_img_size,
@@ -837,18 +839,31 @@ class RADIO(BackboneBase):
         spatial_features = spatial_features.permute(0, 2, 1).view(B, C, H, W)
         return spatial_features
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, return_features: bool = False, return_logits: bool = False) -> torch.Tensor:
         """Forward.
 
         Args:
             x (Tensor): Input tensor.
-
+            return_features (bool): Whether to return the spatial features.
+            return_logits (bool): Whether to return the summary logits.
         Returns:
             summary (Tensor): Summary tensor.
         """
-        summary, _ = self.radio(x)
-        summary = self.head(summary)
-        return summary
+        summary, spatial_features = self.radio(x)
+        if return_features:
+            B, _, C = spatial_features.shape
+            assert C == self.num_features // len(self.summary_idxs), \
+                f"Number of features mismatch: {C} != {self.num_features // len(self.summary_idxs)}"
+            # [B, L, C] -> [B, C, H, W]; use actual input size so variable resolution works (e.g. multiview/stochastic)
+            H = x.shape[2] // self.patch_size
+            W = x.shape[3] // self.patch_size
+            spatial_features = spatial_features.permute(0, 2, 1).view(B, C, H, W)
+            return summary, spatial_features
+        else:
+            if return_logits:
+                return summary
+            else:
+                return self.head(summary)
 
 
 @BACKBONE_REGISTRY.register()

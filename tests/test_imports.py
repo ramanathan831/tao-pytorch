@@ -22,6 +22,42 @@ from pathlib import Path
 
 import pytest
 
+
+def _handler_catches_import_error(handler):
+    """Return True if an ``except`` handler catches ImportError (or is bare)."""
+    exc_type = handler.type
+    if exc_type is None:
+        return True
+    candidates = exc_type.elts if isinstance(exc_type, ast.Tuple) else [exc_type]
+    for cand in candidates:
+        name = None
+        if isinstance(cand, ast.Name):
+            name = cand.id
+        elif isinstance(cand, ast.Attribute):
+            name = cand.attr
+        if name in {"ImportError", "ModuleNotFoundError", "Exception", "BaseException"}:
+            return True
+    return False
+
+
+def _collect_optional_import_nodes(tree):
+    """Return the set of Import/ImportFrom AST nodes whose failure is handled.
+
+    An import is considered optional if it lives anywhere in the ``body`` of a
+    ``try`` whose handlers catch ImportError/ModuleNotFoundError (or are bare).
+    """
+    optional = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Try):
+            continue
+        if not any(_handler_catches_import_error(h) for h in node.handlers):
+            continue
+        for stmt in node.body:
+            for child in ast.walk(stmt):
+                if isinstance(child, (ast.Import, ast.ImportFrom)):
+                    optional.add(child)
+    return optional
+
 ROOT_DIR = Path(__file__).parent.parent  # tao-pytorch/
 PACKAGE_DIR = ROOT_DIR / "nvidia_tao_pytorch"
 
@@ -63,8 +99,11 @@ def _parse_imports(file_path):
     with open(file_path, "r", encoding="utf-8") as fh:
         tree = ast.parse(fh.read(), filename=str(file_path))
 
+    optional_nodes = _collect_optional_import_nodes(tree)
+
     imports = []
     for node in ast.walk(tree):
+        is_optional = node in optional_nodes
         if isinstance(node, ast.Import):
             for alias in node.names:
                 imports.append({
@@ -73,6 +112,7 @@ def _parse_imports(file_path):
                     "names": [],
                     "line": node.lineno,
                     "level": 0,
+                    "optional": is_optional,
                 })
         elif isinstance(node, ast.ImportFrom):
             module = node.module or ""
@@ -84,6 +124,7 @@ def _parse_imports(file_path):
                 "names": [a.name for a in node.names],
                 "line": node.lineno,
                 "level": node.level,
+                "optional": is_optional,
             })
     return imports
 
@@ -152,6 +193,8 @@ def _check_file(file_path):
         module = imp["module"]
 
         if imp["level"] > 0:
+            continue
+        if imp.get("optional"):
             continue
         if _is_optional(module):
             continue
