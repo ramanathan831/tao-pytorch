@@ -217,9 +217,17 @@ check_jenkins_status:
               if [ -n "$header_size" ] && [ -n "$body_size" ]; then
                   header="${response:0:${header_size}}"
                   body="$(sed '$d' <<< ${response:${header_size}:${body_size}})"
-                  new_start=$(echo "$header" | grep "X-Text-Size" | sed "s/[^0-9]//g") || true
+                  # Extract the next start offset from the X-Text-Size response
+                  # header. Use case-insensitive grep because HTTP/2 (and some
+                  # reverse proxies) lowercase header names. If the header is
+                  # still missing or unparseable, fall back to advancing by the
+                  # body bytes we actually received so we don't re-stream the
+                  # same log range on every poll.
+                  new_start=$(echo "$header" | grep -i "X-Text-Size" | sed "s/[^0-9]//g" || true)
                   if [ -n "$new_start" ]; then
-                      start=$new_start
+                      start="$new_start"
+                  else
+                      start=$((start + ${#body}))
                   fi
                   echo "$body"
               fi
@@ -249,4 +257,3 @@ check_jenkins_status:
   only:
     refs:
       - merge_requests
-
