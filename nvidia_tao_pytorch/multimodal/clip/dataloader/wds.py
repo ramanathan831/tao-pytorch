@@ -176,6 +176,11 @@ def group_by_keys_nothrow(
     """
     current_sample = None
     for filesample in data:
+        if not filesample:
+            if valid_sample(current_sample):
+                yield current_sample
+            current_sample = None
+            continue
         if not isinstance(filesample, dict):
             raise TypeError(f"Expected dict, got {type(filesample).__name__}")
         fname, value = filesample["fname"], filesample["data"]
