@@ -51,6 +51,11 @@ def run_experiment(cfg):
 
     strategy = DDPStrategy(**ddp_kwargs)
 
+    val_check_interval = getattr(cfg.train, "val_check_interval", 1.0)
+    if val_check_interval < 1.0:
+        trainer_kwargs.pop("check_val_every_n_epoch", None)
+        trainer_kwargs["val_check_interval"] = val_check_interval
+
     trainer = pl.Trainer(
         num_nodes=cfg.train.num_nodes,
         strategy=strategy,
