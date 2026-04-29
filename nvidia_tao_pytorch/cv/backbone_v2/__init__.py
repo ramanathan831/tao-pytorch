@@ -113,6 +113,9 @@ from nvidia_tao_pytorch.cv.backbone_v2.swin import (
     swin_base_patch4_window12_384,
     swin_large_patch4_window12_384,
 )
+from nvidia_tao_pytorch.cv.backbone_v2.dinat import (
+    dinat_large_kernel7,
+)
 from nvidia_tao_pytorch.cv.backbone_v2.gcvit import (
     gc_vit_xxtiny,
     gc_vit_xtiny,
@@ -241,6 +244,7 @@ __all__ = [
     "swin_large_patch4_window7_224",
     "swin_base_patch4_window12_384",
     "swin_large_patch4_window12_384",
+    "dinat_large_kernel7",
     "gc_vit_xxtiny",
     "gc_vit_xtiny",
     "gc_vit_tiny",
