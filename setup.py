@@ -92,6 +92,7 @@ setuptools.setup(
             'mae=nvidia_tao_pytorch.ssl.mae.entrypoint.mae:main',
             # Multimodal entry point
             'clip=nvidia_tao_pytorch.multimodal.clip.entrypoint.clip:main',
+            'radio=nvidia_tao_pytorch.multimodal.radio.entrypoint.radio:main',
         ]
     },
     cmdclass={'build_ext': BuildExtension},
@@ -204,7 +205,32 @@ setuptools.setup(
             include_dirs=['src'],
             define_macros=[("WITH_CUDA", None)],
             extra_flags = utils.get_extra_compile_args()
-        )
+        ),
+        utils.make_cuda_ext(
+            name='FastToTensor',
+            module='nvidia_tao_pytorch.multimodal.radio.dataloader.ops',
+            sources=[
+                'src/fast_to_tensor_api.cpp',
+                'src/fast_to_tensor.cpp',
+            ],
+            include_dirs=['src'],
+            extra_flags={"cxx": ["-O3", "-march=native"]},
+        ),
+        utils.make_cuda_ext(
+            name='SpatialTransformOps',
+            module='nvidia_tao_pytorch.multimodal.radio.dataloader.ops',
+            sources=[
+                'src/spatial_transform_api.cpp',
+                'src/spatial_transform_cpu.cpp',
+                'src/spatial_transform_gpu.cu',
+            ],
+            include_dirs=['src'],
+            define_macros=[("WITH_CUDA", None)],
+            extra_flags={
+                "cxx": ["-std=c++17", "-O3", "-DNDEBUG", "-fopenmp", "-DOMP_NESTED=true", "-mavx2"],
+                "nvcc": utils.get_extra_compile_args()["nvcc"] + ["-lineinfo"],
+            },
+        ),
     ],
 )
 

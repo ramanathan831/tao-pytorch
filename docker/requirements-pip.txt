@@ -1,4 +1,7 @@
 addict==2.4.0
+braceexpand
+einops
+git+https://github.com/facebookresearch/sam3.git
 anyconfig==0.14.0
 apispec==6.8.1
 apispec_webframeworks==1.2.0
