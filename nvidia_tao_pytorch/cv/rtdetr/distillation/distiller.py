@@ -70,12 +70,11 @@ class RtdetrDistiller(Distiller):
         )
 
         resume_ckpt = self.experiment_spec["train"]["resume_training_checkpoint_path"] or get_latest_checkpoint(results_dir)
+        resumed_epoch = 0
         if resume_ckpt:
-            resumed_epoch = re.search('epoch_(\\d+)', resume_ckpt)
-            if resumed_epoch:
-                resumed_epoch = int(resumed_epoch.group(1))
-        else:
-            resumed_epoch = 0
+            match = re.search('epoch_(\\d+)', resume_ckpt)
+            if match:
+                resumed_epoch = int(match.group(1))
         status_logger_callback.epoch_counter = resumed_epoch + 1
         callbacks.append(status_logger_callback)
 

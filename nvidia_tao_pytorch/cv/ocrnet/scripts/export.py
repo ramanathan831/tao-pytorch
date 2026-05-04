@@ -114,7 +114,8 @@ def export(opt):
                       operator_export_type=torch.onnx.OperatorExportTypes.ONNX_FALLTHROUGH,
                       verbose=False,
                       opset_version=17,
-                      do_constant_folding=True
+                      do_constant_folding=True,
+                      dynamo=False,
                       )
 
     graph = gs.import_onnx(onnx.load(output_file))

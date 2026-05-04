@@ -1,0 +1,455 @@
+@Library('tao-jenkins-shared-library') _
+import org.tao.TaoConfig
+import org.tao.PodTemplates
+
+// Optimized base-image pipeline. Flat shape — Jenkins declarative does not
+// allow nested `parallel` blocks, so artifact and base-image stages live at
+// the top level. The trade-off: each base-image cell waits for ALL 6 artifact
+// cells, including the opposite arch's. In steady state (cache hits) this is
+// invisible; on cold builds it adds the slower arch's runtime to the faster
+// arch's wait.
+//
+//   validate
+//   lockhash_verify                              # drift guard, recomputes live
+//   build artifacts        (parallel, 6 cells)
+//     ├── ort-x86,           torch_scatter-x86,   warpconvnet-x86
+//     └── ort-arm64,         torch_scatter-arm64, warpconvnet-arm64
+//   build base images      (parallel, 2 cells)
+//     ├── x86 base image   (gated on ALL 6 artifact cells)
+//     └── arm64 base image (gated on ALL 6 artifact cells)
+//   update_image_tags      (gated on both base-image cells)
+//
+// Each artifact cell pushes an arch-suffixed image
+// (e.g. tao_pytorch_artifacts:ort-<lockhash>-x86). Cells that find a cache
+// hit via `docker buildx imagetools inspect` skip the build, so the steady
+// state on a no-pin-change run is six fast manifest lookups.
+//
+// Base-image cells call `build.sh --skip-artifacts`, which resolves the same
+// arch-suffixed refs and passes them as --build-arg into Dockerfile.optimized.
+// `Dockerfile.optimized`'s `FROM ${ORT_IMAGE} AS ort_wheels` etc. fail-fast at
+// `docker buildx build` time if any artifact image is missing, so even if
+// stage ordering ever drifts the build can't silently produce a bad image.
+// xformers comes from the internal GitLab PyPI registry inside
+// Dockerfile.optimized — no separate artifact, no source clone.
+
+// === PARAMETERS ===
+properties([
+    parameters([
+        string(name: 'BRANCH', defaultValue: 'release/6.25.11', description: 'Git branch to checkout and build from'),
+        string(name: 'GITLAB_REPO_URL', defaultValue: 'https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-pytorch.git', description: 'GitLab repository URL'),
+        // Default OFF — match the legacy pipeline so a successful build commits
+        // the new digests back to the branch. Set to true on rollout/validation
+        // runs where you don't want the job touching Jenkinsfiles + manifest.json.
+        booleanParam(name: 'SKIP_MANIFEST_UPDATE', defaultValue: false, description: 'Skip the update_image_tags stage (no commit/push of digest updates).'),
+    ])
+])
+
+// === CONFIGURATION ===
+TaoConfig.init([
+    projectName: 'tao-pytorch-base-image-optimized',
+
+    ciAuthorName: 'TAO Release CI',
+    ciAuthorEmail: 'tao-ci-bot@nvidia.com',
+    podLabelPrefix: 'tao-pytorch-base-image-optimized',
+
+    registries: [
+        NGC: [
+            url: 'https://nvcr.io',
+            host: 'nvcr.io',
+            stagingOrg: 'nvstaging/tao',
+            prodOrg: 'nvstaging/tao'
+        ],
+        GITLAB: [
+            url: 'https://gitlab-master.nvidia.com',
+            connection: 'git-lab-master'
+        ]
+    ],
+
+    credentials: [
+        NGC_API_KEY: 'NGC_API_KEY',
+        GITLAB_TOKEN: 'gitlab-api-token',
+    ],
+
+    images: [
+        DOCKER_DIND: 'docker:27.0-dind',
+        BASE_IMAGE_NAME: 'nvcr.io/nvstaging/tao/tao_pytorch_base_image',
+    ],
+
+    kubernetes: [
+        cloud: 'sc-ipp-blossom-prod',
+        imagePullSecrets: ['svc-tlt-ci-ngcimagepullsecret', 'gitlab-tao-imagepullsecret']
+    ],
+
+    gitlab: [
+        projectId: 'nvidia-tao-toolkit/tao-pytorch'
+    ]
+])
+
+PodTemplates.init([
+    imagePullSecrets: TaoConfig.kubernetes.imagePullSecrets,
+    containers: [
+        // GPU-bearing builder: used for both Tier-1 (single artifact compile) and
+        // Tier-2 (final image assembly). Tier-2 only runs pip wheel installs so it
+        // doesn't actually need a GPU; Tier-1 needs CUDA toolkit + nvcc which the
+        // pytorch base image carries. Same pod template keeps things uniform.
+        'docker': [
+            image: TaoConfig.images.DOCKER_DIND,
+            privileged: true,
+            resources: [requests: ['nvidia.com/gpu': 1, cpu: '4', memory: '96Gi'], limits: ['nvidia.com/gpu': 1, cpu: '16', memory: '128Gi']],
+            env: [DOCKER_TLS_CERTDIR: '']
+        ],
+        // Smaller pod for verify + final commit steps (no docker daemon needed).
+        'git': [
+            image: 'alpine/git:latest',
+            command: ['cat'],
+            tty: true,
+            resources: [requests: [memory: '2Gi'], limits: [memory: '4Gi']]
+        ],
+    ],
+    affinityPools: [
+        'docker-x86':   [gpuTypes: ['A40', 'A100_PCIE_40GB', 'A100_PCIE_80GB', 'A100_80GB_PCIE', 'L40'], os: 'linux', arch: 'amd64'],
+        'docker-arm64': [gpuTypes: ['NVIDIA_GH200_480GB'],                                               os: 'linux', arch: 'arm64'],
+        'docker-only':  [arch: null],
+    ]
+])
+
+// ----------------------------------------------------------------------------
+// Per-cell bodies — called from inside `steps { container('docker') { script { … } } }`
+// in each declarative stage. They contain ONLY the work; the surrounding
+// declarative `stage` + `agent` shell is what Blue Ocean uses to render the
+// matrix correctly. (Earlier versions of this file used scripted `parallel(…)`
+// inside a `script {}` block, which Blue Ocean collapses into a single node.)
+// ----------------------------------------------------------------------------
+
+def runArtifact(String component, String archFlag, String archLabel) {
+    sh """
+        for i in \$(seq 1 60); do docker info > /dev/null 2>&1 && break; sleep 2; done
+        docker info || (echo "ERROR: Docker daemon not available" && exit 1)
+        apk add --no-cache bash jq git
+    """
+    withCredentials([string(credentialsId: TaoConfig.credentials.GITLAB_TOKEN, variable: 'GITLAB_TOKEN')]) {
+        sh """
+            rm -rf tao-pytorch || true
+            git clone https://oauth2:\${GITLAB_TOKEN}@gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-pytorch.git tao-pytorch
+            cd tao-pytorch && git checkout ${params.BRANCH}
+        """
+    }
+    sh """
+        docker buildx create --name ${component}-${archLabel}-builder --use --driver docker-container --bootstrap || true
+        docker buildx use ${component}-${archLabel}-builder
+    """
+    docker.withRegistry('https://nvcr.io', TaoConfig.credentials.NGC_API_KEY) {
+        sh """
+            cd tao-pytorch
+            ./docker/optimized/build.sh --build ${archFlag} --component ${component} --push
+        """
+    }
+    echo "✓ artifact ${component}-${archLabel} complete"
+}
+
+def runBaseImage(String archFlag, String archLabel) {
+    sh """
+        for i in \$(seq 1 60); do docker info > /dev/null 2>&1 && break; sleep 2; done
+        docker info || (echo "ERROR: Docker daemon not available" && exit 1)
+        apk add --no-cache bash jq git
+    """
+    withCredentials([string(credentialsId: TaoConfig.credentials.GITLAB_TOKEN, variable: 'GITLAB_TOKEN')]) {
+        sh """
+            rm -rf tao-pytorch || true
+            git clone https://oauth2:\${GITLAB_TOKEN}@gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-pytorch.git tao-pytorch
+            cd tao-pytorch && git checkout ${params.BRANCH}
+            COMMIT_SHA=\$(git rev-parse HEAD | cut -c1-8)
+            echo "COMMIT_SHA=\${COMMIT_SHA}" > commit.env
+        """
+    }
+    def commitEnv = readFile('tao-pytorch/commit.env').trim()
+    def commitSha = (commitEnv =~ /COMMIT_SHA=(.+)/)[0][1]
+    def imageTag  = "${commitSha}-${BUILD_NUMBER}-${archLabel}"
+
+    sh """
+        docker buildx create --name tier2-${archLabel}-builder --use --driver docker-container --bootstrap || true
+        docker buildx use tier2-${archLabel}-builder
+    """
+    docker.withRegistry('https://nvcr.io', TaoConfig.credentials.NGC_API_KEY) {
+        sh """
+            cd tao-pytorch
+            # build.sh derives the local tag from \$USER (`\${USER:-local}`); fix
+            # it to `jenkins` so the retag below has a deterministic source.
+            export USER=jenkins
+            ./docker/optimized/build.sh --build ${archFlag} --skip-artifacts --push
+            # build.sh runs `docker buildx --push` (no --load), so the image is
+            # only in the registry — `docker tag` against the local daemon would
+            # fail with "No such image". Server-side retag avoids a 22GB pull.
+            docker buildx imagetools create \\
+                -t ${TaoConfig.images.BASE_IMAGE_NAME}:${imageTag} \\
+                ${TaoConfig.images.BASE_IMAGE_NAME}:jenkins
+        """
+    }
+    echo "✓ ${archLabel} base image pushed: ${TaoConfig.images.BASE_IMAGE_NAME}:${imageTag}"
+
+    sh """
+        FULL_IMAGE="${TaoConfig.images.BASE_IMAGE_NAME}:${imageTag}"
+        # build.sh used `buildx --push` (no --load), so the image is registry-only.
+        # `imagetools inspect` reads the manifest digest directly from the registry
+        # — no 22GB pull, no fallback chain.
+        SHA=\$(docker buildx imagetools inspect "\${FULL_IMAGE}" --format '{{.Manifest.Digest}}' 2>/dev/null || echo "")
+        if [ -z "\${SHA}" ]; then
+            echo "ERROR: Could not extract SHA digest for \${FULL_IMAGE}"
+            exit 1
+        fi
+        echo "${archLabel.toUpperCase()}_SHA=\${SHA}" > ${archLabel}.env
+        echo "${archLabel.toUpperCase()}_TAG=${imageTag}" >> ${archLabel}.env
+    """
+    if (fileExists("${archLabel}.env")) {
+        stash includes: "${archLabel}.env", name: "${archLabel}-sha"
+        archiveArtifacts artifacts: "${archLabel}.env", allowEmptyArchive: true
+    }
+}
+
+// === PIPELINE ===
+pipeline {
+    agent none
+
+    stages {
+        stage('validate') {
+            steps {
+                script {
+                    if (params.BRANCH == 'main' || params.BRANCH == 'master') {
+                        error("Branch '${params.BRANCH}' is not allowed.")
+                    }
+                    echo "✓ Branch validation passed: ${params.BRANCH}"
+                }
+            }
+        }
+
+        // Drift guard. Recomputes lockhashes live (resolves base_digest via
+        // `docker manifest inspect`) and fails if they don't match the
+        // committed lockfile — that's the rebuild signal: any change to a pin,
+        // a component Dockerfile, the gpu_archs list, or the base image will
+        // change the recomputed image refs and force this stage to fail until
+        // someone runs `docker/optimized/lockhash.sh --update` and commits.
+        stage('lockhash_verify') {
+            agent {
+                kubernetes {
+                    cloud TaoConfig.kubernetes.cloud
+                    yaml PodTemplates.generate(containers: ['docker'], affinityPool: 'docker-only')
+                }
+            }
+            steps {
+                container('docker') {
+                    script {
+                        withCredentials([string(credentialsId: TaoConfig.credentials.GITLAB_TOKEN, variable: 'GITLAB_TOKEN')]) {
+                            sh """
+                                for i in \$(seq 1 60); do docker info > /dev/null 2>&1 && break; sleep 2; done
+                                apk add --no-cache jq bash git
+                                rm -rf tao-pytorch || true
+                                git clone https://oauth2:\${GITLAB_TOKEN}@gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-pytorch.git tao-pytorch
+                                cd tao-pytorch && git checkout ${params.BRANCH}
+                            """
+                        }
+                        docker.withRegistry('https://nvcr.io', TaoConfig.credentials.NGC_API_KEY) {
+                            sh "cd tao-pytorch && ./docker/optimized/lockhash.sh --verify"
+                        }
+                    }
+                }
+            }
+        }
+
+        // 6 parallel artifact cells (3 components × 2 archs), each on its own
+        // pod. Cache-hits via `docker buildx imagetools inspect` short-circuit
+        // unchanged components.
+        stage('build artifacts') {
+            parallel {
+                stage('ort-x86') {
+                    agent {
+                        kubernetes {
+                            cloud TaoConfig.kubernetes.cloud
+                            yaml PodTemplates.generate(containers: ['docker'], affinityPool: 'docker-x86')
+                        }
+                    }
+                    steps { container('docker') { script { runArtifact('ort', '--x86', 'x86') } } }
+                }
+                stage('torch_scatter-x86') {
+                    agent {
+                        kubernetes {
+                            cloud TaoConfig.kubernetes.cloud
+                            yaml PodTemplates.generate(containers: ['docker'], affinityPool: 'docker-x86')
+                        }
+                    }
+                    steps { container('docker') { script { runArtifact('torch_scatter', '--x86', 'x86') } } }
+                }
+                stage('warpconvnet-x86') {
+                    agent {
+                        kubernetes {
+                            cloud TaoConfig.kubernetes.cloud
+                            yaml PodTemplates.generate(containers: ['docker'], affinityPool: 'docker-x86')
+                        }
+                    }
+                    steps { container('docker') { script { runArtifact('warpconvnet', '--x86', 'x86') } } }
+                }
+                stage('ort-arm64') {
+                    agent {
+                        kubernetes {
+                            cloud TaoConfig.kubernetes.cloud
+                            yaml PodTemplates.generate(containers: ['docker'], affinityPool: 'docker-arm64')
+                        }
+                    }
+                    steps { container('docker') { script { runArtifact('ort', '--arm', 'arm64') } } }
+                }
+                stage('torch_scatter-arm64') {
+                    agent {
+                        kubernetes {
+                            cloud TaoConfig.kubernetes.cloud
+                            yaml PodTemplates.generate(containers: ['docker'], affinityPool: 'docker-arm64')
+                        }
+                    }
+                    steps { container('docker') { script { runArtifact('torch_scatter', '--arm', 'arm64') } } }
+                }
+                stage('warpconvnet-arm64') {
+                    agent {
+                        kubernetes {
+                            cloud TaoConfig.kubernetes.cloud
+                            yaml PodTemplates.generate(containers: ['docker'], affinityPool: 'docker-arm64')
+                        }
+                    }
+                    steps { container('docker') { script { runArtifact('warpconvnet', '--arm', 'arm64') } } }
+                }
+            }
+        }
+
+        // 2 parallel base-image cells. Each consumes the 3 arch-matching
+        // artifact images from the previous stage via Dockerfile.optimized.
+        stage('build base images') {
+            parallel {
+                stage('x86 base image') {
+                    agent {
+                        kubernetes {
+                            cloud TaoConfig.kubernetes.cloud
+                            yaml PodTemplates.generate(containers: ['docker'], affinityPool: 'docker-x86')
+                        }
+                    }
+                    steps { container('docker') { script { runBaseImage('--x86', 'x86') } } }
+                }
+                stage('arm64 base image') {
+                    agent {
+                        kubernetes {
+                            cloud TaoConfig.kubernetes.cloud
+                            yaml PodTemplates.generate(containers: ['docker'], affinityPool: 'docker-arm64')
+                        }
+                    }
+                    steps { container('docker') { script { runBaseImage('--arm', 'arm64') } } }
+                }
+            }
+        }
+
+        stage('update_image_tags') {
+            when { expression { return !params.SKIP_MANIFEST_UPDATE } }
+            agent {
+                kubernetes {
+                    cloud TaoConfig.kubernetes.cloud
+                    yaml PodTemplates.generate(containers: ['git'], affinityPool: 'docker-only')
+                }
+            }
+            steps {
+                container('git') {
+                    script {
+                        sh "apk add --no-cache python3 jq"
+                        unstash 'x86-sha'
+                        unstash 'arm64-sha'
+
+                        if (!fileExists('x86.env') || !fileExists('arm64.env')) {
+                            error "Missing SHA env files. x86: ${fileExists('x86.env')}, arm64: ${fileExists('arm64.env')}"
+                        }
+                        def x86Sha   = (readFile('x86.env').trim()   =~ /X86_SHA=(.+)/)[0][1]
+                        def arm64Sha = (readFile('arm64.env').trim() =~ /ARM64_SHA=(.+)/)[0][1]
+
+                        echo "x86  SHA: ${x86Sha}"
+                        echo "arm64 SHA: ${arm64Sha}"
+                        if (!x86Sha || !arm64Sha) {
+                            error "Failed to extract SHAs"
+                        }
+
+                        withCredentials([string(credentialsId: TaoConfig.credentials.GITLAB_TOKEN, variable: 'GITLAB_TOKEN')]) {
+                            def gitlabHost = TaoConfig.getGitLabHost()
+                            def repoPath   = TaoConfig.gitlab.projectId
+
+                            try {
+                                sh """
+                                    git config --global credential.helper store
+                                    echo "https://oauth2:\${GITLAB_TOKEN}@${gitlabHost}" > ~/.git-credentials
+                                    rm -rf tao-pytorch-update || true
+                                    git clone https://oauth2:\${GITLAB_TOKEN}@${gitlabHost}/${repoPath}.git tao-pytorch-update
+                                """
+
+                                dir('tao-pytorch-update') {
+                                    sh "git config --global --add safe.directory \$WORKSPACE/tao-pytorch-update"
+                                    sh """
+                                        git fetch origin ${params.BRANCH} || (echo "ERROR: branch missing" && exit 1)
+                                        git checkout ${params.BRANCH}
+                                    """
+                                    sh """
+                                        jq --arg x "${x86Sha}" --arg a "${arm64Sha}" \
+                                           '.digests.x86 = \$x | .digests.arm = \$a' \
+                                           docker/manifest.json > docker/manifest.json.tmp \
+                                           && mv docker/manifest.json.tmp docker/manifest.json
+                                        sed -i "s|@sha256:[a-f0-9]\\\\{64\\\\}|@${x86Sha}|g" Jenkinsfile.develop
+                                        sed -i "s|@sha256:[a-f0-9]\\\\{64\\\\}|@${x86Sha}|g" Jenkinsfile.nightly
+                                        sed -i "s|BASE_IMAGE_X86: 'nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:[a-f0-9]\\\\{64\\\\}'|BASE_IMAGE_X86: 'nvcr.io/nvstaging/tao/tao_pytorch_base_image@${x86Sha}'|g" Jenkinsfile.release
+                                        sed -i "s|BASE_IMAGE_ARM64: 'nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:[a-f0-9]\\\\{64\\\\}'|BASE_IMAGE_ARM64: 'nvcr.io/nvstaging/tao/tao_pytorch_base_image@${arm64Sha}'|g" Jenkinsfile.release
+                                        sed -i "s|@sha256:[a-f0-9]\\\\{64\\\\}|@${x86Sha}|g" Jenkinsfile.dev
+                                        X86_SHA_ONLY=\$(echo "${x86Sha}"   | sed 's/sha256://')
+                                        ARM64_SHA_ONLY=\$(echo "${arm64Sha}" | sed 's/sha256://')
+                                        sed -i "s|ARG ARM64_DIGEST=[a-f0-9]\\\\{64\\\\}|ARG ARM64_DIGEST=\${ARM64_SHA_ONLY}|g" release/docker/Dockerfile
+                                        sed -i "s|ARG X86_DIGEST=[a-f0-9]\\\\{64\\\\}|ARG X86_DIGEST=\${X86_SHA_ONLY}|g" release/docker/Dockerfile
+                                    """
+                                    sh "git diff docker/manifest.json Jenkinsfile.develop Jenkinsfile.nightly Jenkinsfile.release Jenkinsfile.dev release/docker/Dockerfile || true"
+
+                                    def jobName = env.JOB_NAME ?: 'tao-pytorch-base-image-optimized'
+                                    def buildUrl = "https://prod.blsm.nvidia.com/metropolis-iva-tlt-jenkins/blue/organizations/jenkins/${jobName}/detail/${jobName}/${BUILD_NUMBER}/pipeline"
+                                    def commitMessage = """Jenkins Commit - base image update (optimized)
+
+Updated base image digests:
+- x86:   ${x86Sha}
+- arm64: ${arm64Sha}
+
+Build: ${BUILD_NUMBER}
+Branch: ${params.BRANCH}
+Build URL: ${buildUrl}"""
+
+                                    def commitResult = gitCommit(
+                                        files: ['docker/manifest.json', 'Jenkinsfile.develop', 'Jenkinsfile.nightly', 'Jenkinsfile.release', 'Jenkinsfile.dev', 'release/docker/Dockerfile'],
+                                        message: commitMessage,
+                                        addAll: false
+                                    )
+                                    if (commitResult.committed) {
+                                        gitPush(branch: params.BRANCH, gitToken: env.GITLAB_TOKEN, repoUrl: repoPath)
+                                        echo "✓ Files updated and pushed"
+                                    } else {
+                                        echo "No changes to commit"
+                                    }
+                                }
+                            } finally {
+                                sh """
+                                    rm -f ~/.git-credentials || true
+                                    git config --global --unset credential.helper || true
+                                    find \$WORKSPACE -name '.git-credentials' -type f -delete || true
+                                """
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            script {
+                echo "=== Optimized Base Image Build Complete ==="
+                echo "Branch: ${params.BRANCH}"
+                echo "Build:  ${BUILD_NUMBER}"
+                echo "Result: ${currentBuild.result ?: 'SUCCESS'}"
+            }
+        }
+    }
+}

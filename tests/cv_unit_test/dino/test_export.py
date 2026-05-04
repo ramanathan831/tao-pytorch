@@ -108,12 +108,18 @@ def test_dino_compare_onnx_output(_test_experiment_spec, backbone, batch_size):
     torch.backends.cudnn.allow_tf32 = False
     torch.backends.cuda.matmul.allow_tf32 = False
 
+
+    # Seed BEFORE build_model so head-layer random init is deterministic across
+    # test orderings — otherwise prior tests in the same process leave different
+    # RNG state, which produces slightly different head weights and exposes
+    # numerical edge cases in the legacy ONNX exporter.
+    torch.manual_seed(47)
+
     # To run ONNXRuntime, we run models in CPU so that deformable attention does not
     # use custom TRT Plugin
     model = build_model(_test_experiment_spec, export=True)
     model.eval()
 
-    torch.manual_seed(47)
     dummy_input = torch.randn(input_batch_size, input_channel, input_height, input_width)
     os_handle, tmp_onnx_file = tempfile.mkstemp(suffix=".onnx")
     os.close(os_handle)

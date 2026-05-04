@@ -80,7 +80,8 @@ def test_i3d_model_export(_test_experiment_spec):
                       output_names=output_names,
                       dynamic_axes=dynamic_axes,
                       opset_version=17,
-                      verbose=True)
+                      verbose=True,
+                      dynamo=False)
 
     optimized_model, _ = simplify(onnx.load(output_file))
     graph = gs.import_onnx(optimized_model)

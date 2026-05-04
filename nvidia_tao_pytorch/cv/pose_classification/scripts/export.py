@@ -119,7 +119,8 @@ def run_export(args):
                       output_names=output_names,
                       dynamic_axes=dynamic_axes,
                       verbose=True,
-                      opset_version=12)
+                      opset_version=12,
+                      dynamo=False)
 
 
 if __name__ == "__main__":

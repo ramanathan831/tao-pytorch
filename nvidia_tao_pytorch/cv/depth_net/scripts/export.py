@@ -201,7 +201,8 @@ def stereo_onnx_export(model,
                           output_names=output_names,
                           do_constant_folding=True,
                           verbose=True,
-                          dynamic_axes=axes_config)
+                          dynamic_axes=axes_config,
+                          dynamo=False)
 
         # Verify ONNX exported correctly.
         loaded_model = onnx.load(output_file)

@@ -122,7 +122,8 @@ def run_export(args):
                       output_names=output_names,
                       opset_version=experiment_config["export"]["opset_version"],
                       dynamic_axes=dynamic_axes,
-                      verbose=experiment_config["export"]["verbose"])
+                      verbose=experiment_config["export"]["verbose"],
+                      dynamo=False)
 
     # add simplification
     status_logging.get_status_logger().write(

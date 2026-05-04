@@ -50,7 +50,7 @@ spec:
       - name: DOCKER_TLS_CERTDIR
         value: ""
   - name: base-image
-    image: nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:825b6a265486ef3ba963f48ec7c16e7a4638343541731f25138f896bcd216a50
+    image: nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:13a1018de75dff37f3d0d91d059bfa6af45a3c1a561877f0413f6a5494c171e3
     securityContext:
       privileged: true
     command:
@@ -132,7 +132,7 @@ spec:
           }
         }
         gitlabCommitStatus(name: "functional_tests", connection: gitLabConnection('git-lab-master')) {
-          sh "python setup.py develop"
+          sh "pip install --no-build-isolation -e ."
           sh "CPUCOUNT=1 pip install tao-core/"
           sh "pip install pytest-cov"
           sh "${command_env} python3 ci/run_functional_tests.py --cov=nvidia_tao_pytorch --cov-report=xml:coverage.xml --cov-report=term"

@@ -77,7 +77,8 @@ class ONNXExporter(object):
                 do_constant_folding=do_constant_folding,
                 custom_opsets={"nvidia": opset_version},
                 verbose=verbose,
-                dynamic_axes=dynamic_axes)
+                dynamic_axes=dynamic_axes,
+                dynamo=False)
 
     @staticmethod
     def check_onnx(onnx_file):

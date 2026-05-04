@@ -493,7 +493,8 @@ def export_single_encoder(
             dynamic_axes=dynamic_axes,
             opset_version=opset_version,
             do_constant_folding=True,
-            verbose=export_config.verbose
+            verbose=export_config.verbose,
+            dynamo=False,
         )
 
     # If model is large, consolidate external data into a single file
@@ -668,6 +669,7 @@ def export_combined_encoder(
             opset_version=opset_version,
             do_constant_folding=True,
             verbose=export_config.verbose,
+            dynamo=False,
         )
 
     # If model is large, consolidate external data into a single file
