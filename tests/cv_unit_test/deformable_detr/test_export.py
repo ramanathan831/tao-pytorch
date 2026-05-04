@@ -97,7 +97,8 @@ def test_multihead_attn_onnx(batch_size, num_queries, device):
     torch.onnx.export(model, dummy_input, tmp_onnx_file,
             input_names=input_names, output_names=output_names, export_params=True,
             training=torch.onnx.TrainingMode.EVAL, opset_version=16, do_constant_folding= False,
-            verbose = False, dynamic_axes = dynamic_axes)
+            verbose = False, dynamic_axes = dynamic_axes,
+            dynamo=False)
 
     # Load ONNX and ONNXRuntime
     onnx_model = onnx.load(tmp_onnx_file)

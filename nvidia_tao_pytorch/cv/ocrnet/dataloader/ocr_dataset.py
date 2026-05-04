@@ -204,6 +204,22 @@ class LmdbDataset(Dataset):
         """Number of samples."""
         return self.nSamples
 
+    def __del__(self):
+        """Close the lmdb environment so the path becomes reusable.
+
+        lmdb 2.x maintains a process-wide registry of opened paths and
+        rejects a second `lmdb.open(<same path>)` while an Environment is
+        alive. Releasing the env on GC keeps test cleanup and re-instantiation
+        cheap; without this, paramtrized tests sharing a fixture path raise
+        "already open in this process" on the second open.
+        """
+        env = getattr(self, "env", None)
+        if env is not None:
+            try:
+                env.close()
+            except Exception:
+                pass
+
     def __getitem__(self, index):
         """Generate single sample."""
         assert index <= len(self), 'index range error'

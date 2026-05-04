@@ -119,7 +119,8 @@ class ONNXExporter(object):
         torch.onnx.export(model, args, onnx_file,
                           input_names=input_names, output_names=output_names, export_params=True,
                           training=torch.onnx.TrainingMode.EVAL, opset_version=opset_version, do_constant_folding=do_constant_folding,
-                          verbose=verbose, dynamic_axes=dynamic_axes)
+                          verbose=verbose, dynamic_axes=dynamic_axes,
+                          dynamo=False)
 
     @staticmethod
     def check_onnx(onnx_file):

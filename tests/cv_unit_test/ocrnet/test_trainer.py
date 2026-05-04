@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import gc
 import numpy as np
 import lmdb
 import os
@@ -29,17 +30,31 @@ DEFAULT_LABEL= "0123456789abcdefghijklmnopqrstuvwxyz"
 DEFAULT_HEIGHT = 64
 DEFAULT_WIDTH = 200
 FAST_DEV_RUN = 2  # Run dry run 2 times
-tmp_top_obj = tempfile.TemporaryDirectory()
-tmp_top_dir = tmp_top_obj.name
-lmdb_dir = os.path.join(tmp_top_dir, "lmdb")
-gt_file = os.path.join(tmp_top_dir, "gt.txt")
-character_file = os.path.join(tmp_top_dir, "character_list")
 batch_size = 32
+
+# Per-fixture-invocation paths so that each parametrized test gets a unique
+# lmdb directory. lmdb 2.x's process-wide registry rejects re-opening the
+# same path, and Lightning's reference cycles can hold a prior test's
+# OCRDataset (and its env) alive past gc.collect(). Unique paths sidestep
+# the collision entirely.
+tmp_top_dir = ""
+lmdb_dir = ""
+val_lmdb_dir = ""
+gt_file = ""
+character_file = ""
 
 
 @pytest.fixture
 def _test_data():
-    os.makedirs(tmp_top_dir, exist_ok=True)
+    global tmp_top_dir, lmdb_dir, val_lmdb_dir, gt_file, character_file
+    gc.collect()
+    tmp_top_dir = tempfile.mkdtemp(prefix="ocrnet_trainer_")
+    lmdb_dir = os.path.join(tmp_top_dir, "lmdb")
+    # Separate val dir so the train and val DataLoaders don't both open the
+    # same lmdb path inside one process — lmdb 2.x rejects that.
+    val_lmdb_dir = os.path.join(tmp_top_dir, "lmdb_val")
+    gt_file = os.path.join(tmp_top_dir, "gt.txt")
+    character_file = os.path.join(tmp_top_dir, "character_list")
     img = Image.fromarray(np.random.randint(low=0, high=255, size=(DEFAULT_HEIGHT, DEFAULT_WIDTH, 3), dtype=np.uint8))
     sample_cnt = batch_size
     tmp_img_path = os.path.join(tmp_top_dir, "tmp_img.png")
@@ -55,12 +70,15 @@ def _test_data():
         cache[labelKey] = DEFAULT_LABEL.encode()
 
     cache['num-samples'.encode()] = str(sample_cnt).encode()
-    os.makedirs(lmdb_dir, exist_ok=True)
-    env = lmdb.open(lmdb_dir, map_size=1099511627776)
-
-    with env.begin(write=True) as txn:
-        for k, v in cache.items():
-            txn.put(k, v)
+    for path in (lmdb_dir, val_lmdb_dir):
+        os.makedirs(path, exist_ok=True)
+        env = lmdb.open(path, map_size=1099511627776)
+        with env.begin(write=True) as txn:
+            for k, v in cache.items():
+                txn.put(k, v)
+        # lmdb 2.x raises "already open in this process" if the consumer test
+        # tries to lmdb.open() the same path while this fixture's env is alive.
+        env.close()
 
     os.makedirs(os.path.join(tmp_top_dir, 'images'), exist_ok=True)
     with open(gt_file, "w") as f:
@@ -72,6 +90,11 @@ def _test_data():
     with open(character_file, "w") as f:
         for ch in DEFAULT_LABEL:
             f.write(f"{ch}\n")
+
+    yield
+    # Best-effort cleanup; ignore errors in case downstream still holds files.
+    import shutil
+    shutil.rmtree(tmp_top_dir, ignore_errors=True)
 
 
 @pytest.fixture
@@ -150,7 +173,7 @@ def test_trainer_fit(_test_data, _train_spec, backbone, dataset):
 
     if dataset == 'lmdb':
         _train_spec.dataset.train_dataset_dir = [lmdb_dir]
-        _train_spec.dataset.val_dataset_dir = lmdb_dir
+        _train_spec.dataset.val_dataset_dir = val_lmdb_dir
     else:
         _train_spec.dataset.train_dataset_dir = [tmp_top_dir]
         _train_spec.dataset.train_gt_file = gt_file
@@ -224,5 +247,3 @@ def test_trainer_inference(_test_data, _infer_spec, backbone):
 
     # Test predict
     trainer.predict(model, dm)
-
-    tmp_top_obj.cleanup()

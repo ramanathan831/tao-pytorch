@@ -197,7 +197,8 @@ class Export():
                 verbose=self.config_file.export.verbose,
                 dynamic_axes={
                     "input": {0: "batch"},
-                }
+                },
+                dynamo=False,
             )
         # Import and add DCNv2 attributes
         onnx_model = onnx.load(temp_onnx)

@@ -37,6 +37,7 @@ class SwiGLUFused(GluMlp):
         norm_layer=None,
         bias=True,
         drop=0.0,
+        **kwargs,
     ):
         """
         SwiGLUFused module.
@@ -65,6 +66,7 @@ class SwiGLUFused(GluMlp):
             bias=bias,
             drop=drop,
             gate_last=False,
+            **kwargs,  # forward device/dtype kwargs added in timm 1.x
         )
 
 

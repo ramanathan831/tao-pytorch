@@ -52,9 +52,13 @@ class ONNXExporter(object):
             print(f"CPU version of Deformable MHA requires opset version larger than 16. Overriding provided opset {opset_version} to 16.")
             opset_version = 16
 
+        # dynamo=False keeps the legacy JIT-trace exporter, required for now because PyTorch
+        # 2.9+ flipped the default to the dynamo-based exporter, which ignores
+        # register_custom_op_symbolic. See TODO ticket for full migration plan.
         torch.onnx.export(model, dummy_input, onnx_file,
                           input_names=input_names, output_names=output_names, export_params=True,
-                          training=torch.onnx.TrainingMode.EVAL, opset_version=opset_version, do_constant_folding=do_constant_folding, verbose=verbose, dynamic_axes=dynamic_axes)
+                          training=torch.onnx.TrainingMode.EVAL, opset_version=opset_version, do_constant_folding=do_constant_folding, verbose=verbose, dynamic_axes=dynamic_axes,
+                          dynamo=False)
 
     @staticmethod
     def check_onnx(onnx_file):

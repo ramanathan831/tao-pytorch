@@ -1,1 +1,4 @@
-nvidia-modelopt[all]==0.35.0
+# Pin to the 26.03 base image version. `pip install --upgrade` (used in the
+# Dockerfile layer) would otherwise pull the latest from PyPI and silently
+# diverge from the preinstalled wheel — bump this together with the base.
+nvidia-modelopt[all]==0.41.0

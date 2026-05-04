@@ -464,7 +464,8 @@ class Sparse4DExporter(nn.Module):
                 output_names=self.output_names,
                 dynamic_axes=self.dynamic_axes,
                 opset_version=17,
-                verbose=True
+                verbose=True,
+                dynamo=False,
             )
 
     def check_onnx(self, onnx_file):

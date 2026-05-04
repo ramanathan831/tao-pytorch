@@ -110,7 +110,8 @@ class ONNXExporter(object):
                 torch_model, model_inputs, output_prefix + '.onnx',
                 input_names=input_names, output_names=output_names, export_params=True,
                 training=torch.onnx.TrainingMode.EVAL, opset_version=opset_version, do_constant_folding=True,
-                custom_opsets={"nvidia": opset_version}, verbose=verbose, dynamic_axes=dynamic_axes
+                custom_opsets={"nvidia": opset_version}, verbose=verbose, dynamic_axes=dynamic_axes,
+                dynamo=False,
             )
 
     @staticmethod

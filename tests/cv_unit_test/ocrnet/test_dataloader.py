@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import argparse
+import gc
 import io
 import lmdb
 import os
@@ -34,6 +35,9 @@ DEFAULT_WIDTH = 100
 
 @pytest.fixture
 def _test_lmdb():
+    # Force GC of any leaked LmdbDataset from a prior test; lmdb 2.x rejects
+    # double-open on the same path.
+    gc.collect()
     img = Image.fromarray(np.random.randint(low=0, high=255, size=(DEFAULT_HEIGHT, DEFAULT_WIDTH, 3), dtype=np.uint8))
     sample_cnt = 16
     # img_bin = io.BytesIO()
@@ -59,6 +63,10 @@ def _test_lmdb():
     with env.begin(write=True) as txn:
         for k, v in cache.items():
             txn.put(k, v)
+    # lmdb 2.x raises "already open in this process" if the consumer test
+    # tries to lmdb.open() the same path while this fixture's env is alive.
+    # Close it before yielding so OCRDataset can open it cleanly.
+    env.close()
 
     yield lmdb_path
     shutil.rmtree(lmdb_path)
@@ -126,7 +134,13 @@ def test_lmdb_datset(_test_lmdb, _test_opt):
     img, label = lmdb_dataset[0]
     assert img.size == (DEFAULT_WIDTH, DEFAULT_HEIGHT), "Dummy dataset's image output shape should match default value"
     assert label == DEFAULT_LABEL, "Dummy dataset's label should match default value"
-    
+
+    # lmdb 2.x rejects opening the same path twice in one process. Drop the
+    # first dataset and force GC so its lmdb.Environment is fully released
+    # before the second LmdbDataset instantiation re-opens the same env.
+    del lmdb_dataset
+    gc.collect()
+
     opt.data_filtering_off = False
     lmdb_dataset = LmdbDataset(root, opt)
     assert len(lmdb_dataset) == 0, "Dummy dataset's length should match default value"

@@ -122,7 +122,8 @@ def run_export(args):
                       input_names=input_names,
                       output_names=output_names,
                       dynamic_axes=dynamic_axes,
-                      verbose=True)
+                      verbose=True,
+                      dynamo=False)
 
     #  Remove excess layers from the backbone's last layer
     if "swin" in experiment_config.model.backbone:

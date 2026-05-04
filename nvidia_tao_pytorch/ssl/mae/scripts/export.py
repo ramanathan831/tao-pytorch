@@ -132,7 +132,8 @@ def create_onnx_model(
         do_constant_folding=True,
         input_names=input_names,
         output_names=output_names,
-        dynamic_axes=dynamic_axes
+        dynamic_axes=dynamic_axes,
+        dynamo=False,
     )
 
     # Verify ONNX model

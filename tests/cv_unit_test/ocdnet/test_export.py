@@ -93,7 +93,8 @@ def test_ocdnet_dcnresnet_onnx_export(_test_dcnresnet_model_spec, _test_tensor):
             output_names=['pred'],
             dynamic_axes={
                 "input": {0: "batch"},
-            }
+            },
+            dynamo=False,
         )
     onnx_model = onnx.load(tmp_onnx_file)
     gs_graph = onnx_gs.import_onnx(onnx_model)
@@ -144,7 +145,8 @@ def test_ocdnet_fan_onnx_export(_test_fan_model_spec, _test_tensor):
             output_names=['pred'],
             dynamic_axes={
                 "input": {0: "batch"},
-            }
+            },
+            dynamo=False,
         )
     
     assert os.path.exists(tmp_onnx_file), "ONNX file was not generated properly!"

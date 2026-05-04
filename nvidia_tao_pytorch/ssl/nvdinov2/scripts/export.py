@@ -132,7 +132,8 @@ def run_export(experiment_config):
                       dynamic_axes=dynamic_axes,
                       opset_version=opset_version,
                       do_constant_folding=False,
-                      verbose=True)
+                      verbose=True,
+                      dynamo=False)
 
     print(f"ONNX file stored at {output_file}")
 

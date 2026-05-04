@@ -67,7 +67,10 @@ class MaskGDINOExporter(ONNXExporter):
 
         register_custom_op_symbolic('nvidia::MultiscaleDeformableAttnPlugin_TRT', nvidia_msda, opset_version)
 
+        # dynamo=False: keep legacy JIT-trace exporter (PyTorch 2.9+ default flipped to
+        # dynamo, which ignores register_custom_op_symbolic).
         torch.onnx.export(model, args, onnx_file,
                           input_names=input_names, output_names=output_names, export_params=True,
                           training=torch.onnx.TrainingMode.EVAL, opset_version=opset_version, do_constant_folding=do_constant_folding,
-                          custom_opsets={"nvidia": opset_version}, verbose=verbose, dynamic_axes=dynamic_axes)
+                          custom_opsets={"nvidia": opset_version}, verbose=verbose, dynamic_axes=dynamic_axes,
+                          dynamo=False)

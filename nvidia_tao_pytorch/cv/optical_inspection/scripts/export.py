@@ -138,7 +138,8 @@ def run_export(args):
                       dynamic_axes=dynamic_axes,
                       opset_version=opset_version,
                       do_constant_folding=do_constant_folding,
-                      verbose=True)
+                      verbose=True,
+                      dynamo=False)
 
 
 if __name__ == "__main__":

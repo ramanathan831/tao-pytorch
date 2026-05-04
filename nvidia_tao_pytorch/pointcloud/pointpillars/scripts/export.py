@@ -286,7 +286,8 @@ def main(cfg: ExperimentConfig) -> None:
                 "input": {0: "batch"},
                 "voxel_num_points": {0: "batch"},
                 "coords": {0: "batch"}
-            }
+            },
+            dynamo=False,
         )
         onnx_model = onnx.load(tmp_onnx_file)
         model_simp, check = simplify(

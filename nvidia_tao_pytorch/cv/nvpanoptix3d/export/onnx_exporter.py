@@ -214,7 +214,8 @@ class ONNXExporter:
                 output_names=output_names,
                 dynamic_axes=dynamic_axes,
                 external_data=bool(external_data),
-                custom_opsets={"nvidia": self.opset_version}
+                custom_opsets={"nvidia": self.opset_version},
+                dynamo=False,
             )
             torch.onnx.export(model, dummy_input, onnx_file, **export_kwargs)
 
