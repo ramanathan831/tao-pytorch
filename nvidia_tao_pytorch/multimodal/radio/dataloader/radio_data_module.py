@@ -155,6 +155,7 @@ class RadioDataModule(pl.LightningDataModule):
         prefetch = train_cfg.get("prefetch", True)
         include_keys = train_cfg.get("include_keys", False)
         include_dataset_source = train_cfg.get("include_dataset_source", False)
+        native_resolution_filter = train_cfg.get("native_resolution_filter", None)
 
         loader, shared_epoch, loader_state = get_data_pipeline(
             args=pipeline_config,
@@ -175,6 +176,7 @@ class RadioDataModule(pl.LightningDataModule):
             include_keys=include_keys,
             include_dataset_source=include_dataset_source,
             aug_config=self.augmentation,
+            native_resolution_filter=native_resolution_filter,
         )
 
         return loader, shared_epoch, loader_state

@@ -34,6 +34,7 @@ import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
 from nvidia_tao_pytorch.core.callbacks.loggers import TAOStatusLogger
 from nvidia_tao_pytorch.core.callbacks.ema import EMA, EMAModelCheckpoint
 from nvidia_tao_pytorch.core.utilities import get_latest_checkpoint
+from nvidia_tao_pytorch.core.distributed.comm import get_global_rank
 
 from nvidia_tao_pytorch.core.distillation.distiller import Distiller
 
@@ -83,6 +84,11 @@ class MultiTeacherDistiller(Distiller):
         # Parse teacher configurations (support single or multiple teachers)
         self.teacher_configs = self._parse_teacher_configs()
 
+        self._pretrained_head_sd = None
+        pretrained_path = getattr(self.model_config.backbone, 'pretrained_backbone_path', None)
+        if pretrained_path:
+            self._detect_upstream_head_info(pretrained_path)
+
         # Global defaults for backward compatibility
         self.distill_weight = self.distill_config.loss_lambda
         self.distill_loss = self.distill_config.loss_type
@@ -100,6 +106,10 @@ class MultiTeacherDistiller(Distiller):
         super().__init__(experiment_spec, export)
 
         self.batch_size = self.dataset_config.batch_size
+
+        if self._pretrained_head_sd is not None:
+            self._warmstart_projection_heads(self._pretrained_head_sd)
+            self._pretrained_head_sd = None
 
         self.register_buffer(
             "_student_mean", torch.tensor(OPENAI_CLIP_MEAN).view(1, 3, 1, 1)
@@ -218,6 +228,10 @@ class MultiTeacherDistiller(Distiller):
             config['summary_loss_weight'] = getattr(teacher, 'summary_loss_weight', 1.0)
             config['fd_loss_weight'] = getattr(teacher, 'fd_loss_weight', 1.0)
             config['summary_loss_type'] = getattr(teacher, 'summary_loss_type', 'CE')
+            config['summary_token_idx'] = getattr(teacher, 'summary_token_idx', None)
+            config['spatial_mlp_version'] = getattr(teacher, 'spatial_mlp_version', 'v2')
+            config['spatial_num_inner'] = getattr(teacher, 'spatial_num_inner', None)
+            config['upstream_name'] = None
             # FeatSharp adaptor
             config['adaptor'] = getattr(teacher, 'adaptor', None)
             config['upsampler_checkpoint'] = getattr(teacher, 'upsampler_checkpoint', None)
@@ -358,9 +372,12 @@ class MultiTeacherDistiller(Distiller):
                 use_mlp=getattr(self.distill_config, 'use_mlp', True),
                 mlp_hidden_size=getattr(self.distill_config, 'mlp_hidden_size', 1024),
                 mlp_num_inner=getattr(self.distill_config, 'mlp_num_inner', 0),
+                spatial_mlp_version=teacher_config.get('spatial_mlp_version', 'v2'),
+                spatial_num_inner=teacher_config.get('spatial_num_inner', None),
                 summary_loss_weight=teacher_config.get('summary_loss_weight', 1.0),
                 fd_loss_weight=teacher_config.get('fd_loss_weight', 1.0),
                 summary_loss_type=teacher_config.get('summary_loss_type', 'CE'),
+                summary_token_idx=teacher_config.get('summary_token_idx'),
             )
             self.distillation_loss_fns.append(loss_fn)
             logger.info(f"Created distillation loss for teacher {idx}: "
@@ -369,6 +386,217 @@ class MultiTeacherDistiller(Distiller):
         # For backward compatibility, keep single loss reference if only one teacher
         if len(self.distillation_loss_fns) == 1:
             self.distillation_loss_fn = self.distillation_loss_fns[0]
+
+    def _detect_upstream_head_info(self, ckpt_path):
+        """Inspect a RADIO checkpoint to pick and warm-start per-teacher heads.
+
+        Args:
+            ckpt_path (str): Path to the upstream RADIO checkpoint whose
+                adapter heads should seed the local per-teacher loss heads.
+
+        Returns:
+            None: The method updates ``teacher_configs`` and caches matching
+                checkpoint tensors on ``self._pretrained_head_sd``.
+        """
+        up = torch.load(ckpt_path, map_location='cpu', weights_only=False)
+        up_sd = up['state_dict'] if isinstance(up, dict) and 'state_dict' in up else up
+        up_args = up.get('args') if isinstance(up, dict) else None
+        token_slot_by_name = self._extract_upstream_token_slots(up_args)
+        head_keys = [k for k in up_sd if k.startswith('_heads.') or k.startswith('_feature_projections.')]
+        if not head_keys:
+            return
+
+        upstream_names = sorted({k.split('.')[1] for k in head_keys if k.startswith('_heads.')})
+        if get_global_rank() == 0:
+            logger.info(f"[head-detect] upstream adapters in ckpt: {upstream_names}")
+
+        self._pretrained_head_sd = {k: up_sd[k] for k in head_keys}
+        del up, up_sd
+
+        def _norm(s):
+            return ''.join(c for c in s.lower() if c.isalnum())
+
+        def _common_prefix(a, b):
+            n = 0
+            while n < min(len(a), len(b)) and a[n] == b[n]:
+                n += 1
+            return n
+
+        for idx, teacher_config in enumerate(self.teacher_configs):
+            t_type = str(teacher_config['model_config'].backbone.type)
+            t_norm = _norm(t_type)
+            best_name, best_score = None, 0
+            for name in upstream_names:
+                score = _common_prefix(t_norm, _norm(name))
+                if score > best_score:
+                    best_name, best_score = name, score
+            if best_name is None or best_score < 3:
+                if get_global_rank() == 0:
+                    logger.warning(
+                        f"[head-detect] teacher {idx} (type={t_type}): no upstream adapter name "
+                        f"matched from {upstream_names}; skipping warm-start for this teacher"
+                    )
+                continue
+
+            teacher_config['upstream_name'] = best_name
+            summary_token_idx = self._lookup_upstream_token_slot(best_name, token_slot_by_name)
+            if summary_token_idx is None:
+                summary_token_idx = idx
+                if get_global_rank() == 0:
+                    logger.warning(
+                        f"[head-detect] teacher {idx} (type={t_type}) matched upstream '{best_name}' "
+                        f"but checkpoint args did not expose token_slot; falling back to slot {summary_token_idx}"
+                    )
+            teacher_config['summary_token_idx'] = summary_token_idx
+
+            fp_keys = [k for k in self._pretrained_head_sd if k.startswith(f'_feature_projections.{best_name}.')]
+            if any('blocks.' in k and ('.attn.' in k or '.norm1.' in k) for k in fp_keys):
+                teacher_config['spatial_mlp_version'] = 'attn'
+                teacher_config['spatial_num_inner'] = 0
+            else:
+                teacher_config['spatial_mlp_version'] = 'v2'
+                num_inner = 0
+                while any(k == f'_feature_projections.{best_name}.blocks.{num_inner}.0.weight' for k in fp_keys):
+                    num_inner += 1
+                if num_inner > 0:
+                    teacher_config['spatial_num_inner'] = num_inner
+
+            if get_global_rank() == 0:
+                logger.info(
+                    f"[head-detect] teacher {idx} (type={t_type}) -> upstream '{best_name}', "
+                    f"spatial_mlp_version={teacher_config['spatial_mlp_version']}, "
+                    f"spatial_num_inner={teacher_config['spatial_num_inner']}, "
+                    f"summary_token_idx={teacher_config['summary_token_idx']}"
+                )
+
+    @staticmethod
+    def _cfg_get(cfg, name, default=None):
+        """Read a value from a dict-like or attribute-like config object.
+
+        Args:
+            cfg (Any): Checkpoint config represented as a dictionary or an
+                object with attributes.
+            name (str): Field name to read from the config.
+            default (Any): Value returned when ``name`` is not present.
+
+        Returns:
+            Any: The requested value, or ``default`` when unavailable.
+        """
+        if isinstance(cfg, dict):
+            return cfg.get(name, default)
+        return getattr(cfg, name, default)
+
+    @classmethod
+    def _extract_upstream_token_slots(cls, args):
+        """Extract summary-token slots from upstream RADIO checkpoint args.
+
+        Args:
+            args (Any): Checkpoint ``args`` metadata containing teacher
+                entries and optional ``cls_token_per_teacher`` settings.
+
+        Returns:
+            dict: Mapping from upstream teacher name to summary-token slot.
+        """
+        if args is None:
+            return {}
+
+        teachers = cls._cfg_get(args, 'teachers', None)
+        if teachers is None:
+            return {}
+
+        cls_token_per_teacher = cls._cfg_get(args, 'cls_token_per_teacher', True)
+        token_slot_by_name = {}
+        for tidx, teacher_cfg in enumerate(teachers):
+            name = cls._cfg_get(teacher_cfg, 'name', None)
+            if name is None:
+                continue
+            token_slot = 0
+            if cls_token_per_teacher:
+                token_slot = cls._cfg_get(teacher_cfg, 'token_slot', tidx)
+            token_slot_by_name[str(name)] = int(token_slot)
+        return token_slot_by_name
+
+    @staticmethod
+    def _lookup_upstream_token_slot(upstream_name, token_slot_by_name):
+        """Lookup a token slot by exact or normalized upstream adapter name.
+
+        Args:
+            upstream_name (str): Adapter name detected in the upstream
+                checkpoint state dict.
+            token_slot_by_name (dict): Mapping from upstream teacher name to
+                summary-token slot.
+
+        Returns:
+            Optional[int]: Matching summary-token slot, or ``None`` when the
+                checkpoint metadata does not expose one.
+        """
+        if upstream_name in token_slot_by_name:
+            return token_slot_by_name[upstream_name]
+
+        def _norm(s):
+            return ''.join(c for c in str(s).lower() if c.isalnum())
+
+        target = _norm(upstream_name)
+        for name, token_slot in token_slot_by_name.items():
+            if _norm(name) == target:
+                return token_slot
+        return None
+
+    def _warmstart_projection_heads(self, head_sd):
+        """Copy upstream projection-head weights into per-teacher loss heads.
+
+        Args:
+            head_sd (dict): Cached checkpoint tensors for ``_heads`` and
+                ``_feature_projections`` from the upstream RADIO checkpoint.
+
+        Returns:
+            None: Matching tensors are loaded into each distillation loss head
+                in place.
+        """
+        for idx, (loss_fn, teacher_config) in enumerate(zip(self.distillation_loss_fns, self.teacher_configs)):
+            name = teacher_config.get('upstream_name')
+            if not name:
+                continue
+
+            for src_prefix, dst_attr in (
+                (f'_heads.{name}.', 'projection_layer_summary'),
+                (f'_feature_projections.{name}.', 'projection_layer'),
+            ):
+                dst_module = getattr(loss_fn, dst_attr, None)
+                if dst_module is None:
+                    continue
+                src_sd = {k[len(src_prefix):]: v for k, v in head_sd.items() if k.startswith(src_prefix)}
+                if not src_sd:
+                    continue
+
+                dst_sd = dst_module.state_dict()
+                loaded, skipped_shape, missing = 0, [], []
+                for k, v in src_sd.items():
+                    if k not in dst_sd:
+                        missing.append(k)
+                    elif dst_sd[k].shape != v.shape:
+                        skipped_shape.append(f"{k} (upstream {list(v.shape)} vs local {list(dst_sd[k].shape)})")
+                    else:
+                        dst_sd[k] = v
+                        loaded += 1
+                if dst_attr == 'projection_layer_summary' and (skipped_shape or missing):
+                    raise ValueError(
+                        f"[warmstart] teacher {idx} ({name}) summary head did not fully map: "
+                        f"loaded {loaded}/{len(src_sd)}, "
+                        f"shape-skipped={skipped_shape[:3]}, unmapped={missing[:3]}. "
+                        "This usually means the RADIO summary token dimension does not match "
+                        "the upstream per-teacher head."
+                    )
+                dst_module.load_state_dict(dst_sd, strict=False)
+                if get_global_rank() == 0:
+                    message = f"[warmstart] teacher {idx} ({name}) {dst_attr}: loaded {loaded}/{len(src_sd)}"
+                    if skipped_shape:
+                        message += f", shape-skipped: {skipped_shape[:3]}{'...' if len(skipped_shape) > 3 else ''}"
+                    if missing:
+                        message += f", unmapped src keys: {missing[:3]}{'...' if len(missing) > 3 else ''}"
+                    logger.info(
+                        message
+                    )
 
     @staticmethod
     def _get_parameter_groups(model, weight_decay, skip_names=()):
