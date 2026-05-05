@@ -133,13 +133,15 @@ check_jenkins_status:
       fi
       echo "Last build number: $last_build_number"
 
-      # Step 2: Trigger the new build
+      # Step 2: Trigger the new build (best-effort).
+      # Jenkins may accept the POST and start the build, but the 201 response
+      # can be dropped by an upstream proxy or exceed curl --max-time. Treat
+      # curl-level failures as non-fatal here; Step 3 polls the build number
+      # and will fail the job if no new build actually appears.
       curl_with_retry -s -X POST -u "$JENKINS_USER:$JENKINS_TOKEN" \
-          "$JENKINS_URL/view/tao-pytorch/job/$JENKINS_JOB/buildWithParameters?$JENKINS_PARAMS" || {
-          echo "ERROR: Failed to trigger Jenkins build after retries"
-          exit 1
-      }
-      echo "Jenkins build triggered successfully"
+          "$JENKINS_URL/view/tao-pytorch/job/$JENKINS_JOB/buildWithParameters?$JENKINS_PARAMS" \
+          || echo "WARNING: trigger POST returned error; will verify via build-number polling"
+      echo "Jenkins build trigger sent"
 
       # Step 3: Poll until a new build number is detected (with timeout)
       MAX_POLL_WAIT=300
