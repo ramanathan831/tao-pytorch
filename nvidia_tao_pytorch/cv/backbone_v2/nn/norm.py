@@ -101,18 +101,19 @@ class LayerNorm2d(nn.LayerNorm):
             )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Forward."""
+        """Forward.
+
+        Both data formats route through ``F.layer_norm`` so ONNX export
+        emits a single ``LayerNormalization`` op.
+        """
         if self.data_format == "channels_last":
-            return F.layer_norm(x, self.normalized_shape, self.weight, self.bias, self.eps)
-        else:
-            u = x.mean(1, keepdim=True)
-            s = (x - u).pow(2).mean(1, keepdim=True)
-            x = (x - u) / torch.sqrt(s + self.eps)
-            if self.elementwise_affine:
-                x = self.weight[:, None, None] * x
-                if self.bias is not None:
-                    x = x + self.bias[:, None, None]
-            return x
+            return F.layer_norm(x, self.normalized_shape,
+                                self.weight, self.bias, self.eps)
+        # channels_first: permute to channels-last, layer_norm, permute back.
+        return F.layer_norm(
+            x.permute(0, 2, 3, 1).contiguous(),
+            self.normalized_shape, self.weight, self.bias, self.eps,
+        ).permute(0, 3, 1, 2).contiguous()
 
 
 class GlobalResponseNorm(nn.Module):

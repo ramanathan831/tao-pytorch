@@ -493,21 +493,20 @@ def get_kitti_filenames(full_path):
 
 
 def get_stereodata_filenames(full_path):
-    """
-    Extracts a specific filename pattern for 'stereodataset' images from their full path.
+    """Return the input path stripped of its leading separator.
 
-    This function is tailored to a particular directory structure for the 'stereodataset'
-    where the relevant identifier is formed by the last six components of the path,
-    joined by '/'. This allows for more specific identification within that dataset.
+    Caller is expected to ``os.makedirs(os.path.dirname(target))`` before
+    writing, mirroring the mono path which recreates the directory tree
+    under the output root. This keeps outputs collision-free at any
+    nesting depth (e.g. ``<seq>/<view>/<file>``).
 
     Args:
-        full_path (str): The complete file path of a 'stereodataset' image,
-                         e.g., '/some/base/path/sequence_name/sub_dir/image_type/image_file.png'.
+        full_path (str): Absolute or relative input path.
 
     Returns:
-        str: The extracted filename string, composed of the last six path components joined by '/'.
+        str: ``full_path`` with the leading ``/`` removed.
     """
-    return '/'.join(full_path.split('/')[-1:])
+    return full_path.lstrip('/')
 
 
 def get_middlebury_filenames(full_path):
@@ -536,7 +535,7 @@ def get_middlebury_filenames(full_path):
     full_path_check = full_path.split('/')[-3:]  # check the last three path names
     for name in file_names:
         if name in full_path_check:
-            set_name = name + full_path_check[-1].split('.')[-1]  # If a known scene name is found
+            set_name = name + '.' + full_path_check[-1].split('.')[-1]  # If a known scene name is found
             break  # Once a match is found, no need to check further
 
     # If no specific Middlebury scene name was found in the path,

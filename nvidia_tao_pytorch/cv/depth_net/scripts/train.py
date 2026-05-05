@@ -65,10 +65,12 @@ def run_experiment(experiment_config, key):
 
     if experiment_config.train.precision.lower() == 'fp16':
         precision = '16-mixed'
+    elif experiment_config.train.precision.lower() == 'bf16':
+        precision = 'bf16-mixed'
     elif experiment_config.train.precision.lower() == 'fp32':
         precision = '32-true'
     else:
-        raise NotImplementedError(f"{experiment_config.train.precision} is not supported. Only fp32 and fp16 are supported")
+        raise NotImplementedError(f"{experiment_config.train.precision} is not supported. Only fp32, fp16, and bf16 are supported")
 
     strategy = 'auto'
     if len(trainer_kwargs['devices']) > 1:
