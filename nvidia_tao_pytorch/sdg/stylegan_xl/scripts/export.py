@@ -21,7 +21,7 @@ import numpy as np
 import PIL
 import onnxruntime
 
-from nvidia_tao_core.config.stylegan_xl.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.stylegan_xl.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.cookbooks.tlt_pytorch_cookbook import TLTPyTorchCookbook
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner

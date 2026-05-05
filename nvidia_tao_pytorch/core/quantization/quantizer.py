@@ -26,7 +26,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
-from nvidia_tao_core.config.common.quantization.default_config import ModelQuantizationConfig
+from nvidia_tao_pytorch.config.common.quantization.default_config import ModelQuantizationConfig
 from nvidia_tao_pytorch.core.quantization.calibratable import Calibratable
 from nvidia_tao_pytorch.core.quantization.constants import QuantizationState
 from nvidia_tao_pytorch.core.quantization.quantizer_base import (

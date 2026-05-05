@@ -21,7 +21,7 @@ from nvidia_tao_pytorch.cv.ml_recog.dataloader.pl_ml_data_module import MLDataMo
 from onnxsim import simplify
 import onnx
 
-from nvidia_tao_core.config.ml_recog.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.ml_recog.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_pytorch.cv.ml_recog.model.pl_ml_recog_model import MLRecogModel

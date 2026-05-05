@@ -32,7 +32,7 @@ from pytorch_lightning.strategies.fsdp import FSDPStrategy
 from pytorch_lightning.strategies.single_device import SingleDeviceStrategy
 from pytorch_lightning.callbacks import Callback, ModelCheckpoint
 from xformers.ops.fmha import BlockDiagonalMask
-import nvidia_tao_core.config.nvdinov2.default_config as model_params
+import nvidia_tao_pytorch.config.nvdinov2.default_config as model_params
 
 import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
 from nvidia_tao_pytorch.core.callbacks.loggers import TAOStatusLogger

@@ -45,7 +45,7 @@ an ImportError will be raised when attempting to use the backend.
 Examples
 --------
 >>> from nvidia_tao_pytorch.core.quantization.backends.modelopt_onnx import ModelOptONNXBackend
->>> from nvidia_tao_core.config.common.quantization.default_config import ModelQuantizationConfig
+>>> from nvidia_tao_pytorch.config.common.quantization.default_config import ModelQuantizationConfig
 >>>
 >>> # Create and use the backend
 >>> backend = ModelOptONNXBackend()

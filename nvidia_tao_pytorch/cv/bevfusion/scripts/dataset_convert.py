@@ -20,7 +20,7 @@ import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 
 # Triggers build of custom modules
-from nvidia_tao_core.config.bevfusion.default_config import BEVFusionDataConvertExpConfig
+from nvidia_tao_pytorch.config.bevfusion.default_config import BEVFusionDataConvertExpConfig
 from nvidia_tao_pytorch.core.utilities import check_and_create
 from nvidia_tao_pytorch.cv.bevfusion.datasets import kitti_data_prep, tao3d_data_prep
 from nvidia_tao_pytorch.cv.bevfusion.utils import sanity_check

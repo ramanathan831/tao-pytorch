@@ -34,7 +34,7 @@ from typing import Any, Dict, Optional
 import torch
 import torch.nn as nn
 
-from nvidia_tao_core.config.common.quantization.default_config import (
+from nvidia_tao_pytorch.config.common.quantization.default_config import (
     LayerQuantizationConfig,
     ModelQuantizationConfig,
 )

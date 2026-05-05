@@ -17,7 +17,7 @@
 import os
 import torch
 
-from nvidia_tao_core.config.grounding_dino.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.grounding_dino.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.tlt_logging import logging

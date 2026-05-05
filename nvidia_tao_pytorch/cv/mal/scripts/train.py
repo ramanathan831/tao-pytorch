@@ -10,7 +10,7 @@ import warnings
 
 from pytorch_lightning import Trainer
 
-from nvidia_tao_core.config.mal.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.mal.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.initialize_experiments import initialize_train_experiment
 from nvidia_tao_pytorch.cv.mal.datasets.pl_wsi_data_module import WSISDataModule
