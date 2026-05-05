@@ -78,6 +78,15 @@ radio_model_cfg = {
         "reg_tokens": 4,
         "no_embed_class": True,
     },
+    # CRADIOV4 SO400M.
+    "vit_so400m_patch16_224": {
+        "img_size": 224,
+        "patch_size": 16,
+        "embed_dim": 1152,
+        "depth": 27,
+        "num_heads": 16,
+        "mlp_ratio": 4304 / 1152,
+    },
 }
 
 
@@ -988,5 +997,43 @@ def c_radio_v3_vit_huge_patch16_reg4_dinov2(**kwargs):
         num_teacher=4,
         cpe_max_size=2048,
         register_multiple=8,
+        **kwargs,
+    )
+
+
+@BACKBONE_REGISTRY.register()
+def c_radio_v4_vit_huge_patch16(**kwargs):
+    """CRADIOV4 ViT Huge Patch16.
+
+    The released v4 checkpoint has one CLS token per teacher, but only SigLIP2
+    and DINOv3 are exposed as backbone summary tokens; SAM3 is spatial/adaptor
+    only.
+    """
+    return RADIO(
+        backbone="vit_huge_patch16_224",
+        summary_idxs=[0, 1],
+        window_size=None,
+        num_teacher=3,
+        cpe_max_size=2048,
+        register_multiple=10,
+        **kwargs,
+    )
+
+
+@BACKBONE_REGISTRY.register()
+def c_radio_v4_vit_so400m_patch16(**kwargs):
+    """CRADIOV4 SigLIP-SO400M Patch16.
+
+    The released v4 checkpoint has one CLS token per teacher, but only SigLIP2
+    and DINOv3 are exposed as backbone summary tokens; SAM3 is spatial/adaptor
+    only.
+    """
+    return RADIO(
+        backbone="vit_so400m_patch16_224",
+        summary_idxs=[0, 1],
+        window_size=None,
+        num_teacher=3,
+        cpe_max_size=2048,
+        register_multiple=10,
         **kwargs,
     )

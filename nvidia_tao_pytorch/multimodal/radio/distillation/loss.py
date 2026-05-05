@@ -703,6 +703,80 @@ class ProjectionMLP(nn.Module):
         return x
 
 
+class AttnFDHead(nn.Module):
+    """Attention-based feature-distillation head used by C-RADIO v4.
+
+    The head applies ViT attention blocks before the projection MLP used to
+    align student spatial features to the teacher feature dimension.
+    """
+
+    def __init__(self,
+                 input_size: int,
+                 hidden_size: int,
+                 output_size: int,
+                 num_inner: int = 0,
+                 num_blocks: int = 2,
+                 num_heads: int = 16,
+                 pre_norm: bool = False,
+                 device: torch.device = None,
+                 upsample_factor: int = 1,
+                 upsample_rank: int = 0,
+                 **kwargs) -> None:
+        """Initialize the attention feature-distillation head.
+
+        Args:
+            input_size (int): Channel dimension of student spatial features.
+            hidden_size (int): Hidden dimension used by the projection MLP.
+            output_size (int): Channel dimension expected by the teacher.
+            num_inner (int): Number of residual inner MLP blocks.
+            num_blocks (int): Number of attention blocks to apply before the
+                projection MLP.
+            num_heads (int): Number of attention heads in each block.
+            pre_norm (bool): Whether to normalize inputs before the first MLP
+                projection.
+            device (torch.device): Optional device for MLP parameters.
+            upsample_factor (int): Spatial upsampling factor applied by the
+                projection MLP.
+            upsample_rank (int): Optional cap on the upsampled hidden size.
+            **kwargs: Additional keyword arguments accepted for compatibility
+                with projection-head construction.
+
+        Returns:
+            None: The attention blocks and projection MLP are initialized in
+                place.
+        """
+        super().__init__()
+        from timm.models.vision_transformer import Block
+        self.blocks = nn.Sequential(*[
+            Block(input_size, num_heads=num_heads, init_values=1e-5)
+            for _ in range(num_blocks)
+        ])
+        self.mlp = ProjectionMLP(
+            input_size, hidden_size, output_size,
+            num_inner=num_inner,
+            pre_norm=pre_norm,
+            device=device,
+            upsample_factor=upsample_factor,
+            upsample_rank=upsample_rank,
+        )
+        self.upsample_factor = upsample_factor
+
+    def forward(self, x: torch.Tensor, **kwargs) -> torch.Tensor:
+        """Forward pass through attention blocks and the projection MLP.
+
+        Args:
+            x (torch.Tensor): Student spatial features with shape ``B x N x C``.
+            **kwargs: Extra arguments forwarded to the projection MLP.
+
+        Returns:
+            torch.Tensor: Projected features aligned to the teacher feature
+                dimension.
+        """
+        x = self.blocks(x)
+        x = self.mlp(x, **kwargs)
+        return x
+
+
 class CosineSimilarityLoss():
     """Cosine similarity loss for feature distillation."""
 
@@ -922,10 +996,13 @@ class DistillationLoss(nn.Module):
         use_mlp: bool = True,
         mlp_hidden_size: int = 1024,
         mlp_num_inner: int = 2,
+        spatial_mlp_version: str = "v2",
+        spatial_num_inner: Optional[int] = None,
         summary_loss_weight: float = 1.0,
         fd_loss_weight: float = 1.0,
         summary_loss_type: str = "CE",
         spatial_loss_type: str = "mse",
+        summary_token_idx: Optional[int] = None,
     ):
         """
         Initialize the DistillationLoss module.
@@ -943,6 +1020,11 @@ class DistillationLoss(nn.Module):
             use_mlp (bool): Whether to use MLP for projection. Default: False
             mlp_hidden_size (int): Hidden size for MLP. Default: 1024
             mlp_num_inner (int): Number of inner layers for MLP. Default: 2
+            spatial_mlp_version (str): Spatial projection head version. Use
+                "v2" for ``ProjectionMLP`` or "attn" for ``AttnFDHead``.
+            spatial_num_inner (Optional[int]): Number of inner layers for the
+                spatial projection head. Defaults to ``mlp_num_inner`` for
+                "v2" and 0 for "attn".
             summary_loss_weight (float): Weight for summary/CLS loss in combo mode. Default: 1.0
             fd_loss_weight (float): Weight for spatial/fd loss in combo mode. Default: 1.0
             summary_loss_type (str): Summary loss in combo mode. One of ["CE", "angle", "cosine", "tangent_sphere"].
@@ -950,6 +1032,7 @@ class DistillationLoss(nn.Module):
             spatial_loss_type (str): Spatial (feature map) loss in combo/spatial mode. One of ["mse", "dampened_mse"].
                 EVFM-style: "mse" = per-element squared error; "dampened_mse" = dampened for large residuals.
                 Default: "mse".
+            summary_token_idx (int): Optional RADIO summary-token slot for per-teacher summary distillation.
         """
         super().__init__()
 
@@ -958,6 +1041,7 @@ class DistillationLoss(nn.Module):
         self.spatial_loss_type = (spatial_loss_type or "mse").lower()
         self.summary_loss_weight = float(summary_loss_weight)
         self.fd_loss_weight = float(fd_loss_weight)
+        self.summary_token_idx = summary_token_idx
         self.student_model = student_model
         self.teacher_model = teacher_model
         self.num_classes = num_classes
@@ -997,16 +1081,32 @@ class DistillationLoss(nn.Module):
 
         # Create projection layer if dimensions differ and we're doing feature distillation
         self.projection_layer = None
+        self.projection_layer_summary = None
+        spatial_mlp_version = (spatial_mlp_version or "v2").lower()
+        if spatial_mlp_version not in ("v2", "attn"):
+            raise ValueError(f"Unsupported spatial_mlp_version: {spatial_mlp_version}. Must be 'v2' or 'attn'.")
+        if spatial_num_inner is None:
+            spatial_num_inner = 0 if spatial_mlp_version == "attn" else mlp_num_inner
+        self.spatial_mlp_version = spatial_mlp_version
         if self.student_dim != self.teacher_dim or isinstance(self.student_model, RADIO) or isinstance(self.teacher_model, RADIO):
             if use_mlp:
-                self.projection_layer = ProjectionMLP(self.student_dim, mlp_hidden_size, self.teacher_dim, num_inner=mlp_num_inner)
+                if spatial_mlp_version == "attn":
+                    self.projection_layer = AttnFDHead(
+                        self.student_dim, mlp_hidden_size, self.teacher_dim,
+                        num_inner=spatial_num_inner,
+                    )
+                else:
+                    self.projection_layer = ProjectionMLP(
+                        self.student_dim, mlp_hidden_size, self.teacher_dim,
+                        num_inner=spatial_num_inner,
+                    )
                 if self.distillation_mode == "combo":
                     if isinstance(self.student_model, RADIO):
-                        student_dim_summary = self.student_model.num_features
+                        student_dim_summary = self._summary_feature_dim(self.student_model, self.student_dim)
                     else:
                         student_dim_summary = self.student_dim
                     if isinstance(self.teacher_model, RADIO):
-                        teacher_dim_summary = self.teacher_model.num_features
+                        teacher_dim_summary = self._summary_feature_dim(self.teacher_model, self.teacher_dim)
                     else:
                         teacher_dim_summary = self.teacher_dim
                     self.projection_layer_summary = ProjectionMLP(student_dim_summary, mlp_hidden_size, teacher_dim_summary, num_inner=mlp_num_inner)
@@ -1014,11 +1114,11 @@ class DistillationLoss(nn.Module):
                 self.projection_layer = nn.Linear(self.student_dim, self.teacher_dim, bias=True)
                 if self.distillation_mode == "combo":
                     if isinstance(self.student_model, RADIO):
-                        student_dim_summary = self.student_model.num_features * len(self.student_model.summary_idxs)
+                        student_dim_summary = self._summary_feature_dim(self.student_model, self.student_dim)
                     else:
                         student_dim_summary = self.student_dim
                     if isinstance(self.teacher_model, RADIO):
-                        teacher_dim_summary = self.teacher_model.num_features * len(self.teacher_model.summary_idxs)
+                        teacher_dim_summary = self._summary_feature_dim(self.teacher_model, self.teacher_dim)
                     else:
                         teacher_dim_summary = self.teacher_dim
                     self.projection_layer_summary = nn.Linear(student_dim_summary, teacher_dim_summary, bias=True)
@@ -1068,7 +1168,7 @@ class DistillationLoss(nn.Module):
                 logging.info(f"Using {self.summary_loss_type} loss for summary in combo mode")
             if self.summary_loss_type != "ce":
                 if isinstance(self.teacher_model, RADIO):
-                    teacher_dim_summary = self.teacher_model.num_features
+                    teacher_dim_summary = self._summary_feature_dim(self.teacher_model, self.teacher_dim)
                 else:
                     teacher_dim_summary = self.teacher_dim
                 if self.summary_loss_type == "angle":
@@ -1077,6 +1177,98 @@ class DistillationLoss(nn.Module):
                     self.summary_criterion = SummaryCosineLoss()
                 else:
                     self.summary_criterion = SummaryTangentSphereLoss(feature_dim=teacher_dim_summary)
+
+    def _summary_feature_dim(self, model: nn.Module, fallback_dim: int) -> int:
+        """Return the summary dimension used by this loss for a model.
+
+        Args:
+            model (nn.Module): Student or teacher model that may be a RADIO
+                model with multiple summary tokens.
+            fallback_dim (int): Dimension to use for non-RADIO models.
+
+        Returns:
+            int: Per-token summary feature dimension used by the loss.
+        """
+        if not isinstance(model, RADIO):
+            return fallback_dim
+        summary_idxs = getattr(model, "summary_idxs", None)
+        if self.summary_token_idx is None or summary_idxs is None:
+            return int(model.num_features)
+        token_count = len(summary_idxs)
+        if token_count <= 0:
+            return int(model.num_features)
+        if model.num_features % token_count != 0:
+            raise ValueError(
+                f"RADIO num_features={model.num_features} is not divisible by "
+                f"len(summary_idxs)={token_count}"
+            )
+        return int(model.num_features // token_count)
+
+    def _summary_token_position(self, model: nn.Module) -> Optional[int]:
+        """Map a RADIO summary-token slot to its position in ``summary_idxs``.
+
+        Args:
+            model (nn.Module): Student or teacher model whose summary token
+                layout should be inspected.
+
+        Returns:
+            Optional[int]: Position of ``summary_token_idx`` in
+                ``model.summary_idxs``, or ``None`` when no selection is
+                needed.
+        """
+        if not isinstance(model, RADIO) or self.summary_token_idx is None:
+            return None
+        summary_idxs = getattr(model, "summary_idxs", None)
+        if summary_idxs is None:
+            return None
+
+        token_idx = int(self.summary_token_idx)
+        summary_idx_list = [int(idx) for idx in summary_idxs]
+        if token_idx in summary_idx_list:
+            return summary_idx_list.index(token_idx)
+        if summary_idx_list == list(range(len(summary_idx_list))) and 0 <= token_idx < len(summary_idx_list):
+            return token_idx
+        raise ValueError(
+            f"summary_token_idx={token_idx} is not present in RADIO summary_idxs={summary_idx_list}"
+        )
+
+    def _select_summary_token(self, summary: torch.Tensor, model: nn.Module) -> torch.Tensor:
+        """Select the per-teacher RADIO summary token.
+
+        Args:
+            summary (torch.Tensor): Summary tensor from the student or teacher
+                model. RADIO outputs may be flattened or tokenized.
+            model (nn.Module): Model that produced ``summary``.
+
+        Returns:
+            torch.Tensor: The selected summary-token features, or the original
+                summary when no per-teacher token selection is configured.
+        """
+        position = self._summary_token_position(model)
+        if position is None:
+            return summary
+
+        summary_idxs = getattr(model, "summary_idxs", None)
+        token_count = len(summary_idxs)
+        token_dim = self._summary_feature_dim(model, summary.shape[-1])
+
+        if summary.ndim == 3:
+            if summary.shape[1] <= position:
+                raise ValueError(
+                    f"Cannot select summary token position {position} from summary shape {list(summary.shape)}"
+                )
+            return summary[:, position].contiguous()
+
+        if summary.ndim != 2:
+            raise ValueError(f"Expected RADIO summary with 2 or 3 dims, got shape {list(summary.shape)}")
+        if summary.shape[-1] == token_dim:
+            return summary
+        if summary.shape[-1] % token_count != 0:
+            raise ValueError(
+                f"Cannot split flattened RADIO summary shape {list(summary.shape)} into "
+                f"{token_count} tokens for summary_token_idx={self.summary_token_idx}"
+            )
+        return summary.reshape(summary.shape[0], token_count, summary.shape[-1] // token_count)[:, position].contiguous()
 
     def _get_model_dimensions(self):
         """Get the output dimensions for student and teacher models."""
@@ -1119,6 +1311,23 @@ class DistillationLoss(nn.Module):
                 align_corners=True,
             )
         return features
+
+    @torch.autocast('cuda', enabled=False)
+    def _apply_phi_s(self, x: torch.Tensor) -> torch.Tensor:
+        """Apply ``phi_norm`` standardization to arbitrary feature tensors.
+
+        Args:
+            x (torch.Tensor): Student feature tensor whose last dimension
+                matches ``phi_norm`` statistics.
+
+        Returns:
+            torch.Tensor: Standardized features with the original dtype.
+        """
+        mean = self.phi_norm.expected_mean.to(torch.float32)
+        whiten = self.phi_norm.whiten.to(torch.float32)
+        out_dtype = x.dtype
+        x_fp32 = x.to(torch.float32)
+        return ((x_fp32 - mean) @ whiten.T).to(out_dtype)
 
     @staticmethod
     def _get_last_feature_map(features: Union[torch.Tensor, List[torch.Tensor], Dict[str, torch.Tensor]]):
@@ -1332,20 +1541,26 @@ class DistillationLoss(nn.Module):
 
             if self.projection_layer is not None:
                 student_spatial = self.projection_layer(student_spatial)
-            if self.projection_layer_summary is not None:
-                student_summary = self.projection_layer_summary(student_summary)
-            if self.teacher_norm is not None:
-                teacher_summary = self.teacher_norm(teacher_summary)
-
-            # summary loss (CE with temperature, or EVFM-style angle/cosine/tangent_sphere)
-            if self.summary_criterion is not None:
-                loss_summary = self.summary_criterion(student_summary, teacher_summary)
-            else:
-                teacher_probs = F.softmax(teacher_summary / self.temperature, dim=-1)
-                loss_summary = self.criterions["CE"](student_summary / self.temperature, teacher_probs)
+                student_spatial = self._apply_phi_s(student_spatial)
             # spatial (feature distillation) loss — EVFM-style: element-wise (mse or dampened_mse), mean over C, masked mean
             loss_spatial = self._spatial_feature_loss(student_spatial, teacher_spatial, eq_mask)
-            loss = self.summary_loss_weight * loss_summary + self.fd_loss_weight * loss_spatial
+            loss = self.fd_loss_weight * loss_spatial
+
+            if self.summary_loss_weight != 0.0:
+                student_summary = self._select_summary_token(student_summary, self.student_model)
+                teacher_summary = self._select_summary_token(teacher_summary, self.teacher_model)
+                if self.projection_layer_summary is not None:
+                    student_summary = self.projection_layer_summary(student_summary)
+                if self.teacher_norm is not None:
+                    teacher_summary = self.teacher_norm(teacher_summary)
+
+                # summary loss (CE with temperature, or EVFM-style angle/cosine/tangent_sphere)
+                if self.summary_criterion is not None:
+                    loss_summary = self.summary_criterion(student_summary, teacher_summary)
+                else:
+                    teacher_probs = F.softmax(teacher_summary / self.temperature, dim=-1)
+                    loss_summary = self.criterions["CE"](student_summary / self.temperature, teacher_probs)
+                loss = loss + self.summary_loss_weight * loss_summary
             return loss
         else:
             if student_summary is not None:
@@ -1358,6 +1573,8 @@ class DistillationLoss(nn.Module):
         # Handle projection for feature distillation
         if self.distillation_mode != "logits" and self.projection_layer is not None:
             student_output = self.projection_layer(student_output)
+            if self.distillation_mode == "spatial":
+                student_output = self._apply_phi_s(student_output)
 
         # Apply teacher normalization if specified
         if self.teacher_norm is not None and self.distillation_mode == "summary":

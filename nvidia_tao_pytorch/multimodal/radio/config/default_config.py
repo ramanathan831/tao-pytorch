@@ -218,6 +218,8 @@ class BackboneConfig:
             "c_radio_v3_vit_large_patch16_reg4_dinov2",
             "c_radio_v3_vit_base_patch16_reg4_dinov2",
             "c_radio_v3_vit_huge_patch16_reg4_dinov2",
+            "c_radio_v4_vit_huge_patch16",
+            "c_radio_v4_vit_so400m_patch16",
             "vit_l_14_siglip_clipa_224",
             "vit_l_14_siglip_clipa_336",
             "vit_h_14_siglip_clipa_224",
@@ -535,6 +537,11 @@ class DataPathFormat:
         value=True,
         default_value=True,
         description="Enable data prefetching in the pipeline",
+    )
+    native_resolution_filter: Optional[Dict[str, Any]] = DICT_FIELD(
+        None,
+        default_value=None,
+        description="Optional native image resolution filter applied before resize/crop",
     )
 
 
@@ -863,6 +870,15 @@ class TeacherConfig:
         display_name="Summary (CLS) loss type for combo mode",
         valid_options="CE, angle, cosine, tangent_sphere"
     )
+    summary_token_idx: Optional[int] = INT_FIELD(
+        value=None,
+        default_value=None,
+        display_name="RADIO summary token index",
+        description=(
+            "Optional per-teacher RADIO summary-token slot. If unset and the student "
+            "checkpoint exposes upstream teacher token slots, the distiller infers it."
+        )
+    )
     fd_loss_weight: Optional[float] = FLOAT_FIELD(
         value=1.0,
         default_value=1.0,
@@ -871,6 +887,25 @@ class TeacherConfig:
         description=(
             "Weight for spatial/feature distillation loss when mode is combo. "
             "Applied as fd_loss_weight * loss_spatial."
+        )
+    )
+    spatial_mlp_version: str = STR_FIELD(
+        value="v2",
+        default_value="v2",
+        display_name="Spatial projection head type",
+        valid_options="v2, attn",
+        description=(
+            "Projection head for spatial distillation. 'attn' matches the "
+            "attention-based C-RADIO v4 feature-projection heads."
+        )
+    )
+    spatial_num_inner: Optional[int] = INT_FIELD(
+        value=None,
+        default_value=None,
+        display_name="Spatial projection inner blocks",
+        description=(
+            "Optional override for the number of inner MLP blocks in the spatial "
+            "projection head. If unset, the distiller chooses a version-specific default."
         )
     )
     adaptor: Optional[str] = STR_FIELD(

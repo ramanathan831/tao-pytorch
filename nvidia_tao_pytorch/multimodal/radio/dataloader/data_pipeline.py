@@ -45,6 +45,9 @@ from nvidia_tao_pytorch.multimodal.radio.dataloader.adapter import LongDatasetAd
 from nvidia_tao_pytorch.multimodal.radio.dataloader.filters.hash_count_filter import (
     get_hash_database,
 )
+from nvidia_tao_pytorch.multimodal.radio.dataloader.filters.native_resolution_filter import (
+    NativeResolutionFilter,
+)
 from nvidia_tao_pytorch.multimodal.radio.dataloader.filters.uniform_color_filter import (
     UniformColorFilter,
 )
@@ -640,6 +643,7 @@ def get_data_pipeline(
     include_keys: bool = False,
     include_dataset_source: bool = False,
     aug_config: Optional[Dict[str, Any]] = None,
+    native_resolution_filter: Optional[Dict[str, Any]] = None,
 ):
     """Build the complete data pipeline (I/O → decode → augment).
 
@@ -716,6 +720,10 @@ def get_data_pipeline(
         ),
         _img_format_handler(error_handler=ignore_and_log(logger)),
         UniformColorFilter(),
+    ])
+    if native_resolution_filter is not None:
+        decode_stages.append(NativeResolutionFilter(**native_resolution_filter))
+    decode_stages.extend([
         _prepare_image(num_replicas=len(input_sizes)),
     ])
 
