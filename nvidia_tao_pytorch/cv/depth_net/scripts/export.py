@@ -129,15 +129,15 @@ def stereo_onnx_export(model,
                        on_cpu,
                        opset_version,
                        valid_iters=22,
-                       dynamic_axis=True):
+                       dynamic_axis=False):
     """
     Exports a stereo depth estimation model to the ONNX format.
 
-    This function prepares a dummy input tensor and then uses `torch.onnx.export` to
-    convert the PyTorch model into an ONNX representation. The exported model
-    includes dynamic axes for batch size, height, and width, making it
-    flexible for different input sizes at inference time. After export, it
+    This function prepares dummy input tensors and then uses `torch.onnx.export` to
+    convert the PyTorch model into an ONNX representation. After export, it
     verifies the integrity of the generated ONNX file using `onnx.checker.check_model`.
+
+    The `dynamic_axis` flag marks the batch axis dynamic; H/W are always static.
 
     Args:
         model (torch.nn.Module): The PyTorch stereo depth estimation model to be exported.
@@ -148,30 +148,20 @@ def stereo_onnx_export(model,
                                      Example: `[3, 256, 256]` for a color image
                                      of size 256x256.
         input_batch_size (int): The batch size to be used for the dummy input.
-                                This value is used to set the first dimension of the
-                                input tensors, but the exported ONNX model will have
-                                a dynamic batch size.
+                                With `dynamic_axis=True` the exported ONNX accepts
+                                any batch size at runtime.
         output_file (str): The path to the output ONNX file (e.g., 'model.onnx').
         on_cpu (bool): If True, the dummy input tensors will be created on the CPU.
                        If False, they will be created on the GPU (CUDA).
         opset_version (int): The ONNX operator set version to use for the export.
                              A higher version may support more recent operations.
+        valid_iters (int): Number of GRU refinement iterations baked into the
+                           exported graph.
+        dynamic_axis (bool): If True, mark the batch axis as dynamic.
 
     Raises:
         Exception: If the ONNX export or the subsequent model check fails,
                    an exception is raised, providing details about the error.
-
-    Notes:
-        - The function uses `AUTOCAST('cuda', enabled=True)` to ensure the dummy
-          inputs are created with mixed-precision if available, which can
-          be important for models trained with `torch.autocast`.
-        - The `dynamic_axes` argument is crucial for creating a model that
-          can handle variable-sized inputs, which is a common requirement for
-          computer vision models. It maps the dimensions of the input/output
-          tensors to descriptive names like 'batch_size', 'height', and 'width'.
-        - The dummy input arguments (`args=(dummy_input1, dummy_input2, 4, ...)`
-          are specific to the model's forward method. This structure should be
-          modified if the model's signature changes.
     """
     input_names = ['left_image', 'right_image', 'iters',
                    'flow_init', 'test_mode', 'low_mem', 'init_disp']
@@ -186,11 +176,12 @@ def stereo_onnx_export(model,
             dummy_input1 = torch.rand(input_shape, device='cuda')
             dummy_input2 = torch.rand(input_shape, device='cuda')
     try:
-        # Only use dynamic_axes if dynamic_axis is True
+        # Only the batch axis is marked dynamic. Height and width are baked at
+        # the trace shape — see docstring for the DINOv2 pos-embed reason.
         axes_config = None
         if dynamic_axis:
-            axes_config = {'left_image': {0: 'batch_size', 2: 'height', 3: 'width'},
-                           'right_image': {0: 'batch_size', 2: 'height', 3: 'width'},
+            axes_config = {'left_image': {0: 'batch_size'},
+                           'right_image': {0: 'batch_size'},
                            'disparity': {0: 'batch_size'}}
 
         torch.onnx.export(model,

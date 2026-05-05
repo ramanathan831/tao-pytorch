@@ -199,21 +199,30 @@ def create_split(experiment_config, results_dir):
 
     for item in output_file:
         if len(right_dir_pattern) > 0:
-            output_file[item]['right'] = \
-                [x.replace(image_dir_pattern[i], right_dir_pattern[i])
-                 for x in output_file[item]['left'] for i in range(len(image_dir_pattern))]
+            output_file[item]['right'] = []
+            for x in output_file[item]['left']:
+                new = x
+                for i in range(len(image_dir_pattern)):
+                    new = new.replace(image_dir_pattern[i], right_dir_pattern[i])
+                output_file[item]['right'].append(new)
 
         if len(nocc_dir_pattern) > 0:
-            output_file[item]['mask'] = \
-                [x.replace(image_dir_pattern[i], nocc_dir_pattern[i])
-                 for x in output_file[item]['left'] for i in range(len(image_dir_pattern))]
+            output_file[item]['mask'] = []
+            for x in output_file[item]['left']:
+                new = x
+                for i in range(len(image_dir_pattern)):
+                    new = new.replace(image_dir_pattern[i], nocc_dir_pattern[i])
+                output_file[item]['mask'].append(new)
             output_file[item]['mask'] = [x.replace(image_extension, nocc_mask_extension)
                                          for x in output_file[item]['mask']]
 
         if len(depth_dir_pattern) > 0:
-            output_file[item]['disparity'] = \
-                [x.replace(image_dir_pattern[i], depth_dir_pattern[i])
-                 for x in output_file[item]['left'] for i in range(len(image_dir_pattern))]
+            output_file[item]['disparity'] = []
+            for x in output_file[item]['left']:
+                new = x
+                for i in range(len(image_dir_pattern)):
+                    new = new.replace(image_dir_pattern[i], depth_dir_pattern[i])
+                output_file[item]['disparity'].append(new)
             output_file[item]['disparity'] = [x.replace(image_extension, depth_extension)
                                               for x in output_file[item]['disparity']]
 

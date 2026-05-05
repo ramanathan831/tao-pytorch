@@ -71,10 +71,15 @@ class FlashMultiheadAttention(nn.Module):
         K = K.view(K.size(0), self.num_heads, K.size(1),  self.head_dim)
         V = V.view(V.size(0), self.num_heads, V.size(1),  self.head_dim)
 
-        with torch.backends.cuda.sdp_kernel(
-                enable_flash=False,
-                enable_math=True,
-                enable_mem_efficient=True):
+        if torch.onnx.is_in_onnx_export():
+            # ONNX trace requires the math backend.
+            with torch.backends.cuda.sdp_kernel(
+                    enable_flash=False,
+                    enable_math=True,
+                    enable_mem_efficient=True):
+                attn_output = F.scaled_dot_product_attention(Q, K, V)
+        else:
+            # train / inference: let PyTorch auto-select.
             attn_output = F.scaled_dot_product_attention(Q, K, V)
 
         attn_output = attn_output.reshape(B, L, -1)
@@ -800,20 +805,20 @@ class LayerNorm2d(torch.nn.LayerNorm):
     def forward(self, x) -> torch.Tensor:
         """Forward pass of LayerNorm2d.
 
+        Routes through ``F.layer_norm`` via channels-last permute so ONNX
+        export emits a single ``LayerNormalization`` op.
+
         Args:
-            x (torch.Tensor): Input tensor of shape (B, C, H, W).
+            x (torch.Tensor): Input tensor of shape ``(B, C, H, W)``.
 
         Returns:
-            torch.Tensor: Normalized output tensor.
+            torch.Tensor: Normalized output of the same shape, in the input
+            tensor's dtype.
         """
-        if x.is_contiguous():
-            return (F.layer_norm(x.permute(0, 2, 3, 1),
-                                 self.normalized_shape,
-                                 self.weight, self.bias, self.eps).permute(0, 3, 1, 2).contiguous())
-        s, u = torch.var_mean(x, dim=1, keepdim=True)
-        x = (x - u) * torch.rsqrt(s + self.eps)
-        x = x * self.weight[:, None, None] + self.bias[:, None, None]
-        return x
+        return F.layer_norm(
+            x.permute(0, 2, 3, 1).contiguous(),
+            self.normalized_shape, self.weight, self.bias, self.eps,
+        ).permute(0, 3, 1, 2).contiguous()
 
 
 class LayerNorm3d(torch.nn.LayerNorm):
