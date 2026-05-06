@@ -43,18 +43,33 @@ def run_experiment(experiment_config, key):
 
     # Load pretrained model as starting point if pretrained path is provided,
     if pretrained_path:
-        model_dict = torch.load(pretrained_path, map_location="cpu")
-        if "pytorch-lightning_version" not in model_dict and experiment_config.model.model_type in ['MetricDepthAnything', 'RelativeDepthAnything']:
-            # parse public checkpoint
-            modified_dict = parse_mono_depth_checkpoint(model_dict, experiment_config.model.model_type)
-            pt_model.load_state_dict(modified_dict, strict=True)
-        else:
-            pt_model = get_pl_module(experiment_config).load_from_checkpoint(
-                pretrained_path,
-                map_location="cpu",
-                experiment_spec=experiment_config,
-                strict=True
+        # FFS commercial ckpt is a research-pickled nn.Module (not a PL ckpt
+        # nor a plain state_dict). Route it through load_ffs_pretrained
+        # which handles the pickle stub + prefix/substring remap and
+        # reports missing/unexpected explicitly. Mirrors scripts/inference.py
+        # and scripts/evaluate.py.
+        if experiment_config.model.model_type == 'FastFoundationStereo':
+            from nvidia_tao_pytorch.cv.depth_net.model.stereo_depth.fast_foundation_stereo.ckpt_utils import (
+                load_ffs_pretrained,
             )
+            result = load_ffs_pretrained(pt_model.model, pretrained_path)
+            assert not result['missing'], (
+                f"FFS ckpt missing keys: {result['missing']}")
+            assert not result['unexpected'], (
+                f"FFS ckpt unexpected keys: {result['unexpected']}")
+        else:
+            model_dict = torch.load(pretrained_path, map_location="cpu")
+            if "pytorch-lightning_version" not in model_dict and experiment_config.model.model_type in ['MetricDepthAnything', 'RelativeDepthAnything']:
+                # parse public checkpoint
+                modified_dict = parse_mono_depth_checkpoint(model_dict, experiment_config.model.model_type)
+                pt_model.load_state_dict(modified_dict, strict=True)
+            else:
+                pt_model = get_pl_module(experiment_config).load_from_checkpoint(
+                    pretrained_path,
+                    map_location="cpu",
+                    experiment_spec=experiment_config,
+                    strict=True
+                )
 
     print('model params', sum(p.numel() for p in pt_model.parameters()), flush=True)
     num_nodes = experiment_config.train.num_nodes
