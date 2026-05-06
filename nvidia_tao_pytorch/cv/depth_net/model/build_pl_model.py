@@ -20,7 +20,11 @@ from nvidia_tao_pytorch.cv.depth_net.model.stereo_depth.pl_stereo_model import S
 _pl_model_modules = {
     'MetricDepthAnything': MonoDepthNetPlModel,
     'RelativeDepthAnything': MonoDepthNetPlModel,
-    'FoundationStereo': StereoDepthNetPlModel
+    'FoundationStereo': StereoDepthNetPlModel,
+    # Why: FFS shares the StereoDepthNet PL module (same training / eval / export
+    # loop); only the inner model class is FastFoundationStereo. Mapped here
+    # because get_pl_module() and build_pl_model() both index this dict.
+    'FastFoundationStereo': StereoDepthNetPlModel,
 }
 
 
