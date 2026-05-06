@@ -21,7 +21,7 @@
 # import datetime
 # from nvidia_tao_pytorch.cv.segformer.utils import get_root_logger
 # from nvidia_tao_pytorch.cv.segformer.utils.common_utils import check_and_create, check_and_delete
-# from nvidia_tao_core.config.segformer.default_config import SFDatasetExpConfig, seg_class
+# from nvidia_tao_pytorch.config.segformer.default_config import SFDatasetExpConfig, seg_class
 # from nvidia_tao_pytorch.cv.segformer.dataloader.segformer_dm import SFDataModule
 # from nvidia_tao_pytorch.cv.segformer.dataloader.data_utils import build_dataloader
 # from nvidia_tao_pytorch.cv.segformer.dataloader.data_utils import build_dataset

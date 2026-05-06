@@ -16,11 +16,11 @@
 
 import pytest
 
-from nvidia_tao_core.config.oneformer.dataset import (
+from nvidia_tao_pytorch.config.oneformer.dataset import (
     OneFormerDatasetConfig,
     QuantCalibrationDataset,
 )
-from nvidia_tao_core.config.oneformer.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.oneformer.default_config import ExperimentConfig
 
 
 @pytest.mark.cv_unit

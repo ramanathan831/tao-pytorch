@@ -20,7 +20,7 @@ import numpy as np
 from omegaconf import OmegaConf
 from pytorch_lightning import Trainer
 
-from nvidia_tao_core.config.action_recognition.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.action_recognition.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.action_recognition.dataloader.pl_ar_data_module import ARDataModule
 from nvidia_tao_pytorch.cv.action_recognition.model.pl_ar_model import ActionRecognitionModel
 

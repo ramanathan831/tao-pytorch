@@ -25,7 +25,7 @@ from PIL import Image
 from omegaconf import OmegaConf
 
 from nvidia_tao_pytorch.core.utilities import check_and_create
-from nvidia_tao_core.config.optical_inspection.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.optical_inspection.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.optical_inspection.dataloader.pl_oi_data_module import OIDataModule
 from nvidia_tao_pytorch.cv.optical_inspection.model.pl_oi_model import OpticalInspectionModel
 

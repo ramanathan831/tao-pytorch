@@ -16,11 +16,11 @@
 
 import pytest
 
-from nvidia_tao_core.config.depth_net.dataset import (
+from nvidia_tao_pytorch.config.depth_net.dataset import (
     DepthNetDatasetConfig,
     QuantCalibrationDataset,
 )
-from nvidia_tao_core.config.depth_net.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.depth_net.default_config import ExperimentConfig
 
 
 @pytest.mark.cv_unit

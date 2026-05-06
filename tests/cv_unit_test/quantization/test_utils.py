@@ -37,7 +37,7 @@ def mock_all_backend_dependencies():
         'modelopt.torch': Mock(),
         'modelopt.torch.quantization': Mock(),
         'modelopt.torch.opt': Mock(),
-        'nvidia_tao_core.config.common.quantization.default_config': Mock(),
+        'nvidia_tao_pytorch.config.common.quantization.default_config': Mock(),
     }, clear=False), patch('nvidia_tao_pytorch.core.tlt_logging.logging') as mock_logging:
         mock_logging.info.return_value = None
         mock_logging.debug.return_value = None

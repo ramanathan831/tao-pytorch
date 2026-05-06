@@ -26,7 +26,7 @@ from omegaconf import OmegaConf
 
 from nvidia_tao_pytorch.core.utilities import check_and_create
 from nvidia_tao_pytorch.cv.pose_classification.dataloader.pl_pc_data_module import PCDataModule
-from nvidia_tao_core.config.pose_classification.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.pose_classification.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.pose_classification.model.pl_pc_model import PoseClassificationModel
 
 from pytorch_lightning import Trainer

@@ -21,7 +21,7 @@ from torch.utils.data import DataLoader
 from omegaconf import OmegaConf
 from nvidia_tao_pytorch.core.connectors.checkpoint_connector import encrypt_checkpoint
 from nvidia_tao_pytorch.core.utilities import patch_decrypt_checkpoint
-from nvidia_tao_core.config.re_identification.default_config import ReIDModelConfig, ReIDDatasetConfig, ReIDTrainExpConfig
+from nvidia_tao_pytorch.config.re_identification.default_config import ReIDModelConfig, ReIDDatasetConfig, ReIDTrainExpConfig
 from nvidia_tao_pytorch.cv.re_identification.dataloader.build_data_loader import train_collate_fn
 from nvidia_tao_pytorch.cv.re_identification.dataloader.datasets.bases import ImageDataset
 from nvidia_tao_pytorch.cv.re_identification.dataloader.datasets.market1501 import Market1501

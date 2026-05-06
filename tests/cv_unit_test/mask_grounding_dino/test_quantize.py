@@ -22,7 +22,7 @@ import tempfile
 from PIL import Image
 from omegaconf import OmegaConf
 
-from nvidia_tao_core.config.mask_grounding_dino.default_config import (
+from nvidia_tao_pytorch.config.mask_grounding_dino.default_config import (
     ExperimentConfig,
     MaskGDINODatasetConfig
 )

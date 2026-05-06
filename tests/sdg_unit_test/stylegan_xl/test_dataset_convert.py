@@ -24,7 +24,7 @@ import numpy as np
 import tempfile
 import json
 
-from nvidia_tao_core.config.stylegan_xl.dataset import DataConvertExpConfig
+from nvidia_tao_pytorch.config.stylegan_xl.dataset import DataConvertExpConfig
 from nvidia_tao_pytorch.core.utilities import check_and_create
 from nvidia_tao_pytorch.sdg.stylegan_xl.scripts.dataset_convert import run_experiment
 

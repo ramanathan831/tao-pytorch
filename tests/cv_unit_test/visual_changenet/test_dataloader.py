@@ -24,7 +24,7 @@ import numpy as np
 import tempfile
 
 from nvidia_tao_pytorch.core.utilities import check_and_create
-from nvidia_tao_core.config.visual_changenet.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.visual_changenet.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.optical_inspection.dataloader.build_data_loader import build_dataloader
 
 

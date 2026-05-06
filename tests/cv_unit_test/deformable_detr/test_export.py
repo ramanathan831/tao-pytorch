@@ -21,9 +21,9 @@ import onnx
 import onnxruntime as ort
 import torch
 
-from nvidia_tao_core.config.deformable_detr.default_config import ExperimentConfig
-from nvidia_tao_core.config.deformable_detr.model import DDModelConfig
-from nvidia_tao_core.config.deformable_detr.dataset import DDDatasetConfig
+from nvidia_tao_pytorch.config.deformable_detr.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.deformable_detr.model import DDModelConfig
+from nvidia_tao_pytorch.config.deformable_detr.dataset import DDDatasetConfig
 from nvidia_tao_pytorch.core.modules.activation.activation import MultiheadAttention
 from nvidia_tao_pytorch.cv.deformable_detr.model.build_nn_model import build_model
 from nvidia_tao_pytorch.cv.deformable_detr.utils.onnx_export import ONNXExporter

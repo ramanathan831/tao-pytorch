@@ -16,7 +16,7 @@
 
 import pytest
 
-from nvidia_tao_core.config.visual_changenet.default_config import (
+from nvidia_tao_pytorch.config.visual_changenet.default_config import (
     ExperimentConfig,
     CNDatasetSegmentConfig,
     QuantCalibrationDataset,

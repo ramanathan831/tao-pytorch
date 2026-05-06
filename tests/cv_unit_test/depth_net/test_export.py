@@ -24,7 +24,7 @@ from omegaconf import OmegaConf
 from dataclasses import replace
 from nvidia_tao_pytorch.ssl.mae.scripts.export import create_onnx_model
 from nvidia_tao_pytorch.cv.depth_net.model.build_pl_model import build_pl_model
-from nvidia_tao_core.config.depth_net.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.depth_net.default_config import ExperimentConfig
 
 
 @pytest.fixture

@@ -21,7 +21,7 @@ pytestmark = pytest.mark.skipif(
     reason="Sparse4D tests take very long (~12 hours) on ARM architecture. TODO: Fix this.",
 )
 
-from nvidia_tao_core.config.sparse4d.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.sparse4d.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.sparse4d.dataloader.pl_sparse4d_data_module import Sparse4DDataModule
 
 DATA_ROOT = "/home/scratch.metropolis2/tao_ci/tao_pytorch/data/sparse4d/SURF_Booth_031325/full_data/"

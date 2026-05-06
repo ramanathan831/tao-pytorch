@@ -21,10 +21,10 @@ import json
 from omegaconf import OmegaConf
 
 from nvidia_tao_core.api_utils.dataclass2json_converter import create_json_schema, dataclass_to_json
-from nvidia_tao_core.config.nvpanoptix3d.dataset import NVPanoptix3DDatasetConfig, AugmentationConfig
-from nvidia_tao_core.config.nvpanoptix3d.model import NVPanoptix3DModelConfig
-from nvidia_tao_core.config.nvpanoptix3d.train import NVPanoptix3DTrainExpConfig, OptimConfig
-from nvidia_tao_core.config.nvpanoptix3d.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.nvpanoptix3d.dataset import NVPanoptix3DDatasetConfig, AugmentationConfig
+from nvidia_tao_pytorch.config.nvpanoptix3d.model import NVPanoptix3DModelConfig
+from nvidia_tao_pytorch.config.nvpanoptix3d.train import NVPanoptix3DTrainExpConfig, OptimConfig
+from nvidia_tao_pytorch.config.nvpanoptix3d.default_config import ExperimentConfig
 
 sample_dataset_config = """
   name: "front3d"

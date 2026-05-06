@@ -26,7 +26,7 @@ from omegaconf import OmegaConf
 
 from nvidia_tao_pytorch.core.utilities import check_and_create
 from nvidia_tao_pytorch.cv.optical_inspection.dataloader.pl_oi_data_module import OIDataModule
-from nvidia_tao_core.config.visual_changenet.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.visual_changenet.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.visual_changenet.classification.models.cn_pl_model import ChangeNetPlModel as ChangeNetPlClassifier
 
 from pytorch_lightning import Trainer

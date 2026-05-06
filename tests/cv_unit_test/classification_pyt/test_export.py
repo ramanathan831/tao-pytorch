@@ -28,7 +28,7 @@ import numpy as np
 from PIL import Image
 
 from nvidia_tao_pytorch.core.utilities import check_and_create
-from nvidia_tao_core.config.classification_pyt.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.classification_pyt.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.classification_pyt.model.classifier_pl_model import ClassifierPlModel
 from nvidia_tao_pytorch.cv.classification_pyt.utils.onnx_export import ONNXExporter
 
