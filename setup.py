@@ -15,10 +15,22 @@
 """Setup script to build the TLT launcher package."""
 
 import os
+import platform
 import setuptools
 
 from release.python.utils import utils
 from torch.utils.cpp_extension import BuildExtension
+
+
+_IS_X86_64 = platform.machine() in ("x86_64", "AMD64")
+
+
+def _spatial_transform_cxx_flags():
+    """Compile flags for SpatialTransformOps. -mavx2 is x86-only."""
+    flags = ["-std=c++17", "-O3", "-DNDEBUG", "-fopenmp", "-DOMP_NESTED=true"]
+    if _IS_X86_64:
+        flags.append("-mavx2")
+    return flags
 
 
 version_locals = utils.get_version_details()
@@ -227,7 +239,7 @@ setuptools.setup(
             include_dirs=['src'],
             define_macros=[("WITH_CUDA", None)],
             extra_flags={
-                "cxx": ["-std=c++17", "-O3", "-DNDEBUG", "-fopenmp", "-DOMP_NESTED=true", "-mavx2"],
+                "cxx": _spatial_transform_cxx_flags(),
                 "nvcc": utils.get_extra_compile_args()["nvcc"] + ["-lineinfo"],
             },
         ),
