@@ -23,7 +23,7 @@ from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.initialize_experiments import initialize_train_experiment
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 
-from nvidia_tao_core.config.mask2former.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.mask2former.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.mask2former.model.pl_model import Mask2formerPlModule
 
 from nvidia_tao_pytorch.cv.mask2former.dataloader.pl_data_module import SemSegmDataModule

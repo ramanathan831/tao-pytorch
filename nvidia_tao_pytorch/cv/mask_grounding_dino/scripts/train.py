@@ -24,7 +24,7 @@ from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_pytorch.core.tlt_logging import logger
 from nvidia_tao_pytorch.core.utils.ptm_utils import load_pretrained_weights
 
-from nvidia_tao_core.config.mask_grounding_dino.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.mask_grounding_dino.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.mask_grounding_dino.dataloader.od_data_module import ODVGDataModule
 from nvidia_tao_pytorch.cv.mask_grounding_dino.model.pl_gdino_model import MaskGDINOPlModel
 from nvidia_tao_pytorch.cv.mask_grounding_dino.model.utils import mask_gdino_parser, ptm_adapter

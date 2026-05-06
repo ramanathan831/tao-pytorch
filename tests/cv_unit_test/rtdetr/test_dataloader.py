@@ -20,7 +20,7 @@ import tempfile
 from PIL import Image
 from omegaconf import OmegaConf
 from nvidia_tao_pytorch.core.utilities import check_and_create
-from nvidia_tao_core.config.rtdetr.dataset import RTAugmentationConfig, RTDatasetConfig
+from nvidia_tao_pytorch.config.rtdetr.dataset import RTAugmentationConfig, RTDatasetConfig
 from nvidia_tao_pytorch.cv.rtdetr.dataloader.pl_od_data_module import ODDataModule
 from nvidia_tao_pytorch.cv.rtdetr.dataloader.transforms import build_transforms
 
@@ -122,9 +122,13 @@ def test_train_dataloader(_test_sample_json, _dataset_spec, remap_mscoco_categor
         assert height <= height_target, f"Incorrect image height {height} {height_target}"
         assert width <= width_target, f"Incorrect image width {width} {width_target}"
 
-        # Check 
+        # Check
         if remap_mscoco_category:
             for target in targets:
+                if len(target['labels']) == 0:
+                    # Random augmentation can crop out all objects; an empty
+                    # labels tensor trivially satisfies the MSCOCO ID range.
+                    continue
                 assert max(target['labels']) <= 81, f"{target['labels']}"
 
 

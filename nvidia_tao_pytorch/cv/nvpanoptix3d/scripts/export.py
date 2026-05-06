@@ -18,7 +18,7 @@ import os
 import torch
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
-from nvidia_tao_core.config.nvpanoptix3d.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.nvpanoptix3d.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.nvpanoptix3d.export.onnx_exporter import export_2d_model
 
 

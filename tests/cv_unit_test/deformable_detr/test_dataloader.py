@@ -20,7 +20,7 @@ import tempfile
 from PIL import Image
 from omegaconf import OmegaConf
 
-from nvidia_tao_core.config.deformable_detr.dataset import DDAugmentationConfig, DDDatasetConfig
+from nvidia_tao_pytorch.config.deformable_detr.dataset import DDAugmentationConfig, DDDatasetConfig
 from nvidia_tao_pytorch.core.utilities import check_and_create
 from nvidia_tao_pytorch.cv.deformable_detr.dataloader.pl_od_data_module import ODDataModule
 from nvidia_tao_pytorch.cv.deformable_detr.dataloader.transforms import build_transforms

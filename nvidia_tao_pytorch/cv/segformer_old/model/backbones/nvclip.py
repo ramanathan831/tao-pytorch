@@ -19,7 +19,7 @@ from nvidia_tao_pytorch.cv.segformer_old.model.backbones.vision_transformer.vit_
     OpenCLIPTransformerWrapper,
     ViTAdapter
 )
-from nvidia_tao_core.config.classification_pyt.model_params_mapping import map_clip_model_cfg
+from nvidia_tao_pytorch.config.classification_pyt.model_params_mapping import map_clip_model_cfg
 import torch.nn as nn
 import open_clip as OpenCLIP
 from mmseg.registry import MODELS

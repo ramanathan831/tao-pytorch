@@ -20,10 +20,10 @@ import json
 
 from omegaconf import OmegaConf
 
-from nvidia_tao_core.config.depth_net.dataset import DepthNetDatasetConfig, DepthNetAugmentationConfig
-from nvidia_tao_core.config.depth_net.model import DepthNetModelConfig
-from nvidia_tao_core.config.depth_net.train import DepthNetTrainExpConfig, OptimConfig
-from nvidia_tao_core.config.depth_net.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.depth_net.dataset import DepthNetDatasetConfig, DepthNetAugmentationConfig
+from nvidia_tao_pytorch.config.depth_net.model import DepthNetModelConfig
+from nvidia_tao_pytorch.config.depth_net.train import DepthNetTrainExpConfig, OptimConfig
+from nvidia_tao_pytorch.config.depth_net.default_config import ExperimentConfig
 from nvidia_tao_core.api_utils.dataclass2json_converter import create_json_schema, dataclass_to_json
 from nvidia_tao_core.api_utils.json_schema_validation import validate_jsonschema
 

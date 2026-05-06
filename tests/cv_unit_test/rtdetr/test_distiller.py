@@ -21,7 +21,7 @@ from PIL import Image
 from pytorch_lightning import Trainer
 from omegaconf import OmegaConf
 
-from nvidia_tao_core.config.rtdetr.default_config import ExperimentConfig, RTDistillationConfig, DistillationBindingConfig
+from nvidia_tao_pytorch.config.rtdetr.default_config import ExperimentConfig, RTDistillationConfig, DistillationBindingConfig
 from nvidia_tao_pytorch.cv.rtdetr.dataloader.pl_od_data_module import ODDataModule
 from nvidia_tao_pytorch.cv.rtdetr.distillation.distiller import RtdetrDistiller
 from nvidia_tao_pytorch.core.utilities import check_and_create

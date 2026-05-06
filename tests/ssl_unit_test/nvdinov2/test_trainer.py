@@ -26,7 +26,7 @@ from omegaconf import OmegaConf
 from pytorch_lightning import Trainer
 
 from nvidia_tao_pytorch.core.utilities import check_and_create
-from nvidia_tao_core.config.nvdinov2.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.nvdinov2.default_config import ExperimentConfig
 from nvidia_tao_pytorch.ssl.nvdinov2.model.pl_model import DinoV2PlModel
 from nvidia_tao_pytorch.ssl.nvdinov2.dataloader.pl_dinov2_data_module import DinoV2DataModule
 

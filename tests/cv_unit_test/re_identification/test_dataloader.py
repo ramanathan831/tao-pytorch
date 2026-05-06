@@ -20,7 +20,7 @@ from random import randint
 from PIL import Image
 from omegaconf import OmegaConf
 from nvidia_tao_pytorch.cv.re_identification.dataloader.build_data_loader import train_collate_fn, val_collate_fn, list_dataset, build_dataloader
-from nvidia_tao_core.config.re_identification.default_config import ReIDModelConfig, ReIDTrainExpConfig, ReIDDatasetConfig, ReIDInferenceExpConfig
+from nvidia_tao_pytorch.config.re_identification.default_config import ReIDModelConfig, ReIDTrainExpConfig, ReIDDatasetConfig, ReIDInferenceExpConfig
 
 @pytest.fixture
 def _test_dir():

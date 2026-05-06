@@ -16,11 +16,11 @@
 
 import pytest
 
-from nvidia_tao_core.config.mask2former.dataset import (
+from nvidia_tao_pytorch.config.mask2former.dataset import (
     Mask2FormerDatasetConfig,
     QuantCalibrationDataset,
 )
-from nvidia_tao_core.config.mask2former.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.mask2former.default_config import ExperimentConfig
 
 
 @pytest.mark.cv_unit

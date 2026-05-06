@@ -22,7 +22,7 @@ import tempfile
 from omegaconf import OmegaConf
 
 from nvidia_tao_pytorch.cv.re_identification.dataloader.pl_reid_data_module import REIDDataModule
-from nvidia_tao_core.config.re_identification.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.re_identification.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.re_identification.model.pl_reid_model import ReIdentificationModel
 
 from pytorch_lightning import Trainer

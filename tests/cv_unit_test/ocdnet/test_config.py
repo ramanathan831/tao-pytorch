@@ -22,7 +22,7 @@ from omegaconf import OmegaConf
 
 from nvidia_tao_core.api_utils.dataclass2json_converter import create_json_schema, dataclass_to_json
 from nvidia_tao_core.api_utils.json_schema_validation import validate_jsonschema
-from nvidia_tao_core.config.ocdnet.default_config import ExperimentConfig, OCDNetDataConfig, OCDNetModelConfig, OCDNetTrainExpConfig
+from nvidia_tao_pytorch.config.ocdnet.default_config import ExperimentConfig, OCDNetDataConfig, OCDNetModelConfig, OCDNetTrainExpConfig
 
 
 sample_model_config = """

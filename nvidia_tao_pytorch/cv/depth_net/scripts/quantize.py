@@ -25,7 +25,7 @@ from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_pytorch.core.tlt_logging import obfuscate_logs, logging
 
-from nvidia_tao_core.config.depth_net.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.depth_net.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.quantization import ModelQuantizer
 from nvidia_tao_pytorch.cv.depth_net.model.build_pl_model import build_pl_model
 from nvidia_tao_pytorch.cv.depth_net.dataloader.pl_mono_data_module import MonoDepthNetDataModule

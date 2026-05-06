@@ -25,7 +25,7 @@ import onnxruntime as ort
 
 from torch.onnx import register_custom_op_symbolic
 from torchvision.ops import DeformConv2d
-from nvidia_tao_core.config.ocdnet.default_config import OCDNetModelConfig
+from nvidia_tao_pytorch.config.ocdnet.default_config import OCDNetModelConfig
 from nvidia_tao_pytorch.cv.ocdnet.model.model import Model
 
 TEST_CHANNEL = 3

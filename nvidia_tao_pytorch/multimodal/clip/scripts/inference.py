@@ -30,7 +30,7 @@ from nvidia_tao_pytorch.core.initialize_experiments import (
 )
 from nvidia_tao_pytorch.core.tlt_logging import logging, obfuscate_logs
 
-from nvidia_tao_core.config.clip.default_config import (
+from nvidia_tao_pytorch.config.clip.default_config import (
     CLIPExperimentConfig as ExperimentConfig,
 )
 from nvidia_tao_pytorch.multimodal.clip.model.pl_clip_model import (

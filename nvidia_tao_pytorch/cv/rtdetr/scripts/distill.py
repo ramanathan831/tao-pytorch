@@ -17,7 +17,7 @@
 import os
 from pytorch_lightning import LightningModule
 
-from nvidia_tao_core.config.rtdetr.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.rtdetr.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_pytorch.cv.rtdetr.distillation.distiller import RtdetrDistiller

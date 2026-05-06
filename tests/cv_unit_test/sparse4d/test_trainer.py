@@ -20,7 +20,7 @@ import numpy as np
 from omegaconf import OmegaConf
 from pytorch_lightning import Trainer
 
-from nvidia_tao_core.config.sparse4d.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.sparse4d.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.sparse4d.dataloader.pl_sparse4d_data_module import Sparse4DDataModule
 from nvidia_tao_pytorch.cv.sparse4d.model.sparse4d_pl_model import Sparse4DPlModel
 from nvidia_tao_pytorch.cv.sparse4d.utils.misc import load_pretrained_weights
