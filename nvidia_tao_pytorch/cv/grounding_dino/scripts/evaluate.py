@@ -19,7 +19,7 @@ import pytorch_lightning as pl
 from pytorch_lightning import Trainer
 import tempfile
 
-from nvidia_tao_core.config.grounding_dino.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.grounding_dino.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_pytorch.core.initialize_experiments import initialize_evaluation_experiment

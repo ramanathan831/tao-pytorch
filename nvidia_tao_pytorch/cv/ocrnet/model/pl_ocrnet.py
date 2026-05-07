@@ -30,7 +30,7 @@ import modelopt.torch.opt as mto
 
 from nvidia_tao_pytorch.core.lightning.tao_lightning_module import TAOLightningModule
 import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
-from nvidia_tao_core.config.ocrnet.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.ocrnet.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.ocrnet.model.build_nn_model import build_ocrnet_model
 from nvidia_tao_pytorch.cv.ocrnet.utils.utils import (CTCLabelConverter,
                                                       AttnLabelConverter)

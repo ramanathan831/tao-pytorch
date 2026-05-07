@@ -18,7 +18,7 @@ from typing import List, Dict
 import random
 import omegaconf
 
-from nvidia_tao_core.config.depth_net.dataset import DNDatasetConvertConfig
+from nvidia_tao_pytorch.config.depth_net.dataset import DNDatasetConvertConfig
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
 from nvidia_tao_pytorch.core.utilities import check_and_create

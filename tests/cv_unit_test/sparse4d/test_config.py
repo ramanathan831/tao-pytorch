@@ -28,14 +28,14 @@ pytestmark = pytest.mark.skipif(
 
 from nvidia_tao_core.api_utils.dataclass2json_converter import create_json_schema, dataclass_to_json
 from nvidia_tao_core.api_utils.json_schema_validation import validate_jsonschema
-from nvidia_tao_core.config.sparse4d.default_config import ExperimentConfig
-from nvidia_tao_core.config.sparse4d.train import (
+from nvidia_tao_pytorch.config.sparse4d.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.sparse4d.train import (
     Sparse4DOptimizerConfig,
     Sparse4DTrainConfig,
 )
-from nvidia_tao_core.config.sparse4d.model import Sparse4DModelConfig
+from nvidia_tao_pytorch.config.sparse4d.model import Sparse4DModelConfig
 
-from nvidia_tao_core.config.sparse4d.dataset import (
+from nvidia_tao_pytorch.config.sparse4d.dataset import (
     Sparse4DAugmentationConfig,
     Omniverse3DDetTrackDatasetConfig
 )

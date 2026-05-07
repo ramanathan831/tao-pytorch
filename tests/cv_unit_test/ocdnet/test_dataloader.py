@@ -19,7 +19,7 @@ import numpy as np
 from omegaconf import OmegaConf
 from PIL import Image
 
-from nvidia_tao_core.config.ocdnet.default_config import OCDNetDataConfig
+from nvidia_tao_pytorch.config.ocdnet.default_config import OCDNetDataConfig
 from nvidia_tao_pytorch.cv.ocdnet.data_loader.build_dataloader import get_dataloader
 
 TEST_SAMPEL = 10

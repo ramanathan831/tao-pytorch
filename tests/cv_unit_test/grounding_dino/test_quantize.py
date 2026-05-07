@@ -22,8 +22,8 @@ import tempfile
 from PIL import Image
 from omegaconf import OmegaConf
 
-from nvidia_tao_core.config.grounding_dino.dataset import GDINODatasetConfig
-from nvidia_tao_core.config.grounding_dino.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.grounding_dino.dataset import GDINODatasetConfig
+from nvidia_tao_pytorch.config.grounding_dino.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.utilities import check_and_create
 from nvidia_tao_pytorch.cv.grounding_dino.dataloader.pl_odvg_data_module import ODVGDataModule
 

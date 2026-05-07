@@ -21,7 +21,7 @@ from PIL import Image
 from pytorch_lightning import Trainer
 
 from omegaconf import OmegaConf
-from nvidia_tao_core.config.mask2former.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.mask2former.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.mask2former.dataloader.pl_data_module import SemSegmDataModule
 from nvidia_tao_pytorch.cv.mask2former.model.pl_model import Mask2formerPlModule
 

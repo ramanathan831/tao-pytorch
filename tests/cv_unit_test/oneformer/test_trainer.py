@@ -21,7 +21,7 @@ from PIL import Image
 from pytorch_lightning import Trainer
 
 from omegaconf import OmegaConf
-from nvidia_tao_core.config.oneformer.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.oneformer.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.oneformer.dataloader.pl_data_module import SemSegmDataModule
 from nvidia_tao_pytorch.cv.oneformer.model.pl_oneformer import OneformerPlModule
 

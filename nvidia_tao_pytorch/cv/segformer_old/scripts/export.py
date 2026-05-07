@@ -21,7 +21,7 @@ from glob import glob
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
-from nvidia_tao_core.config.segformer.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.segformer.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.segformer_old.utils.onnx_export import ONNXExporter
 from nvidia_tao_pytorch.cv.segformer_old.utils.config import MMSegmentationConfig
 

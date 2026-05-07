@@ -21,7 +21,7 @@ import pytest
 import numpy as np
 import shutil
 from PIL import Image
-from nvidia_tao_core.config.ocrnet.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.ocrnet.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.ocrnet.dataloader.ocr_dataset import (LmdbDataset,
                                                                  RawGTDataset,
                                                                  ResizeNormalize,

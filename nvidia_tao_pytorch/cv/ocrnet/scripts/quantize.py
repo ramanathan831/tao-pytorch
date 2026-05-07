@@ -25,7 +25,7 @@ from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_pytorch.core.tlt_logging import obfuscate_logs, logging
 
-from nvidia_tao_core.config.ocrnet.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.ocrnet.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.quantization import ModelQuantizer
 from nvidia_tao_pytorch.cv.ocrnet.model.pl_ocrnet import OCRNetModel
 from nvidia_tao_pytorch.cv.ocrnet.dataloader.pl_ocr_data_module import OCRDataModule

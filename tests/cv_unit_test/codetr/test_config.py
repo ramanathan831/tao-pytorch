@@ -17,8 +17,8 @@
 import pytest
 from omegaconf import OmegaConf
 
-from nvidia_tao_core.config.codetr.default_config import ExperimentConfig
-from nvidia_tao_core.config.codetr.model import CoDETRModelConfig
+from nvidia_tao_pytorch.config.codetr.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.codetr.model import CoDETRModelConfig
 
 
 @pytest.mark.cv_unit

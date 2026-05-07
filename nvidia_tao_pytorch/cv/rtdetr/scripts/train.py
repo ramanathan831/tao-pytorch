@@ -17,7 +17,7 @@ import os
 
 from pytorch_lightning import Trainer
 
-from nvidia_tao_core.config.rtdetr.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.rtdetr.default_config import ExperimentConfig
 
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.distributed.comm import get_global_rank

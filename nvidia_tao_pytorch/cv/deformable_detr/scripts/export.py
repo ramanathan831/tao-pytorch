@@ -17,7 +17,7 @@
 import os
 import torch
 
-from nvidia_tao_core.config.deformable_detr.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.deformable_detr.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.cookbooks.tlt_pytorch_cookbook import TLTPyTorchCookbook
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner

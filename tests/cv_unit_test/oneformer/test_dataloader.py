@@ -20,7 +20,7 @@ import tempfile
 from PIL import Image
 from omegaconf import OmegaConf
 
-from nvidia_tao_core.config.oneformer.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.oneformer.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.oneformer.dataloader.pl_data_module import SemSegmDataModule
 
 

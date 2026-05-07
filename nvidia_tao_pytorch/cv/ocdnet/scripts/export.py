@@ -28,7 +28,7 @@ import onnx_graphsurgeon as onnx_gs
 from torchvision.ops import DeformConv2d
 import tempfile
 
-from nvidia_tao_core.config.ocdnet.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.ocdnet.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_pytorch.core.tlt_logging import obfuscate_logs

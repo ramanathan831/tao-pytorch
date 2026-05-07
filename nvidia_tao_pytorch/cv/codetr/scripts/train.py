@@ -18,7 +18,7 @@ import os
 
 from pytorch_lightning import Trainer
 
-from nvidia_tao_core.config.codetr.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.codetr.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.connectors.checkpoint_connector import TLTCheckpointConnector
 from nvidia_tao_pytorch.core.decorators.experimental import experimental
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status

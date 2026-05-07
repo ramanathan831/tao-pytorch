@@ -16,7 +16,7 @@
 
 import pytest
 
-from nvidia_tao_core.config.segformer.default_config import (
+from nvidia_tao_pytorch.config.segformer.default_config import (
     ExperimentConfig,
     SFDatasetSegmentConfig,
     QuantCalibrationDataset,

@@ -29,7 +29,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from nvidia_tao_core.config.common.quantization.default_config import ModelQuantizationConfig
+from nvidia_tao_pytorch.config.common.quantization.default_config import ModelQuantizationConfig
 from nvidia_tao_pytorch.core.quantization.backends.modelopt_onnx.utils import (
     convert_tao_to_modelopt_onnx_params,
     format_params_for_logging,
@@ -115,7 +115,7 @@ class ModelOptONNXBackend(FileBasedQuantizerBase, Calibratable):
     Examples
     --------
     >>> from nvidia_tao_pytorch.core.quantization.backends.modelopt_onnx import ModelOptONNXBackend
-    >>> from nvidia_tao_core.config.common.quantization.default_config import ModelQuantizationConfig
+    >>> from nvidia_tao_pytorch.config.common.quantization.default_config import ModelQuantizationConfig
     >>>
     >>> # Create backend instance
     >>> backend = ModelOptONNXBackend()

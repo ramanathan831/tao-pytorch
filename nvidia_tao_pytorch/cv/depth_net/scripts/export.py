@@ -23,7 +23,7 @@ from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_pytorch.core.tlt_logging import logging
 from nvidia_tao_pytorch.core.cookbooks.tlt_pytorch_cookbook import TLTPyTorchCookbook
 from nvidia_tao_pytorch.cv.depth_net.model.build_pl_model import get_pl_module
-from nvidia_tao_core.config.depth_net.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.depth_net.default_config import ExperimentConfig
 
 spec_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 AUTOCAST = torch.amp.autocast

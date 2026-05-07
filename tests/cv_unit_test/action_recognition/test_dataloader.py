@@ -18,7 +18,7 @@ import numpy as np
 import shutil
 from PIL import Image
 from omegaconf import OmegaConf
-from nvidia_tao_core.config.action_recognition.default_config import ARAugmentationConfig, ARModelConfig
+from nvidia_tao_pytorch.config.action_recognition.default_config import ARAugmentationConfig, ARModelConfig
 from nvidia_tao_pytorch.cv.action_recognition.dataloader.build_data_loader import (list_dataset, get_clips_list,
                                                                 build_joint_augmentation_pipeline,
                                                                 build_single_augmentation_pipeline,

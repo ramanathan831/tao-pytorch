@@ -22,7 +22,7 @@ import onnx
 import onnxruntime as ort
 import numpy as np
 
-from nvidia_tao_core.config.sparse4d.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.sparse4d.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.sparse4d.model.sparse4d_pl_model import Sparse4DPlModel
 from nvidia_tao_pytorch.cv.sparse4d.utils.onnx_export import Sparse4DExporter
 

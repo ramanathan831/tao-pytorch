@@ -26,7 +26,7 @@ from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_pytorch.core.tlt_logging import logging
 from nvidia_tao_pytorch.core.cookbooks.tlt_pytorch_cookbook import TLTPyTorchCookbook
 from nvidia_tao_pytorch.ssl.mae.model.pl_model import MAEPlModule
-from nvidia_tao_core.config.mae.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.mae.default_config import ExperimentConfig
 
 VALIDATE_ONNX = False
 

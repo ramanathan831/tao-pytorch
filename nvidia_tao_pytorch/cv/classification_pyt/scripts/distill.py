@@ -20,7 +20,7 @@ from pytorch_lightning import LightningModule
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 
-from nvidia_tao_core.config.classification_pyt.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.classification_pyt.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.classification_pyt.distillation.distiller import (
     ClassDistiller,
 )

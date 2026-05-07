@@ -16,7 +16,7 @@
 
 import pytest
 
-from nvidia_tao_core.config.ocdnet.default_config import (
+from nvidia_tao_pytorch.config.ocdnet.default_config import (
     ExperimentConfig,
     OCDNetDataConfig,
     QuantCalibrationDataset,

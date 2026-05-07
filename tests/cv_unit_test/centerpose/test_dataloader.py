@@ -20,7 +20,7 @@ import tempfile
 from PIL import Image
 from omegaconf import OmegaConf
 
-from nvidia_tao_core.config.centerpose.dataset import CenterPoseDatasetConfig
+from nvidia_tao_pytorch.config.centerpose.dataset import CenterPoseDatasetConfig
 from nvidia_tao_pytorch.core.utilities import check_and_create
 from nvidia_tao_pytorch.cv.centerpose.dataloader.pl_cp_data_module import CPDataModule
 

@@ -25,7 +25,7 @@ import pycuda.autoinit
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
 from nvidia_tao_pytorch.core.path_utils import expand_path
-from nvidia_tao_core.config.pointpillars.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.pointpillars.default_config import ExperimentConfig
 from nvidia_tao_pytorch.pointcloud.pointpillars.tools.eval_utils import eval_utils
 from nvidia_tao_pytorch.pointcloud.pointpillars.pcdet.datasets import build_dataloader
 from nvidia_tao_pytorch.pointcloud.pointpillars.pcdet.models import load_checkpoint

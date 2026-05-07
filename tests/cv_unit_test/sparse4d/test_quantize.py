@@ -16,11 +16,11 @@
 
 import pytest
 
-from nvidia_tao_core.config.sparse4d.dataset import (
+from nvidia_tao_pytorch.config.sparse4d.dataset import (
     Omniverse3DDetTrackDatasetConfig,
     QuantCalibrationDataset,
 )
-from nvidia_tao_core.config.sparse4d.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.sparse4d.default_config import ExperimentConfig
 
 
 @pytest.mark.cv_unit

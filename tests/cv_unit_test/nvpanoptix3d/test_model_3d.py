@@ -17,8 +17,8 @@
 import pytest
 from omegaconf import OmegaConf
 
-from nvidia_tao_core.config.nvpanoptix3d.model import NVPanoptix3DModelConfig
-from nvidia_tao_core.config.nvpanoptix3d.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.nvpanoptix3d.model import NVPanoptix3DModelConfig
+from nvidia_tao_pytorch.config.nvpanoptix3d.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.nvpanoptix3d.model.model_3d import NVPanoptix3DModel
 
 

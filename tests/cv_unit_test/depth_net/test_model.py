@@ -14,7 +14,7 @@
 
 import pytest
 from omegaconf import OmegaConf
-from nvidia_tao_core.config.depth_net.default_config import ExperimentConfig, DepthNetDatasetConfig, DepthNetModelConfig
+from nvidia_tao_pytorch.config.depth_net.default_config import ExperimentConfig, DepthNetDatasetConfig, DepthNetModelConfig
 from nvidia_tao_pytorch.cv.depth_net.model.build_pl_model import build_pl_model
 
 
