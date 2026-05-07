@@ -21,10 +21,10 @@ import json
 from omegaconf import OmegaConf
 
 from nvidia_tao_core.api_utils.dataclass2json_converter import create_json_schema, dataclass_to_json
-from nvidia_tao_core.config.mask2former.dataset import Mask2FormerDatasetConfig, AugmentationConfig
-from nvidia_tao_core.config.mask2former.model import Mask2FormerModelConfig
-from nvidia_tao_core.config.mask2former.train import Mask2FormerTrainExpConfig, OptimConfig
-from nvidia_tao_core.config.mask2former.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.mask2former.dataset import Mask2FormerDatasetConfig, AugmentationConfig
+from nvidia_tao_pytorch.config.mask2former.model import Mask2FormerModelConfig
+from nvidia_tao_pytorch.config.mask2former.train import Mask2FormerTrainExpConfig, OptimConfig
+from nvidia_tao_pytorch.config.mask2former.default_config import ExperimentConfig
 
 sample_dataset_config = """
   contiguous_id: False

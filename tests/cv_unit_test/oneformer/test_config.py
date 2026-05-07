@@ -22,10 +22,10 @@ from omegaconf import OmegaConf
 
 from nvidia_tao_core.api_utils.dataclass2json_converter import (create_json_schema,
                                                                 dataclass_to_json)
-from nvidia_tao_core.config.oneformer.default_config import ExperimentConfig
-from nvidia_tao_core.config.oneformer.dataset import OneFormerDatasetConfig
-from nvidia_tao_core.config.oneformer.model import OneFormerModelConfig
-from nvidia_tao_core.config.oneformer.train import (OneFormerTrainExpConfig,
+from nvidia_tao_pytorch.config.oneformer.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.oneformer.dataset import OneFormerDatasetConfig
+from nvidia_tao_pytorch.config.oneformer.model import OneFormerModelConfig
+from nvidia_tao_pytorch.config.oneformer.train import (OneFormerTrainExpConfig,
                                                     OptimConfig)
 
 sample_dataset_config = """

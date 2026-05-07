@@ -15,7 +15,7 @@
 """Convert ODDataset to sharded json format."""
 import os
 
-from nvidia_tao_core.config.dino.dataset import DINODatasetConvertConfig
+from nvidia_tao_pytorch.config.dino.dataset import DINODatasetConvertConfig
 import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_pytorch.cv.deformable_detr.scripts.convert import run_experiment

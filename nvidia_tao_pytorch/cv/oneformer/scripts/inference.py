@@ -20,7 +20,7 @@ from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.initialize_experiments import initialize_inference_experiment
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 
-from nvidia_tao_core.config.oneformer.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.oneformer.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.oneformer.dataloader.pl_data_module import SemSegmDataModule
 from nvidia_tao_pytorch.cv.oneformer.model.pl_oneformer import OneformerPlModule
 

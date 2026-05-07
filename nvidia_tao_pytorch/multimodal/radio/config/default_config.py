@@ -18,7 +18,7 @@ from typing import Optional, List, Dict, Any
 from dataclasses import dataclass
 from omegaconf import MISSING
 
-from nvidia_tao_core.config.utils.types import (
+from nvidia_tao_pytorch.config.utils.types import (
     BOOL_FIELD,
     DATACLASS_FIELD,
     DICT_FIELD,
@@ -27,7 +27,7 @@ from nvidia_tao_core.config.utils.types import (
     LIST_FIELD,
     STR_FIELD,
 )
-from nvidia_tao_core.config.common.common_config import (
+from nvidia_tao_pytorch.config.common.common_config import (
     CommonExperimentConfig,
     ExportConfig,
     TrainConfig,
@@ -38,8 +38,8 @@ from nvidia_tao_core.config.common.common_config import (
     CalibrationConfig,
 )
 
-from nvidia_tao_core.config.common.distillation_config import DistillationConfig
-from nvidia_tao_core.config.common.quantization import ModelQuantizationConfig
+from nvidia_tao_pytorch.config.common.distillation_config import DistillationConfig
+from nvidia_tao_pytorch.config.common.quantization import ModelQuantizationConfig
 
 
 @dataclass

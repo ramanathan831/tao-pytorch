@@ -15,8 +15,8 @@
 import pytest
 from omegaconf import OmegaConf
 
-from nvidia_tao_core.config.oneformer.model import OneFormerModelConfig, Swin
-from nvidia_tao_core.config.oneformer.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.oneformer.model import OneFormerModelConfig, Swin
+from nvidia_tao_pytorch.config.oneformer.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.oneformer.model.oneformer_model import OneFormerModel
 
 

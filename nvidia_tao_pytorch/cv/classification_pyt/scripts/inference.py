@@ -21,7 +21,7 @@ from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_pytorch.core.initialize_experiments import initialize_inference_experiment
 from nvidia_tao_pytorch.core.tlt_logging import obfuscate_logs
-from nvidia_tao_core.config.classification_pyt.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.classification_pyt.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.classification_pyt.dataloader.pl_classification_data_module import CLDataModule
 from nvidia_tao_pytorch.core.quantization.utils import create_quantized_model_from_config
 from nvidia_tao_pytorch.cv.classification_pyt.model.classifier_pl_model import ClassifierPlModel

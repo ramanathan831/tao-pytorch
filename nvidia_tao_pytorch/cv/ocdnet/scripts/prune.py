@@ -21,7 +21,7 @@ from typing import Sequence
 from omegaconf import OmegaConf
 from torchvision.ops import DeformConv2d
 
-from nvidia_tao_core.config.ocdnet.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.ocdnet.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.cv.ocdnet.model.model import Model
 from nvidia_tao_pytorch.cv.ocdnet.data_loader.build_dataloader import get_dataloader

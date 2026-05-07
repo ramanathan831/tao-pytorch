@@ -20,7 +20,7 @@ import tempfile
 
 import pytest
 import torch
-from nvidia_tao_core.config.classification_pyt.default_config import DatasetConfig, ExperimentConfig, ModelConfig
+from nvidia_tao_pytorch.config.classification_pyt.default_config import DatasetConfig, ExperimentConfig, ModelConfig
 from omegaconf import OmegaConf
 
 from nvidia_tao_pytorch.cv.backbone_v2.backbone_base import BackboneBase
@@ -106,8 +106,8 @@ def test_classifier_model(_test_experiment_spec, backbone, export):
 def test_classifier_model_from_changenet_classify(
     _test_experiment_spec, difference_module, visual_changenet_backbone, backbone
 ):
-    from nvidia_tao_core.config.visual_changenet.default_config import CNDatasetConfig, CNModelConfig
-    from nvidia_tao_core.config.visual_changenet.default_config import ExperimentConfig as CNExperimentConfig
+    from nvidia_tao_pytorch.config.visual_changenet.default_config import CNDatasetConfig, CNModelConfig
+    from nvidia_tao_pytorch.config.visual_changenet.default_config import ExperimentConfig as CNExperimentConfig
 
     from nvidia_tao_pytorch.cv.visual_changenet.classification.models.cn_pl_model import ChangeNetPlModel
 
@@ -159,8 +159,8 @@ def test_classifier_model_from_changenet_classify(
 def test_classifier_model_from_changenet_segment(
     _test_experiment_spec, visual_changenet_backbone, backbone
 ):
-    from nvidia_tao_core.config.visual_changenet.default_config import CNDatasetConfig, CNModelConfig
-    from nvidia_tao_core.config.visual_changenet.default_config import ExperimentConfig as CNExperimentConfig
+    from nvidia_tao_pytorch.config.visual_changenet.default_config import CNDatasetConfig, CNModelConfig
+    from nvidia_tao_pytorch.config.visual_changenet.default_config import ExperimentConfig as CNExperimentConfig
 
     from nvidia_tao_pytorch.cv.visual_changenet.segmentation.models.cn_pl_model import ChangeNetPlModel
 

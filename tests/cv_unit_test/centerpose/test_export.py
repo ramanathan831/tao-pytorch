@@ -19,9 +19,9 @@ import os
 import tempfile
 import torch
 
-from nvidia_tao_core.config.centerpose.default_config import ExperimentConfig
-from nvidia_tao_core.config.centerpose.model import CenterPoseModelConfig
-from nvidia_tao_core.config.centerpose.dataset import CenterPoseDatasetConfig
+from nvidia_tao_pytorch.config.centerpose.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.centerpose.model import CenterPoseModelConfig
+from nvidia_tao_pytorch.config.centerpose.dataset import CenterPoseDatasetConfig
 from nvidia_tao_pytorch.cv.centerpose.model.centerpose import create_model
 from nvidia_tao_pytorch.cv.centerpose.model.post_processing import HeatmapDecoder
 from nvidia_tao_pytorch.cv.centerpose.model.centerpose import CenterPoseWrapped

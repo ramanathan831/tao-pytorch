@@ -15,7 +15,7 @@
 """Train action recognition model."""
 import os
 
-from nvidia_tao_core.config.action_recognition.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.action_recognition.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.connectors.checkpoint_connector import TLTCheckpointConnector
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner

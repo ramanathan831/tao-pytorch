@@ -21,7 +21,7 @@ from PIL import Image
 from pytorch_lightning import Trainer
 from omegaconf import OmegaConf
 
-from nvidia_tao_core.config.dino.default_config import ExperimentConfig, DINODistillationConfig, DINOModelDistillationBindingConfig
+from nvidia_tao_pytorch.config.dino.default_config import ExperimentConfig, DINODistillationConfig, DINOModelDistillationBindingConfig
 from nvidia_tao_pytorch.cv.deformable_detr.dataloader.pl_od_data_module import ODDataModule
 from nvidia_tao_pytorch.cv.dino.distillation.distiller import DINODistiller
 from nvidia_tao_pytorch.core.utilities import check_and_create

@@ -21,7 +21,7 @@ from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_pytorch.cv.oneformer.model.pl_oneformer import OneformerPlModule
 from nvidia_tao_pytorch.cv.oneformer.export.onnx_exporter import ONNXExporter
-from nvidia_tao_core.config.oneformer.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.oneformer.default_config import ExperimentConfig
 
 spec_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 

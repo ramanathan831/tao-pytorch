@@ -21,7 +21,7 @@ from omegaconf import OmegaConf
 import torch
 import tempfile
 
-from nvidia_tao_core.config.stylegan_xl.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.stylegan_xl.default_config import ExperimentConfig
 from nvidia_tao_pytorch.sdg.stylegan_xl.model.sx_pl_model import StyleganPlModel
 
 

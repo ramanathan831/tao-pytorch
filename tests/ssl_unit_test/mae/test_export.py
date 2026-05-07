@@ -7,7 +7,7 @@ from omegaconf import OmegaConf
 from dataclasses import replace
 from nvidia_tao_pytorch.ssl.mae.scripts.export import create_onnx_model
 from nvidia_tao_pytorch.ssl.mae.model.pl_model import MAEPlModule
-from nvidia_tao_core.config.mae.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.mae.default_config import ExperimentConfig
 
 
 @pytest.fixture

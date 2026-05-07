@@ -24,7 +24,7 @@ import numpy as np
 import tempfile
 
 from nvidia_tao_pytorch.core.utilities import check_and_create
-from nvidia_tao_core.config.segformer.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.segformer.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.segformer.dataloader.pl_segformer_data_module import SFDataModule
 
 

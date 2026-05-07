@@ -23,7 +23,7 @@ from pytorch_lightning import Trainer
 
 from omegaconf import OmegaConf
 
-from nvidia_tao_core.config.depth_net.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.depth_net.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.utilities import check_and_create
 from nvidia_tao_pytorch.cv.depth_net.dataloader import build_pl_data_module
 from nvidia_tao_pytorch.cv.depth_net.model.build_pl_model import build_pl_model

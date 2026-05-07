@@ -15,8 +15,8 @@
 import pytest
 from omegaconf import OmegaConf
 
-from nvidia_tao_core.config.mask2former.model import Mask2FormerModelConfig, Swin, Backbone
-from nvidia_tao_core.config.mask2former.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.mask2former.model import Mask2FormerModelConfig, Swin, Backbone
+from nvidia_tao_pytorch.config.mask2former.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.mask2former.model.mask2former import MaskFormerModel
 
 

@@ -33,7 +33,7 @@ from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_pytorch.core.utilities import encrypt_onnx
 from nvidia_tao_pytorch.core.tlt_logging import logging
 
-from nvidia_tao_core.config.clip.default_config import (
+from nvidia_tao_pytorch.config.clip.default_config import (
     CLIPExperimentConfig as ExperimentConfig,
 )
 from nvidia_tao_pytorch.multimodal.clip.model.pl_clip_model import CLIPPlModel

@@ -28,7 +28,7 @@ from PIL import Image
 from omegaconf import OmegaConf
 from pytorch_lightning import Trainer
 
-from nvidia_tao_core.config.nvpanoptix3d.default_config import \
+from nvidia_tao_pytorch.config.nvpanoptix3d.default_config import \
     ExperimentConfig
 from nvidia_tao_pytorch.cv.nvpanoptix3d.dataloader.pl_data_module import \
     NVPanoptix3DDataModule

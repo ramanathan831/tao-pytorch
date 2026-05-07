@@ -16,8 +16,8 @@
 
 import pytest
 
-from nvidia_tao_core.config.dino.dataset import DINODatasetConfig
-from nvidia_tao_core.config.dino.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.dino.dataset import DINODatasetConfig
+from nvidia_tao_pytorch.config.dino.default_config import ExperimentConfig
 
 
 @pytest.mark.cv_unit

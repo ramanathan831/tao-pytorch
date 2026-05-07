@@ -19,7 +19,7 @@ import os
 import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 # Triggers build of custom modules
-from nvidia_tao_core.config.stylegan_xl.dataset import DataConvertExpConfig
+from nvidia_tao_pytorch.config.stylegan_xl.dataset import DataConvertExpConfig
 from nvidia_tao_pytorch.core.utilities import check_and_create
 from nvidia_tao_pytorch.sdg.stylegan_xl.utils.dataset_tool import convert_dataset
 

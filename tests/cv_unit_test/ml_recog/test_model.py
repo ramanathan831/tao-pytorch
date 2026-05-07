@@ -18,7 +18,7 @@ import pytest
 from omegaconf import OmegaConf
 import tempfile
 
-from nvidia_tao_core.config.ml_recog.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.ml_recog.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.ml_recog.dataloader.pl_ml_data_module import MLDataModule
 from nvidia_tao_pytorch.cv.ml_recog.model.build_nn_model import build_model
 from nvidia_tao_pytorch.cv.ml_recog.model.pl_ml_recog_model import MLRecogModel
