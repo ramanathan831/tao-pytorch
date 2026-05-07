@@ -112,17 +112,20 @@ def build_transforms(augmentation_config, subtask_config=None, dataset_mode='tra
             ])
 
     elif dataset_mode in ('val', 'eval', 'infer'):
-        if fixed_padding:
+        # When `pad_size_divisor` is set, replace FixedPad with mmdet-style
+        # Pad(size_divisor) to match the reference Co-DETR test_pipeline.
+        pad_size_divisor = augmentation_config.get("pad_size_divisor", None)
+        resize_step = RandomResize([test_random_size], max_size=random_resize_max_size)
+        if pad_size_divisor:
+            transforms = Compose([resize_step, normalize, SizeDivisorPad(pad_size_divisor)])
+        elif fixed_padding:
             transforms = Compose([
-                RandomResize([test_random_size], max_size=random_resize_max_size),
+                resize_step,
                 normalize,
                 FixedPad(test_random_size, random_resize_max_size),
             ])
         else:
-            transforms = Compose([
-                RandomResize([test_random_size], max_size=random_resize_max_size),
-                normalize,
-            ])
+            transforms = Compose([resize_step, normalize])
 
         # Fixed resize
         if subtask_config and subtask_config['input_width'] and subtask_config['input_height']:
@@ -638,6 +641,31 @@ class FixedPad(object):
             pad_y = self.target_min - height
         tmp = pad(img, target, (pad_x, pad_y))
         return tmp
+
+
+class SizeDivisorPad(object):
+    """Pad image so H and W are multiples of `size_divisor`.
+
+    Mirrors mmdet's Pad(size_divisor=N): pads bottom/right with zeros to the
+    smallest multiple of N that fits the post-resize image. Used to match the
+    reference Co-DETR test_pipeline's padding behavior (size_divisor=32).
+    """
+
+    def __init__(self, size_divisor):
+        """Initialize the SizeDivisorPad Class.
+
+        Args:
+            size_divisor (int): size divisor.
+        """
+        self.size_divisor = int(size_divisor)
+
+    def __call__(self, img, target):
+        """Call SizeDivisorPad."""
+        h = int(target['size'][0].item())
+        w = int(target['size'][1].item())
+        new_h = ((h + self.size_divisor - 1) // self.size_divisor) * self.size_divisor
+        new_w = ((w + self.size_divisor - 1) // self.size_divisor) * self.size_divisor
+        return pad(img, target, (new_w - w, new_h - h))
 
 
 class RandomSelect(object):

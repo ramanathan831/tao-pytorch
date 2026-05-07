@@ -154,8 +154,12 @@ class DINOModel(nn.Module):
             raise ValueError(f"{backbone} requires dataset.augmentation.fixed_random_crop to be set. "
                              "Please set dataset.augmentation.fixed_random_crop in the spec file.")
 
-        # Index 4 is not part of the backbone but taken from index 3 with conv 3x3 stride 2
-        return_interm_indices = [r for r in return_interm_indices if r != 4]
+        # Index 4 is not part of hierarchical backbones (Swin, ResNet) — it is
+        # created via a stride-2 conv in input_proj.  ViTDet+SFP backbones
+        # produce all 5 levels directly, so keep index 4 for those.
+        from nvidia_tao_pytorch.cv.dino.model.backbone import _VITDET_MODEL_DICT
+        if backbone not in _VITDET_MODEL_DICT:
+            return_interm_indices = [r for r in return_interm_indices if r != 4]
         backbone_only = Backbone(backbone,
                                  pretrained_backbone_path,
                                  train_backbone,

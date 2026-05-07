@@ -173,6 +173,9 @@ from nvidia_tao_pytorch.cv.backbone_v2.mit import (
     mit_b4,
     mit_b5,
 )
+from nvidia_tao_pytorch.cv.backbone_v2.vit_codetr import (
+    vit_large_codetr,
+)
 
 __all__ = [
     "BACKBONE_REGISTRY",
@@ -292,4 +295,5 @@ __all__ = [
     "dinov3_vitl16",
     "dinov3_vitb16",
     "dinov3_vith16plus",
+    "vit_large_codetr",
 ]

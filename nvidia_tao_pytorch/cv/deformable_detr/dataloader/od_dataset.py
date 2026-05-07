@@ -34,7 +34,7 @@ VALID_IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".bmp", ".JPEG", ".JPG", ".PN
 class ODDataset(Dataset):
     """Base Object Detection Dataset Class."""
 
-    def __init__(self, json_file: str = None, dataset_dir: str = None, transforms=None):
+    def __init__(self, json_file: str = None, dataset_dir: str = None, transforms=None, contiguous_labels=False):
         """Initialize the Object Detetion Dataset Class.
 
         Note that multiple loading of COCO type JSON files can lead to system memory OOM.
@@ -44,14 +44,20 @@ class ODDataset(Dataset):
             json_file (str): json_file name to load the data.
             dataset_dir (str): dataset directory.
             transforms: augmentations to apply.
+            contiguous_labels (bool): if True, remap category IDs to contiguous 0-based indices.
         """
         self.dataset_dir = dataset_dir
         self.transforms = transforms
+        self.contiguous_labels = contiguous_labels
         with open(json_file, 'r') as f:
             json_data = json.load(f)
         self.coco = COCO(json_data)
         self.ids = list(sorted(self.coco.imgs.keys()))
         self.label_map = self.coco.dataset['categories']
+        if self.contiguous_labels:
+            cat_ids = sorted([cat['id'] for cat in self.label_map])
+            self.cat2contiguous = {cat_id: i for i, cat_id in enumerate(cat_ids)}
+            self.contiguous2cat = {i: cat_id for i, cat_id in enumerate(cat_ids)}
 
     def _load_image(self, img_id: int) -> Image.Image:
         """Load image given image id.
@@ -110,7 +116,10 @@ class ODDataset(Dataset):
         boxes[:, 0::2].clamp_(min=0, max=width)
         boxes[:, 1::2].clamp_(min=0, max=height)
 
-        classes = [obj["category_id"] for obj in target]
+        if self.contiguous_labels:
+            classes = [self.cat2contiguous[obj["category_id"]] for obj in target]
+        else:
+            classes = [obj["category_id"] for obj in target]
         classes = torch.tensor(classes, dtype=torch.int64)
 
         keep = (boxes[:, 3] > boxes[:, 1]) & (boxes[:, 2] > boxes[:, 0])
