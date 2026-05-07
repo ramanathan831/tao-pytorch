@@ -200,10 +200,14 @@ class DINO(nn.Module):
             input_proj_list = []
             for _ in range(num_backbone_outs):
                 in_channels = self.backbone.num_channels[_]
-                input_proj_list.append(nn.Sequential(
-                    nn.Conv2d(in_channels, hidden_dim, kernel_size=1),
-                    nn.GroupNorm(32, hidden_dim),
-                ))
+                if in_channels == hidden_dim:
+                    # Backbone already outputs at hidden_dim (e.g. ViT+SFP)
+                    input_proj_list.append(nn.Identity())
+                else:
+                    input_proj_list.append(nn.Sequential(
+                        nn.Conv2d(in_channels, hidden_dim, kernel_size=1),
+                        nn.GroupNorm(32, hidden_dim),
+                    ))
             for _ in range(num_feature_levels - num_backbone_outs):
                 input_proj_list.append(nn.Sequential(
                     nn.Conv2d(in_channels, hidden_dim, kernel_size=3, stride=2, padding=1),
@@ -222,6 +226,8 @@ class DINO(nn.Module):
     def _reset_parameters(self):
         # init input_proj
         for proj in self.input_proj:
+            if isinstance(proj, nn.Identity):
+                continue
             nn.init.xavier_uniform_(proj[0].weight, gain=1)
             nn.init.constant_(proj[0].bias, 0)
 
@@ -336,6 +342,8 @@ class DINO(nn.Module):
         out = {'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord_list[-1]}
         if not self.export:
             out['srcs'] = srcs
+            out['enc_memory'] = self.transformer.enc_memory
+            out['enc_spatial_shapes'] = self.transformer.enc_spatial_shapes
         if self.aux_loss:
             out['aux_outputs'] = self._set_aux_loss(outputs_class, outputs_coord_list)
 

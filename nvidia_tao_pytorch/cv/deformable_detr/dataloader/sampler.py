@@ -31,7 +31,8 @@ class UniformSampler(object):
 
     def __init__(self,
                  data_sources,
-                 transforms=None):
+                 transforms=None,
+                 contiguous_labels=False):
         """Initialize Uniform Sampler Class.
 
         Only used in distributed training and sharded data, unifrom distribution sampling.
@@ -39,9 +40,11 @@ class UniformSampler(object):
         Args:
             data_sources (dict): augmentation configuration.
             transforms (dict): transforms.
+            contiguous_labels (bool): if True, remap category IDs to contiguous 0-based indices.
         """
         self.data_sources = data_sources
         self.transforms = transforms
+        self.contiguous_labels = contiguous_labels
 
     def build_data_source(self, global_rank, num_gpus):
         """ Build the data source list from multi-source data.
@@ -66,7 +69,7 @@ class UniformSampler(object):
         for data_source in data_source_list:
             image_dir = data_source.image_dir
             for _json_file in data_source.dataset_files:
-                ds = ODDataset(dataset_dir=image_dir, json_file=_json_file, transforms=self.transforms)
+                ds = ODDataset(dataset_dir=image_dir, json_file=_json_file, transforms=self.transforms, contiguous_labels=self.contiguous_labels)
                 dataset_per_gpu.append(ds)
                 dataset_length.append(len(ds))
                 total_images_per_gpu = total_images_per_gpu + len(ds)
@@ -103,7 +106,8 @@ class NonUniformSampler(object):
 
     def __init__(self,
                  data_sources,
-                 transforms=None):
+                 transforms=None,
+                 contiguous_labels=False):
         """Initialize NonUniform Sampler Class.
 
         Only used in distributed training and sharded data, and does not apply unifrom distribution sampling
@@ -111,9 +115,11 @@ class NonUniformSampler(object):
         Args:
             data_sources (dict): augmentation configuration
             transforms (dict): transforms
+            contiguous_labels (bool): if True, remap category IDs to contiguous 0-based indices.
         """
         self.data_sources = data_sources
         self.transforms = transforms
+        self.contiguous_labels = contiguous_labels
 
     def build_data_source(self, global_rank, num_gpus):
         """ Build the data source list from multi-source data.
@@ -138,7 +144,7 @@ class NonUniformSampler(object):
         for data_source in data_source_list:
             image_dir = data_source.image_dir
             for _json_file in data_source.dataset_files:
-                ds = ODDataset(dataset_dir=image_dir, json_file=_json_file, transforms=self.transforms)
+                ds = ODDataset(dataset_dir=image_dir, json_file=_json_file, transforms=self.transforms, contiguous_labels=self.contiguous_labels)
                 dataset_per_gpu.append(ds)
                 dataset_length.append(len(ds))
                 total_images_per_gpu = total_images_per_gpu + len(ds)
@@ -173,17 +179,20 @@ class DefaultSampler(object):
     def __init__(self,
                  data_sources,
                  is_distributed=False,
-                 transforms=None):
+                 transforms=None,
+                 contiguous_labels=False):
         """Default Sampler Constructor.
 
         Args:
             data_sources (dict): augmentation configuration.
             transforms (dict): transforms.
             is_distributed(bool): flag indicting whether torch is using distributed learning or not.
+            contiguous_labels (bool): if True, remap category IDs to contiguous 0-based indices.
         """
         self.data_sources = data_sources
         self.transforms = transforms
         self.is_distributed = is_distributed
+        self.contiguous_labels = contiguous_labels
 
     def build_data_source(self):
         """Build the data source list from multi-source data.
@@ -197,7 +206,7 @@ class DefaultSampler(object):
         for data_source in data_source_list:
             image_dir = data_source.image_dir
             for _json_file in data_source.dataset_files:
-                dataset_list.append(ODDataset(dataset_dir=image_dir, json_file=_json_file, transforms=self.transforms))
+                dataset_list.append(ODDataset(dataset_dir=image_dir, json_file=_json_file, transforms=self.transforms, contiguous_labels=self.contiguous_labels))
 
         if len(dataset_list) > 1:
             train_dataset = ConcateODDataset(dataset_list)

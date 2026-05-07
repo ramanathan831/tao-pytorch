@@ -357,6 +357,9 @@ class DeformableTransformer(nn.Module):
                                     ref_token_index=enc_topk_proposals,  # bs, nq
                                     ref_token_coord=enc_refpoint_embed,  # bs, nq, 4
                                     )
+        # Expose encoder outputs for downstream use (e.g. CoDETR collab heads)
+        self.enc_memory = memory
+        self.enc_spatial_shapes = spatial_shapes
         #########################################################
         # End Encoder
         # - memory: bs, \sum{hw}, c
