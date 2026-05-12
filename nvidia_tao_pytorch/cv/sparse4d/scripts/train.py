@@ -24,6 +24,7 @@ from nvidia_tao_pytorch.core.initialize_experiments import initialize_train_expe
 from nvidia_tao_pytorch.core.tlt_logging import obfuscate_logs, logging
 from nvidia_tao_pytorch.config.sparse4d.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.sparse4d.dataloader.pl_sparse4d_data_module import Sparse4DDataModule
+from nvidia_tao_pytorch.cv.sparse4d.dataloader.callbacks import PklResampleCallback
 from nvidia_tao_pytorch.cv.sparse4d.model.sparse4d_pl_model import Sparse4DPlModel
 from nvidia_tao_pytorch.cv.sparse4d.utils.misc import load_pretrained_weights
 
@@ -76,6 +77,12 @@ def run_experiment(experiment_config, key):
 
     lr_monitor = LearningRateMonitor(logging_interval='step')
 
+    callbacks = [lr_monitor]
+    pkl_sample_size = experiment_config.dataset.get("pkl_sample_size", 0)
+    if pkl_sample_size > 0:
+        callbacks.append(PklResampleCallback(num_iters_per_epoch=num_iters_per_epoch))
+        logging.info(f"PklResampleCallback enabled (interval={num_iters_per_epoch} steps)")
+
     trainer = Trainer(
         **trainer_kwargs,
         num_nodes=num_nodes,
@@ -88,7 +95,7 @@ def run_experiment(experiment_config, key):
         precision=precision,
         use_distributed_sampler=False,
         sync_batchnorm=sync_batchnorm,
-        callbacks=[lr_monitor],
+        callbacks=callbacks,
         gradient_clip_val=grad_clip,
     )
 
