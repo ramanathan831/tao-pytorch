@@ -195,6 +195,15 @@ class ResNet_FPN(ResNet):
 
 
 @SPARSE4D_BACKBONE_REGISTRY.register()
+def resnet_50(out_indices=[0, 1, 2, 3], **kwargs):
+    """ ResNet-50 model.
+    Args:
+        out_indices (list): List of block indices to return as feature
+    """
+    return ResNet_FPN(out_channels=[256, 512, 1024, 2048], block=Bottleneck, layers=[3, 4, 6, 3], return_idx=out_indices, **kwargs)
+
+
+@SPARSE4D_BACKBONE_REGISTRY.register()
 def resnet_101(out_indices=[0, 1, 2, 3], **kwargs):
     """ ResNet-101 model.
     Args:
