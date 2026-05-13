@@ -8,6 +8,8 @@ FTMS integration for API and microservice workflows.
 
 TAO integration has two related but separate layers:
 
+![New network integration layers](assets/new_network_layers.svg)
+
 | Layer | Purpose | Main locations |
 | :--- | :--- | :--- |
 | PyTorch backend | Makes the model runnable from commands such as `my_net train -e spec.yaml`. | `nvidia_tao_pytorch/<domain>/my_net`, `nvidia_tao_pytorch/config/my_net`, `setup.py` |

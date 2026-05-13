@@ -16,6 +16,7 @@ families.
 ## Contents
 
 * [Repository Map](#repository-map)
+* [Developer And Power-User Docs](#developer-and-power-user-docs)
 * [Supported Commands](#supported-commands)
 * [Quickstart](#quickstart)
 * [Requirements](#requirements)
@@ -46,6 +47,13 @@ families.
 | `runner/tao_pt.py` | Local developer launcher that runs commands inside the TAO PyTorch development container. |
 | `tao-core` | TAO Core submodule with shared API, microservice, telemetry, and configuration infrastructure. |
 | `tools` and `ci` | Documentation generation helpers, CI checks, changelog tooling, and release helpers. |
+
+## Developer And Power-User Docs
+
+The detailed developer and container-operation guides live in
+[docs/index.md](docs/index.md). Start there for agent onboarding, architecture,
+source-code workflows, testing/debugging, new-network integration, and prebuilt
+container usage.
 
 ## Supported Commands
 
