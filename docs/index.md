@@ -36,8 +36,9 @@ who need to develop, debug, extend, or run the repository in containers.
 Architecture and workflow diagrams are checked in as SVG files under
 `docs/assets/` and embedded with normal Markdown image links. SVG keeps diagrams
 renderable in common Git hosting UIs while staying source-controlled and
-diffable; no PNG conversion step is required unless a downstream publishing
-system does not support SVG.
+diffable. The checked-in SVG files are the canonical editable sources; no PNG
+conversion step is required unless a downstream publishing system does not
+support SVG.
 
 ## Maintenance Rules
 
@@ -55,7 +56,7 @@ For checks:
 
 ```sh
 python tools/update_readme_supported_commands.py --check
-git diff --check -- README.md docs/*.md tools/update_readme_supported_commands.py
+git diff --check -- README.md docs/*.md docs/assets/*.svg tools/update_readme_supported_commands.py
 ```
 
 The repo ships a `.pre-commit-config.yaml` that regenerates the README command

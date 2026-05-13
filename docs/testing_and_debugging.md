@@ -24,7 +24,7 @@ For docs-only changes:
 
 ```sh
 python tools/update_readme_supported_commands.py --check
-git diff --check -- README.md docs/*.md tools/update_readme_supported_commands.py
+git diff --check -- README.md docs/*.md docs/assets/*.svg tools/update_readme_supported_commands.py
 ```
 
 For one task package:

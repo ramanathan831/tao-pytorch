@@ -132,10 +132,15 @@ source scripts/envsetup.sh
 The `envsetup.sh` script sets `NV_TAO_PYTORCH_TOP` and defines the `tao_pt`
 function for launching the development container.
 
-Launch an interactive container with the repository mounted at `/tao-pt`:
+Launch an interactive container with the repository mounted at `/tao-pt`. Mount
+a host workspace if you want specs, datasets, checkpoints, and results to
+persist outside the container:
 
 ```sh
-tao_pt --gpus all --run_as_user -- bash
+tao_pt --gpus all \
+       --run_as_user \
+       --volume /path/on/host/tao-workspace:/workspace \
+       -- bash
 ```
 
 Inside the container, generate a default experiment spec for a model family:
