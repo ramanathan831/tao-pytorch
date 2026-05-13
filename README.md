@@ -25,6 +25,7 @@ families.
 * [Updating the Base Docker](#updating-the-base-docker)
 * [Building a Release Container](#building-a-release-container)
 * [Troubleshooting](#troubleshooting)
+* [Adding a New Network](#adding-a-new-network)
 * [Contribution Guidelines](#contribution-guidelines)
 * [License](#license)
 
@@ -383,6 +384,12 @@ the release Docker tag in `release/docker/deploy.sh`.
 | Output files are owned by root | Launch with `tao_pt --run_as_user ...`. |
 | Large assets or release files are missing | Run `git lfs install` and `git lfs pull`. |
 | An experiment YAML fails schema validation | Generate a fresh spec with `<model> default_specs results_dir=<dir>` and compare fields. |
+
+## Adding a New Network
+
+See [Integrating a New Network in TAO PyTorch](docs/new_network_integration.md)
+for the expected source layout, CLI registration steps, config schema patterns,
+task-script conventions, tests, and TAO Core / FTMS integration notes.
 
 ## Contribution Guidelines
 
