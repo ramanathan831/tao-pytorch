@@ -57,3 +57,17 @@ For checks:
 python tools/update_readme_supported_commands.py --check
 git diff --check -- README.md docs/*.md tools/update_readme_supported_commands.py
 ```
+
+The repo ships a `.pre-commit-config.yaml` that regenerates the README command
+table automatically. Install it once per clone:
+
+```sh
+pip install pre-commit
+pre-commit install
+```
+
+After install, the hook runs on every `git commit` that touches `setup.py`,
+files under `nvidia_tao_pytorch/<task>/scripts/`, the generator, or `README.md`.
+If the README is out of date, the hook regenerates it in place and aborts the
+commit so the regenerated diff can be staged. CI runs the same check in
+`--check` mode in the `static_tests` stage as the hard gate.

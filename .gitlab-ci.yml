@@ -31,6 +31,7 @@ static_tests:
   script:
     - export PYTHONPATH=${CI_PROJECT_DIR}:$PYTHONPATH
     - export CI_PROJECT_DIR=${CI_PROJECT_DIR}
+    - python3 tools/update_readme_supported_commands.py --check
     - python3 ci/run_static_tests.py --changed-files-only --target-branch origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME
   tags: ["trigger-jenkins"]
   only:
