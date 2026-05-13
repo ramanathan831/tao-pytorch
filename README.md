@@ -357,14 +357,14 @@ After validating the image, push it and update `docker/manifest.json` with the
 new digest:
 
 ```sh
-bash $NV_TAO_PYTORCH_TOP/docker/build.sh --build --push --x86
-bash $NV_TAO_PYTORCH_TOP/docker/build.sh --build --push --multiplatform
+./build.sh --build --push --x86
+./build.sh --build --push --multiplatform
 ```
 
 To force a rebuild without using cache:
 
 ```sh
-bash $NV_TAO_PYTORCH_TOP/docker/build.sh --build --push --force --x86
+./build.sh --build --push --force --x86
 ```
 
 ## Building a Release Container
@@ -382,8 +382,9 @@ cd $NV_TAO_PYTORCH_TOP
 ./release/docker/deploy.sh --build --wheel
 ```
 
-Before cutting a release, confirm the version metadata in `release/python` and
-the release Docker tag in `release/docker/deploy.sh`.
+Before cutting a release, confirm the wheel/package version in
+`release/python/version.py` and the release Docker tag assembled in
+`release/docker/deploy.sh`.
 
 ## Troubleshooting
 
