@@ -2,7 +2,7 @@
   "registry": "nvcr.io",
   "repository": "nvstaging/tao/tao_pytorch_base_image",
   "digests": {
-    "x86": "sha256:fd0ab5b45f79cf72a4e90ab91dd7bac4e364748bb640c0fb2c32c3b006c7acdd",
-    "arm": "sha256:5d3f0a7ba65e60744a7b8de0d16a0f928c479647c2056726a4a59c00fe946821"
+    "x86": "sha256:0d87a5916f61f2713bbb15341c9dea0c7bb8724decc68511e028139855c75832",
+    "arm": "sha256:09b7b581184fb9001953719862827980b64a19adc5bed12bad5f05952e441587"
   }
 }
