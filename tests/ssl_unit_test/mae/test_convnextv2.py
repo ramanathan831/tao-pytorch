@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 import torch
 from torch import nn
 from nvidia_tao_pytorch.cv.backbone_v2.convnext_v2 import (
