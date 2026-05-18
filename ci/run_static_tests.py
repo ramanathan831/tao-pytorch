@@ -1,16 +1,5 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 
 """Run static tests for TLT-pytorch project.
 
@@ -99,6 +88,9 @@ def get_changed_files(target_branch="origin/main"):
             return {}
         
         # Parse the output: each line is "STATUS\tFILENAME"
+        # Mirror the exclusion in run_static_tests_on_all_modules: odise is
+        # third-party-derived and skipped from full-tree scans.
+        excluded_path_prefixes = ("nvidia_tao_pytorch/cv/odise/",)
         changed_files = []
         deleted_files = []
         for line in changed_files_output.split('\n'):
@@ -110,7 +102,10 @@ def get_changed_files(target_branch="origin/main"):
                         if status in ['A', 'M']:
                             # Only include added (A) or modified (M) files under nvidia_tao_pytorch directory
                             if file_path.startswith('nvidia_tao_pytorch/'):
-                                changed_files.append(file_path)
+                                if file_path.startswith(excluded_path_prefixes):
+                                    print(f"Skipping {file_path} - excluded module")
+                                else:
+                                    changed_files.append(file_path)
                             else:
                                 print(f"Skipping {file_path} - not under nvidia_tao_pytorch directory")
                         elif status == 'D':
