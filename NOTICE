@@ -1,0 +1,14 @@
+TAO PyTorch
+Copyright (c) 2026, NVIDIA CORPORATION.
+
+This product includes third-party software components.
+
+Bundled third-party dependency attributions:
+
+1) PyTorch ONNX exporter code
+   - Location: third_party/onnx/
+   - Upstream project: PyTorch (https://github.com/pytorch/pytorch)
+   - Original license: BSD 3-Clause License
+   - Attribution: Portions of the code in this directory are derived from
+     the PyTorch project and are used in this distribution under the terms
+     of the BSD 3-Clause License.
