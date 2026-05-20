@@ -3,7 +3,7 @@ def TAO_VERSION = "6.25.7"
 def BUILD_TYPE = "dev"
 
 // Resolve base image from params if provided; otherwise use default digest
-def BASE_IMAGE_DEFAULT = "nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:fd0ab5b45f79cf72a4e90ab91dd7bac4e364748bb640c0fb2c32c3b006c7acdd"
+def BASE_IMAGE_DEFAULT = "nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:bb1d8137d8cc8f6beac0d72e70410ecb5a420b847257e2d600edf8e04e7048f7"
 def baseImage = (params.BASE_IMAGE_REPO?.trim() && params.BASE_IMAGE_TAG?.trim()) ? "${params.BASE_IMAGE_REPO}:${params.BASE_IMAGE_TAG}" : BASE_IMAGE_DEFAULT
 echo "Using base image ${baseImage}"
 
@@ -89,12 +89,6 @@ spec:
           - key: nvidia.com/driver_version
             operator: In
             values:
-            - 550.54.14
-            - 550.54.15
-            - 550.90.07
-            - 550.107.02
-            - 550.127.05
-            - 550.127.08
             - 580.35
             - 580.66
             - 580.82.07
