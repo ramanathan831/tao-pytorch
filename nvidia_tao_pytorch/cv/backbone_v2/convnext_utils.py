@@ -13,12 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
-#
-# This work is made available under the Nvidia Source Code License-NC.
-# To view a copy of this license, visit
-# https://github.com/NVlabs/FAN/blob/main/LICENSE
-
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
 # This source code is licensed under the MIT license.
