@@ -35,7 +35,7 @@ def main(cfg: ExperimentConfig) -> None:
         pl_model = Mask2formerPlModule.load_from_checkpoint(
             cfg.quantize.model_path,
             map_location="cpu",
-            experiment_spec=cfg,
+            cfg=cfg,
         )
         orig_model = pl_model.model
     else:
