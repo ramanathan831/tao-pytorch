@@ -18,6 +18,7 @@ from nvidia_tao_pytorch.config.sparse4d.default_config import ExperimentConfig
 from nvidia_tao_pytorch.core.quantization import ModelQuantizer
 from nvidia_tao_pytorch.cv.sparse4d.model.sparse4d_pl_model import Sparse4DPlModel
 from nvidia_tao_pytorch.cv.sparse4d.dataloader.pl_sparse4d_data_module import Sparse4DDataModule
+from nvidia_tao_pytorch.cv.sparse4d.utils.misc import load_pretrained_weights
 
 
 spec_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -47,11 +48,9 @@ def main(cfg: ExperimentConfig) -> None:
     # Build the Lightning model and extract the underlying nn.Module
     logging.debug("Loading Sparse4D checkpoint")
     if not cfg.quantize.model_path.endswith(".onnx"):
-        pl_model = Sparse4DPlModel.load_from_checkpoint(
-            cfg.quantize.model_path,
-            map_location="cpu",
-            config=cfg,
-        )
+        pl_model = Sparse4DPlModel(cfg)
+        state_dict = load_pretrained_weights(cfg.quantize.model_path)
+        pl_model.load_state_dict(state_dict, strict=False)
         orig_model = pl_model.model
     else:
         orig_model = None  # ModelOpt ONNX backend loads the model from the file.
