@@ -64,6 +64,9 @@ class CLIPPlModel(TAOLightningModule):
             logging.info("Gradient checkpointing enabled")
 
         self.loss_type = self.experiment_spec.train.loss_type
+        self.siglip_loss_dist_impl = getattr(
+            self.experiment_spec.train, "siglip_loss_dist_impl", "gather"
+        )
 
         # Check if retrieval validation is configured
         val_cfg = getattr(self.experiment_spec.dataset, 'val', None)
@@ -82,9 +85,16 @@ class CLIPPlModel(TAOLightningModule):
     def _build_criterion(self):
         """Build the loss function."""
         if self.loss_type == 'siglip':
+            if self.global_rank == 0:
+                logging.info(
+                    "Using SigLIP loss with dist_impl=%s, world_size=%s",
+                    self.siglip_loss_dist_impl,
+                    self.trainer.world_size,
+                )
             self.loss = SigLipLoss(
                 rank=self.global_rank,
                 world_size=self.trainer.world_size,
+                dist_impl=self.siglip_loss_dist_impl,
             )
         elif self.loss_type == 'clip':
             self.loss = ClipLoss(
