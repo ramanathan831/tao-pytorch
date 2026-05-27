@@ -514,6 +514,15 @@ class CLIPTrainConfig(TrainConfig):
         description="Contrastive loss function: 'siglip' (sigmoid) or 'clip' (softmax).",
         display_name="Loss Type",
     )
+    siglip_loss_dist_impl: str = STR_FIELD(
+        value="gather",
+        default_value="gather",
+        valid_options="bidir,shift,reduce,gather",
+        description="Distributed implementation for SigLIP loss negative exchange. "
+                    "Only used when loss_type is 'siglip'.",
+        display_name="SigLIP Loss Distributed Implementation",
+    )
+
     precision: str = STR_FIELD(
         value="fp16",
         default_value="fp16",
