@@ -17,6 +17,7 @@
 import math
 
 import torch
+import torch.nn.functional as F
 
 _MAX_LOGIT_SCALE = math.log(100)
 
@@ -38,6 +39,32 @@ from nvidia_tao_pytorch.multimodal.clip.model.evaluation.retrieval import (  # n
     RetrievalEvaluator,
     log_retrieval_metrics,
 )
+
+
+def _batch_hard_image_text_triplet_loss(
+    image_features: torch.Tensor,
+    text_features: torch.Tensor,
+    margin: float,
+) -> torch.Tensor:
+    """Compute symmetric batch-hard triplet loss for matched image-text pairs."""
+    batch_size = image_features.shape[0]
+    if batch_size < 2:
+        return image_features.new_zeros(())
+
+    image_norm = F.normalize(image_features, dim=-1)
+    text_norm = F.normalize(text_features, dim=-1)
+    similarity = image_norm @ text_norm.mT
+    diagonal_mask = torch.eye(
+        batch_size, device=similarity.device, dtype=torch.bool
+    )
+
+    def _row_loss(scores):
+        negatives = scores.masked_fill(diagonal_mask, float("-inf"))
+        hardest_negative = negatives.max(dim=1).values
+        positives = scores.diag()
+        return F.relu(margin - positives + hardest_negative).mean()
+
+    return 0.5 * (_row_loss(similarity) + _row_loss(similarity.mT))
 
 
 class CLIPPlModel(TAOLightningModule):
@@ -66,6 +93,12 @@ class CLIPPlModel(TAOLightningModule):
         self.loss_type = self.experiment_spec.train.loss_type
         self.siglip_loss_dist_impl = getattr(
             self.experiment_spec.train, "siglip_loss_dist_impl", "gather"
+        )
+        self.triplet_loss_weight = getattr(
+            self.experiment_spec.train, "triplet_loss_weight", 0.0
+        )
+        self.triplet_margin = getattr(
+            self.experiment_spec.train, "triplet_margin", 0.2
         )
 
         # Check if retrieval validation is configured
@@ -156,7 +189,7 @@ class CLIPPlModel(TAOLightningModule):
             clip_loss = self.loss(
                 image_features, text_features, logit_scale, logit_bias
             )
-        return clip_loss, logit_scale
+        return clip_loss, logit_scale, image_features, text_features
 
     def training_step(self, batch):
         """Training step."""
@@ -167,7 +200,9 @@ class CLIPPlModel(TAOLightningModule):
             else image.shape[0]
         )
         outputs = self._forward_pass(batch)
-        loss, logit_scale = self._backward(outputs)
+        loss, logit_scale, image_features, text_features = self._backward(
+            outputs
+        )
 
         # Update per-tower learning rates
         for param_group in self.optimizer.param_groups:
@@ -211,9 +246,28 @@ class CLIPPlModel(TAOLightningModule):
             "train/lr", current_text_lr,
             on_step=True, on_epoch=False, prog_bar=True
         )
-        loss_value = (
+        contrastive_loss = (
             loss['contrastive_loss'] if isinstance(loss, dict) else loss
         )
+        if self.triplet_loss_weight > 0:
+            triplet_loss = _batch_hard_image_text_triplet_loss(
+                image_features, text_features, self.triplet_margin
+            )
+            loss_value = (
+                contrastive_loss + self.triplet_loss_weight * triplet_loss
+            )
+            self.log(
+                "train/triplet_loss", triplet_loss,
+                on_step=True, on_epoch=True, prog_bar=False,
+                sync_dist=True, batch_size=batch_size,
+            )
+            self.log(
+                "train/contrastive_loss", contrastive_loss,
+                on_step=True, on_epoch=True, prog_bar=False,
+                sync_dist=True, batch_size=batch_size,
+            )
+        else:
+            loss_value = contrastive_loss
         self.log(
             "train_loss", loss_value,
             on_step=True, on_epoch=True, prog_bar=True,
