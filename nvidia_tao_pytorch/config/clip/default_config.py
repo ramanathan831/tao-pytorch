@@ -316,6 +316,13 @@ class CLIPDataPathConfig:
         display_name="Caption File Suffix",
     )
 
+    train_pairs_file: Optional[str] = STR_FIELD(
+        value=None,
+        default_value=None,
+        description="Optional train_pairs.json metadata file used for balanced PAS query-type sampling.",
+        display_name="Train Pairs File",
+    )
+
 
 @dataclass
 class CLIPWDSConfig:
@@ -389,6 +396,23 @@ class CLIPTrainDataConfig(CLIPDataLoaderConfig):
         valid_min=1,
         description="Training batch size per GPU.",
         display_name="Batch Size",
+    )
+
+    balance_query_types: bool = BOOL_FIELD(
+        value=False,
+        default_value=False,
+        description="Balance CLIP training batches across query types using train_pairs_file metadata.",
+        display_name="Balance Query Types",
+    )
+    unique_caption_per_batch: bool = BOOL_FIELD(
+        value=True,
+        default_value=True,
+        description=(
+            "When balance_query_types is enabled, enforce at most one row per caption "
+            "string in each batch. Disable for very large PAS-Aug datasets to avoid "
+            "expensive unique-caption batch construction."
+        ),
+        display_name="Unique Caption per Batch",
     )
 
 
@@ -521,6 +545,23 @@ class CLIPTrainConfig(TrainConfig):
         description="Distributed implementation for SigLIP loss negative exchange. "
                     "Only used when loss_type is 'siglip'.",
         display_name="SigLIP Loss Distributed Implementation",
+    )
+    triplet_loss_weight: float = FLOAT_FIELD(
+        value=0.0,
+        default_value=0.0,
+        valid_min=0.0,
+        description=(
+            "Weight for auxiliary batch-hard image-text triplet loss. "
+            "Set to 0 to disable."
+        ),
+        display_name="Triplet Loss Weight",
+    )
+    triplet_margin: float = FLOAT_FIELD(
+        value=0.2,
+        default_value=0.2,
+        valid_min=0.0,
+        description="Margin for auxiliary batch-hard image-text triplet loss.",
+        display_name="Triplet Margin",
     )
 
     precision: str = STR_FIELD(
