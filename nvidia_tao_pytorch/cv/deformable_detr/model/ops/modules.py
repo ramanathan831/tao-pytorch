@@ -265,10 +265,10 @@ def _grid_sample_bilinear_deterministic(im, grid):
         sampled = flat.index_select(0, lin).view(N, Hg, Wg, C)
         return sampled * (valid.to(sampled.dtype) * weight).unsqueeze(-1)
 
-    out = (_corner(ix0, iy0, wx0 * wy0)
-           + _corner(ix0 + 1, iy0, wx1 * wy0)
-           + _corner(ix0, iy0 + 1, wx0 * wy1)
-           + _corner(ix0 + 1, iy0 + 1, wx1 * wy1))
+    out = (_corner(ix0, iy0, wx0 * wy0) +
+           _corner(ix0 + 1, iy0, wx1 * wy0) +
+           _corner(ix0, iy0 + 1, wx0 * wy1) +
+           _corner(ix0 + 1, iy0 + 1, wx1 * wy1))
     return out.permute(0, 3, 1, 2)
 
 
