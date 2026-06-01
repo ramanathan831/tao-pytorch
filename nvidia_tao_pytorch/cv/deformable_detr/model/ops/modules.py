@@ -33,23 +33,24 @@ from nvidia_tao_pytorch.cv.deformable_detr.model.ops.functions import MSDeformAt
 # Process-global toggle for the deterministic ("precise") MultiScaleDeformableAttention
 # path, shared by MSDeformAttn (Deformable-DETR / Visual ChangeNet) and the GDINO variant.
 # When enabled, forward routes through the pure-PyTorch implementation
-# (multi_scale_deformable_attn_pytorch) instead of the custom CUDA op, whose atomicAdd
-# backward has no deterministic kernel. The pure-PyTorch path uses standard ATen ops
-# (grid_sample, etc.) that honor torch.use_deterministic_algorithms, so combined with
-# cudnn.deterministic it yields reproducible gradients. Set once at model-build time via
-# set_precise_msda(); opt-in (default off), so existing behavior is unchanged.
-_PRECISE_MSDA = False
+# (multi_scale_deformable_attn_pytorch with deterministic=True) instead of the custom CUDA
+# op, whose atomicAdd backward has no deterministic kernel. The deterministic path samples
+# with index_select (backward = index_add, which has a deterministic CUDA kernel under
+# torch.use_deterministic_algorithms), so combined with cudnn.deterministic it yields
+# reproducible gradients. Set once at model-build time via set_precise_msda(); opt-in
+# (default off), so existing behavior is unchanged. Held in a dict so the setter mutates
+# state without a module-level `global` statement.
+_PRECISE_MSDA = {"enabled": False}
 
 
 def set_precise_msda(enabled):
     """Enable/disable the deterministic pure-PyTorch MSDeformAttn path (process-global)."""
-    global _PRECISE_MSDA
-    _PRECISE_MSDA = bool(enabled)
+    _PRECISE_MSDA["enabled"] = bool(enabled)
 
 
 def precise_msda_enabled():
     """Return whether the deterministic ("precise") MSDeformAttn path is enabled."""
-    return _PRECISE_MSDA
+    return _PRECISE_MSDA["enabled"]
 
 
 def _is_power_of_2(n):
@@ -264,10 +265,10 @@ def _grid_sample_bilinear_deterministic(im, grid):
         sampled = flat.index_select(0, lin).view(N, Hg, Wg, C)
         return sampled * (valid.to(sampled.dtype) * weight).unsqueeze(-1)
 
-    out = (_corner(ix0, iy0, wx0 * wy0)
-           + _corner(ix0 + 1, iy0, wx1 * wy0)
-           + _corner(ix0, iy0 + 1, wx0 * wy1)
-           + _corner(ix0 + 1, iy0 + 1, wx1 * wy1))
+    out = (_corner(ix0, iy0, wx0 * wy0) +
+           _corner(ix0 + 1, iy0, wx1 * wy0) +
+           _corner(ix0, iy0 + 1, wx0 * wy1) +
+           _corner(ix0 + 1, iy0 + 1, wx1 * wy1))
     return out.permute(0, 3, 1, 2)
 
 
