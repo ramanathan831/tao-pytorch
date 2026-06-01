@@ -22,12 +22,18 @@ from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
 
 # Triggers build of custom modules
-from nvidia_tao_core.config.bevfusion.default_config import ExperimentConfig
+try:
+    from nvidia_tao_core.config.bevfusion.default_config import ExperimentConfig
+except ModuleNotFoundError as exc:
+    if exc.name != "nvidia_tao_core.config":
+        raise
+    from nvidia_tao_pytorch.cv.bevfusion.config.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.bevfusion.utils.config import BEVFusionConfig
 from nvidia_tao_pytorch.cv.bevfusion.inferencer import TAOMultiModalDet3DInferencer, prepare_inferencer_args
 from nvidia_tao_pytorch.cv.bevfusion.visualization import TAO3DLocalVisualizer # noqa pylint: disable=W0611
 from nvidia_tao_pytorch.cv.bevfusion.model import * # noqa pylint: disable=W0401, W0614
 from nvidia_tao_pytorch.cv.bevfusion.datasets import * # noqa pylint: disable=W0401, W0614
+from nvidia_tao_pytorch.cv.bevfusion.utils.misc import cleanup_runner
 
 
 def run_experiment(experiment_config):
@@ -52,9 +58,11 @@ def run_experiment(experiment_config):
     init_args, call_args = prepare_inferencer_args(infer_cfg, checkpoint, results_dir)
 
     inferencer = TAOMultiModalDet3DInferencer(**init_args)
-    inferencer(**call_args)
-
-    status_logger.write(message="Completed Inference.", status_level=status_logging.Status.RUNNING)
+    try:
+        inferencer(**call_args)
+        status_logger.write(message="Completed Inference.", status_level=status_logging.Status.RUNNING)
+    finally:
+        cleanup_runner()
 
 
 spec_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

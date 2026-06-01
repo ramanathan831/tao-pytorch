@@ -24,12 +24,18 @@ import nvidia_tao_pytorch.core.loggers.api_logging as status_logging
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 
 # Triggers build of custom modules
-from nvidia_tao_core.config.bevfusion.default_config import ExperimentConfig
+try:
+    from nvidia_tao_core.config.bevfusion.default_config import ExperimentConfig
+except ModuleNotFoundError as exc:
+    if exc.name != "nvidia_tao_core.config":
+        raise
+    from nvidia_tao_pytorch.cv.bevfusion.config.default_config import ExperimentConfig
 from nvidia_tao_pytorch.cv.bevfusion.utils.config import BEVFusionConfig
 from nvidia_tao_pytorch.cv.bevfusion.visualization import TAO3DLocalVisualizer  # noqa pylint: disable=W0611, W0401, F401
 from nvidia_tao_pytorch.cv.bevfusion.evaluation import TAO3DMetric  # noqa pylint: disable=W0611,W0401, F401
 from nvidia_tao_pytorch.cv.bevfusion.model import *  # noqa pylint: disable=W0401, W0614, W0611
 from nvidia_tao_pytorch.cv.bevfusion.datasets import *  # noqa pylint: disable=W0401, W0614, W0611
+from nvidia_tao_pytorch.cv.bevfusion.utils.misc import cleanup_runner
 
 
 def run_experiment(experiment_config):
@@ -57,10 +63,13 @@ def run_experiment(experiment_config):
     eval_cfg = Config(eval_cfg)
     runner = Runner.from_cfg(eval_cfg)
 
-    # start testing
-    runner.test()
-    status_logger.write(status_level=status_logging.Status.RUNNING,
-                        message="********************** Completed BEVFusion Evaluation **********************.")
+    try:
+        # start testing
+        runner.test()
+        status_logger.write(status_level=status_logging.Status.RUNNING,
+                            message="********************** Completed BEVFusion Evaluation **********************.")
+    finally:
+        cleanup_runner(runner)
 
 
 spec_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
