@@ -54,6 +54,14 @@ def initialize_train_experiment(cfg, key=None):
         # F.interpolate backward, used by several TAO models) will warn instead
         # of raising, so existing training runs keep working.
         torch.use_deterministic_algorithms(True, warn_only=True)
+        # scaled_dot_product_attention's flash / mem-efficient backends have
+        # non-deterministic backward kernels (only the math backend is
+        # deterministic). Force the math backend so attention-heavy backbones
+        # (e.g. C-RADIO ViT) are reproducible. Slower / more memory, but only
+        # incurred when determinism is requested.
+        torch.backends.cuda.enable_flash_sdp(False)
+        torch.backends.cuda.enable_mem_efficient_sdp(False)
+        torch.backends.cuda.enable_math_sdp(True)
 
     resume_ckpt = cfg["train"]["resume_training_checkpoint_path"] or get_latest_checkpoint(results_dir)
     if resume_ckpt:
