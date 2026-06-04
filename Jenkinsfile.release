@@ -615,7 +615,11 @@ pipeline {
                             }
                             steps {
                                 container('dind-image') {
-                                    catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                                    // CC image is best-effort: a failure here (e.g. overlay
+                                    // max-depth on dind) marks the stage UNSTABLE but does
+                                    // not fail the release. The consolidate stage skips the
+                                    // CC multiarch manifest if the per-arch tags weren't set.
+                                    catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
                                         script {
                                             retry(count: 3) {
                                                 script {
@@ -866,7 +870,8 @@ pipeline {
                             }
                             steps {
                                 container('dind-image') {
-                                    catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                                    // CC image is best-effort: see x86_docker_coverage_build_rc.
+                                    catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
                                         script {
                                             retry(count: 3) {
                                                 script {
@@ -988,15 +993,28 @@ pipeline {
                                                 echo "⏭ Skipping production image tagging (SKIP_PROD_PROMOTE = true)"
                                             }
                                             
-                                            // CC multiarch manifest
-                                            createMultiArchManifest(
-                                                imageName: IMAGE_NAME_PYT,
-                                                manifestTag: "${rcTag}-cc-multiarch",
-                                                sourceTags: ["${rcTag}-cc-x86", "${rcTag}-cc-arm64"],
-                                                registry: 'https://nvcr.io',
-                                                registryCredentialsId: TaoConfig.credentials.NGC_API_KEY
-                                            )
-                                            env.CC_MULTIARCH_IMAGE_TAG = "${IMAGE_NAME_PYT}:${rcTag}-cc-multiarch"
+                                            // CC multiarch manifest — best-effort. The CC build
+                                            // stages mark themselves UNSTABLE on failure (e.g.
+                                            // overlay max-depth on dind) and leave their
+                                            // DOCKER_CC_IMAGE_TAG_* env unset. Skip the manifest
+                                            // if either arch is missing, and tolerate manifest
+                                            // creation errors so the release proceeds.
+                                            if (env.DOCKER_CC_IMAGE_TAG_X86 && env.DOCKER_CC_IMAGE_TAG_ARM64) {
+                                                catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
+                                                    createMultiArchManifest(
+                                                        imageName: IMAGE_NAME_PYT,
+                                                        manifestTag: "${rcTag}-cc-multiarch",
+                                                        sourceTags: ["${rcTag}-cc-x86", "${rcTag}-cc-arm64"],
+                                                        registry: 'https://nvcr.io',
+                                                        registryCredentialsId: TaoConfig.credentials.NGC_API_KEY
+                                                    )
+                                                    env.CC_MULTIARCH_IMAGE_TAG = "${IMAGE_NAME_PYT}:${rcTag}-cc-multiarch"
+                                                }
+                                            } else {
+                                                echo "⏭ Skipping CC multiarch manifest — per-arch CC build(s) did not publish: " +
+                                                     "x86=${env.DOCKER_CC_IMAGE_TAG_X86 ?: 'missing'}, " +
+                                                     "arm64=${env.DOCKER_CC_IMAGE_TAG_ARM64 ?: 'missing'}"
+                                            }
                                             
                                         } else {
                                             // Final release multiarch manifest
