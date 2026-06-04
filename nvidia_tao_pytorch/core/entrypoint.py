@@ -12,11 +12,14 @@ import subprocess
 import shlex
 import sys
 import torch
+from time import time
 import yaml
 from contextlib import contextmanager
 
 from nvidia_tao_pytorch.core.tlt_logging import logging
 from nvidia_tao_pytorch.core.distributed.validator import validate_configs
+from nvidia_tao_core.telemetry.nvml import get_device_details
+from nvidia_tao_core.telemetry.telemetry import send_telemetry_data
 
 LIGHTNING_EXCLUDED_NETWORKS = [
     "bevfusion",
@@ -270,6 +273,8 @@ def launch(args, unknown_args, subtasks, network=None):
         call = "python " + script + script_args + unknown_args_as_str
 
     process_passed = False
+    user_error = False
+    start = time()
     progress_bar_pattern = re.compile(r"Epoch \d+: \s*\d+%|\[.*\]")
 
     try:
@@ -316,8 +321,42 @@ def launch(args, unknown_args, subtasks, network=None):
         logging.exception("Command was interrupted")
         process_passed = True
     except Exception as e:
+        # Check if the exception is a user configuration error
+        error_message = str(e)
+        user_error = any(keyword in error_message for keyword in [
+            "Configuration error",
+            "Feature not implemented",
+            "Parameter validation error",
+            "File system error",
+            "Schema validation error"
+        ])
+
         logging.exception(e)
         process_passed = False
+
+    end = time()
+    time_lapsed = int(end - start)
+
+    try:
+        gpu_data = list()
+        for device in get_device_details():
+            gpu_data.append(device.get_config())
+        logging.info("Sending telemetry data.")
+        send_telemetry_data(
+            network,
+            args["subtask"],
+            gpu_data,
+            num_gpus=num_gpus,
+            time_lapsed=time_lapsed,
+            pass_status=process_passed,
+            user_error=user_error
+        )
+    except Exception as e:
+        logging.warning(
+            "Telemetry data couldn't be sent, but the command ran successfully."
+        )
+        logging.warning(f"[Error]: {e}")
+        pass
 
     if not process_passed:
         logging.warning("Execution status: FAIL")
