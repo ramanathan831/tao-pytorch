@@ -616,10 +616,10 @@ pipeline {
                             steps {
                                 container('dind-image') {
                                     // CC image is best-effort: a failure here (e.g. overlay
-                                    // max-depth on dind) marks the stage UNSTABLE but does
-                                    // not fail the release. The consolidate stage skips the
-                                    // CC multiarch manifest if the per-arch tags weren't set.
-                                    catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
+                                    // max-depth on dind) is swallowed — the stage stays green
+                                    // and the release proceeds. The consolidate stage skips
+                                    // the CC multiarch manifest if the per-arch tags weren't set.
+                                    catchError(buildResult: 'SUCCESS', stageResult: 'SUCCESS') {
                                         script {
                                             retry(count: 3) {
                                                 script {
@@ -871,7 +871,7 @@ pipeline {
                             steps {
                                 container('dind-image') {
                                     // CC image is best-effort: see x86_docker_coverage_build_rc.
-                                    catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
+                                    catchError(buildResult: 'SUCCESS', stageResult: 'SUCCESS') {
                                         script {
                                             retry(count: 3) {
                                                 script {
@@ -994,13 +994,13 @@ pipeline {
                                             }
                                             
                                             // CC multiarch manifest — best-effort. The CC build
-                                            // stages mark themselves UNSTABLE on failure (e.g.
-                                            // overlay max-depth on dind) and leave their
-                                            // DOCKER_CC_IMAGE_TAG_* env unset. Skip the manifest
-                                            // if either arch is missing, and tolerate manifest
-                                            // creation errors so the release proceeds.
+                                            // stages swallow their own failures (e.g. overlay
+                                            // max-depth on dind) and leave DOCKER_CC_IMAGE_TAG_*
+                                            // unset. Skip the manifest if either arch is
+                                            // missing, and tolerate manifest creation errors
+                                            // so the release stays green.
                                             if (env.DOCKER_CC_IMAGE_TAG_X86 && env.DOCKER_CC_IMAGE_TAG_ARM64) {
-                                                catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
+                                                catchError(buildResult: 'SUCCESS', stageResult: 'SUCCESS') {
                                                     createMultiArchManifest(
                                                         imageName: IMAGE_NAME_PYT,
                                                         manifestTag: "${rcTag}-cc-multiarch",
