@@ -14,6 +14,23 @@ entries in the param map for later size steps.
 
 ---
 
+## Table of contents
+
+1. [Design philosophy: inherit, don't fork](#1-design-philosophy-inherit-dont-fork)
+2. [Command & file map](#2-command--file-map)
+3. [Training data flow (one step)](#3-training-data-flow-one-step)
+4. [The single edit to `nvdinov2`: the `_extra_losses` hook](#4-the-single-edit-to-nvdinov2-the-_extra_losses-hook)
+5. [RoPE: 2D axial rotary position embedding](#5-rope-2d-axial-rotary-position-embedding)
+6. [Token layout & the checkpoint remapper (loading DINOv3 weights)](#6-token-layout--the-checkpoint-remapper-loading-dinov3-weights)
+7. [Gram anchoring](#7-gram-anchoring)
+8. [Configuration](#8-configuration)
+9. [Running it](#9-running-it)
+10. [Downstream use: `backbone_v2` interop](#10-downstream-use-backbone_v2-interop)
+11. [Tests & verification status](#11-tests--verification-status)
+12. [References](#12-references)
+
+---
+
 ## 1. Design philosophy: inherit, don't fork
 
 DINOv3 differs from `nvdinov2` in only three places: **positional encoding** (2D axial RoPE
@@ -58,19 +75,22 @@ The `dinov3` console command is registered in `setup.py` and dispatches to the s
 exactly like every other TAO task (`entrypoint/` → `scripts/` → `model/`).
 
 ```
-console: dinov3 {train, inference, export, default_specs}
+console: dinov3 {train, inference, export, convert, default_specs}
   └─ ssl/dinov3/entrypoint/dinov3.py     # discovers subtasks, launches
-       └─ ssl/dinov3/scripts/train.py     # @hydra_runner + @monitor_status; builds DinoV3PlModel
-            └─ ssl/dinov3/model/pl_model.py        DinoV3PlModel(DinoV2PlModel)
-                 ├─ model/vit.py                   DinoV3VisionTransformer(DinoV2VisionTransformer)
-                 │    └─ model/layers/block.py     RoPENestedTensorBlock(NestedTensorBlock)
-                 │         └─ model/layers/attention.py  RoPEMemoryEfficientAttention
-                 │              └─ model/layers/rope.py   RoPE2D, apply_rope, rotate_half
-                 └─ model/loss.py                  GramLoss
+       ├─ ssl/dinov3/scripts/train.py     # @hydra_runner + @monitor_status; builds DinoV3PlModel
+       │    └─ ssl/dinov3/model/pl_model.py        DinoV3PlModel(DinoV2PlModel)
+       │         ├─ model/vit.py                   DinoV3VisionTransformer(DinoV2VisionTransformer)
+       │         │    └─ model/layers/block.py     RoPENestedTensorBlock(NestedTensorBlock)
+       │         │         └─ model/layers/attention.py  RoPEMemoryEfficientAttention
+       │         │              └─ model/layers/rope.py   RoPE2D, apply_rope, rotate_half
+       │         └─ model/loss.py                  GramLoss
+       └─ ssl/dinov3/scripts/convert.py   # SSL backbone -> timm/backbone_v2 layout (CPU)
+            └─ ssl/dinov3/utils/checkpoint_remap.py   # bidirectional timm<->TAO key remap
 
 config/dinov3/default_config.py          # dataclass schema (subclasses nvdinov2)
 ssl/dinov3/experiment_specs/train_dinov3_vitb.yaml
-tests/ssl_unit_test/dinov3/              # config, rope, rope_parity, loss, model, feature_parity
+tests/ssl_unit_test/dinov3/              # config, rope, rope_parity, loss, model,
+                                         # feature_parity, backbone_v2_interop
 ```
 
 | Subtask | Reuses from nvdinov2 |
@@ -78,6 +98,7 @@ tests/ssl_unit_test/dinov3/              # config, rope, rope_parity, loss, mode
 | `train` | `DinoV2DataModule`, full Lightning `fit` flow |
 | `inference` | inference flow + data module |
 | `export` | ONNX export flow |
+| `convert` | DINOv3-specific (SSL → `backbone_v2` timm layout); see §10 |
 | `default_specs` | auto-generated from the dataclass schema |
 
 ---
@@ -317,13 +338,68 @@ dinov3 train -e experiment_specs/train_dinov3_vitb.yaml \
 
 dinov3 inference -e experiment_specs/train_dinov3_vitb.yaml inference.checkpoint=<ckpt>
 dinov3 export    -e experiment_specs/train_dinov3_vitb.yaml export.checkpoint=<ckpt>
+dinov3 convert   -e experiment_specs/train_dinov3_vitb.yaml convert.checkpoint=<ckpt>  # see §10
 ```
 
 `pretrained_model_path` may be a directory (the remapper finds `model.safetensors`) or a file.
 
 ---
 
-## 10. Tests & verification status
+## 10. Downstream use: `backbone_v2` interop
+
+`ssl/dinov3` **produces** a domain-adapted backbone; downstream supervised tasks (classification,
+detection, …) **consume** backbones through the `cv/backbone_v2` registry, where DINOv3 already
+exists as the timm-wrapped `dinov3_vitb16` entry. These are two intentionally separate
+representations of the same architecture (the SSL trainer subclasses `nvdinov2`; the registry
+entry wraps timm) — see the note at the end of this section for why.
+
+Because the two ViTs are **numerically identical** (proven by the feature-parity test, §11), the
+handoff is a pure **key remap**, not a retrain. The `dinov3 convert` subtask runs the inverse of
+the weight-loading remapper (§6) and writes a timm-format backbone that the existing registry
+entry loads directly via `pretrained_backbone_path` — **nothing in `backbone_v2` changes**.
+
+```mermaid
+flowchart LR
+    CKPT["SSL checkpoint<br/>(student/teacher.backbone.*,<br/>TAO key names)"]
+    CONV["dinov3 convert<br/>tao_to_timm key remap<br/>(default source = EMA teacher)"]
+    FILE["timm-format backbone<br/>.safetensors / .pth"]
+    REG["BACKBONE_REGISTRY.get('dinov3_vitb16')<br/>(pretrained_backbone_path=...)"]
+    DOWN["downstream task<br/>(classification / detection / ...)"]
+    CKPT --> CONV --> FILE --> REG --> DOWN
+```
+
+```bash
+# 1) Export the EMA-teacher backbone from an SSL checkpoint into timm layout.
+dinov3 convert -e experiment_specs/train_dinov3_vitb.yaml \
+    convert.checkpoint=<results_dir>/train/teacher_epoch_XXX_step_YYYYY.pth \
+    convert.output_path=<out>/dinov3_vitb_backbone.safetensors
+    # convert.source defaults to "teacher" (EMA); "student"/"student_ema" also valid.
+```
+
+```python
+# 2) Consume it downstream via the existing backbone_v2 registry entry (unchanged).
+from nvidia_tao_pytorch.cv.backbone_v2 import BACKBONE_REGISTRY
+backbone = BACKBONE_REGISTRY.get("dinov3_vitb16")(
+    pretrained_backbone_path="<out>/dinov3_vitb_backbone.safetensors",
+    num_classes=1000, freeze_at="all")
+```
+
+The converter accepts either a **stripped backbone file** (`student_*.pth` / `teacher_*.pth`,
+written every checkpoint interval) or a **full Lightning checkpoint** (it selects
+`<source>.backbone.*`). With `convert.validate=True` it checks the result against a fresh timm
+DINOv3 model (key + shape match) before writing, so a downstream strict load cannot fail silently.
+
+> **Why a remap is needed here (and not for MAE).** MAE's pretrain encoder and its downstream
+> backbone are both built on timm's `Block`, so its SSL→downstream handoff is a one-line prefix
+> strip. DINOv3's SSL side must use `nvdinov2`'s `NestedTensorBlock` (xformers nested-tensor
+> multi-crop attention, which DINO/iBOT need and timm's plain `Block` can't do), while the
+> `backbone_v2` side wraps timm's Eva-style `vit_base_patch16_dinov3`. Two different block
+> families ⇒ different key names (`ls1.gamma`↔`gamma_1`, `register_tokens`↔`reg_token`) ⇒ a real
+> remap — which is exactly the (already-validated) §6 mapper, run in reverse.
+
+---
+
+## 11. Tests & verification status
 
 ```bash
 pytest tests/ssl_unit_test/dinov3                       # all dinov3 tests
@@ -338,17 +414,19 @@ pytest tests/ssl_unit_test/nvdinov2/test_model.py       # nvdinov2 regression (h
 | `test_loss.py` | CPU | GramLoss zero/scale-invariance/fp32 |
 | `test_model.py` | GPU | ViT builds, multi-crop forward finite, full model step |
 | `test_feature_parity.py` | GPU + weights | **remapper coverage + CLS/patch cosine > 0.99 vs timm** |
+| `test_backbone_v2_interop.py` | CPU; GPU+weights | key round-trip + **SSL→`dinov3_vitb16` load, cosine > 0.99** |
 
-**Verified on an A100 (timm 1.0.26):** feature parity passes (CLS & patch cosine > 0.99; remapper
-covers all 162 tensors, only `mask_token` initialized); nvdinov2 numerics unchanged.
+**Verified on an A100 (timm 1.0.26):** feature parity and `backbone_v2` interop pass (CLS & patch
+cosine > 0.99; remapper covers all 162 tensors, only `mask_token` initialized); nvdinov2 numerics
+unchanged.
 
-**Status:** RoPE backbone, checkpoint remapper, and Gram anchoring are implemented and
-container-verified. Remaining for the bring-up: a short end-to-end training run (loss-down / no
-NaN-OOM sanity), and downstream/deploy integration in a later phase.
+**Status:** RoPE backbone, checkpoint remapper, Gram anchoring, and `backbone_v2` interop
+(`dinov3 convert`) are implemented and container-verified. Remaining for the bring-up: a short
+end-to-end training run (loss-down / no NaN-OOM sanity), and the deploy path in a later phase.
 
 ---
 
-## 11. References
+## 12. References
 - DINOv3 (Meta AI). Public weights: `facebook/dinov3-vitb16-pretrain-lvd1689m` / timm
   `vit_base_patch16_dinov3.lvd1689m`.
 - timm RoPE reference: `timm.layers.pos_embed_sincos.RotaryEmbeddingDinoV3` / `make_coords_dinov3`.

@@ -28,6 +28,7 @@ from nvidia_tao_pytorch.ssl.nvdinov2.model.pl_model import DinoV2PlModel
 from nvidia_tao_pytorch.ssl.nvdinov2.model.vit import SwiGLUFused
 from nvidia_tao_pytorch.ssl.dinov3.model.vit import DinoV3VisionTransformer
 from nvidia_tao_pytorch.ssl.dinov3.model.loss import GramLoss
+from nvidia_tao_pytorch.ssl.dinov3.utils.checkpoint_remap import timm_to_tao
 
 # Resolve the param-map FFN name to a layer class without importing torch in the config.
 _MLP_LAYERS = {
@@ -260,13 +261,7 @@ class DinoV3PlModel(DinoV2PlModel):
         remapped = {}
         unmapped = []
         for key, weight in timm_state_dict.items():
-            new_key = key
-            if key == "reg_token":
-                new_key = "register_tokens"
-            elif key.endswith(".gamma_1"):
-                new_key = key[: -len(".gamma_1")] + ".ls1.gamma"
-            elif key.endswith(".gamma_2"):
-                new_key = key[: -len(".gamma_2")] + ".ls2.gamma"
+            new_key = timm_to_tao(key)
 
             if new_key in reference_state_dict and reference_state_dict[new_key].shape == weight.shape:
                 remapped[new_key] = weight

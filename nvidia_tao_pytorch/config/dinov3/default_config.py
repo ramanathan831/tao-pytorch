@@ -18,6 +18,7 @@ DINOv3 is Meta IP implemented inside TAO; the family/endpoint is named ``dinov3`
 """
 
 from dataclasses import dataclass
+from typing import Optional
 
 from nvidia_tao_pytorch.config.utils.types import (
     STR_FIELD,
@@ -290,6 +291,58 @@ class DINOv3DatasetConfig(NVDINOv2DatasetConfig):
 
 
 @dataclass
+class DINOv3ConvertConfig:
+    """DINOv3 backbone-export (``convert``) config.
+
+    Converts an SSL-trained DINOv3 checkpoint into the timm-format layout that the
+    ``cv/backbone_v2`` ``dinov3_vitb16`` registry entry (and downstream supervised tasks)
+    consume. The EMA ``teacher`` is the recommended feature extractor for continual
+    pre-training, so it is the default source.
+    """
+
+    results_dir: Optional[str] = STR_FIELD(
+        value=None,
+        default_value="",
+        description="Directory for convert results/logs",
+        display_name="results dir"
+    )
+    checkpoint: str = STR_FIELD(
+        value="",
+        default_value="",
+        description=(
+            "SSL DINOv3 checkpoint to convert: a stripped backbone file "
+            "(student_*.pth / teacher_*.pth) or a full Lightning .pth/.ckpt."
+        ),
+        display_name="checkpoint",
+        popular="yes"
+    )
+    output_path: str = STR_FIELD(
+        value="",
+        default_value="",
+        description=(
+            "Output path for the timm-format backbone (.safetensors or .pth). Defaults to "
+            "<results_dir>/dinov3_<arch>_backbone.safetensors."
+        ),
+        display_name="output path",
+        popular="yes"
+    )
+    source: str = STR_FIELD(
+        value="teacher",
+        default_value="teacher",
+        valid_options="student,teacher,student_ema",
+        description="Which SSL sub-model's backbone to export (EMA teacher recommended).",
+        display_name="source",
+        popular="yes"
+    )
+    validate: bool = BOOL_FIELD(
+        value=True,
+        default_value=True,
+        description="Validate the converted state dict against a fresh timm DINOv3 model.",
+        display_name="validate"
+    )
+
+
+@dataclass
 class ExperimentConfig(CommonExperimentConfig):
     """DINOv3 experiment config."""
 
@@ -316,6 +369,10 @@ class ExperimentConfig(CommonExperimentConfig):
     gen_trt_engine: GenTrtEngineExpConfig = DATACLASS_FIELD(
         GenTrtEngineExpConfig(),
         description="Configurable parameters to generate TensorRT engine for a DINOv3 experiment.",
+    )
+    convert: DINOv3ConvertConfig = DATACLASS_FIELD(
+        DINOv3ConvertConfig(),
+        description="Configurable parameters to convert an SSL backbone to the backbone_v2 (timm) layout.",
     )
 
     def __post_init__(self):
