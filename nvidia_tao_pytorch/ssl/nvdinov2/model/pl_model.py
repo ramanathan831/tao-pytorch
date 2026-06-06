@@ -484,6 +484,26 @@ class DinoV2PlModel(TAOLightningModule):
             teacher_backbone_global_output,
         )
 
+    def _extra_losses(self, **ctx):
+        """Hook for subclasses to inject additional loss terms into ``student_forward``.
+
+        The base (DINOv2) implementation returns an empty list, so the total loss is
+        identical to the original. Subclasses (e.g. DINOv3 Gram anchoring) override this
+        to return a list of extra loss tensors that get summed with the DINO/iBOT/KoLeo
+        terms. The keyword context exposes the student backbone outputs (which carry the
+        patch tokens and masks) and the raw crops/masks so an extra term can run its own
+        teacher and build whatever it needs.
+
+        Args:
+            **ctx: Context forwarded from ``student_forward`` (global/local crops,
+                global masks/indices/weights, and the student global/local backbone
+                outputs).
+
+        Returns:
+            list: Extra loss tensors to add. Empty for DINOv2.
+        """
+        return []
+
     def student_forward(
         self,
         *,
@@ -640,6 +660,18 @@ class DinoV2PlModel(TAOLightningModule):
             prog_bar=False,
             logger=True,
             batch_size=self.batch_size,
+        )
+
+        # Subclass-injected extra loss terms (e.g. DINOv3 Gram anchoring).
+        # Base implementation returns [], so DINOv2 numerics are unchanged.
+        losses += self._extra_losses(
+            global_crops=global_crops,
+            local_crops=local_crops,
+            global_masks=global_masks,
+            global_masks_indices=global_masks_indices,
+            global_masks_weight=global_masks_weight,
+            student_backbone_global_output=student_backbone_global_output,
+            student_backbone_local_output=student_backbone_local_output,
         )
 
         # Calculate final loss

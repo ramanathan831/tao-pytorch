@@ -1,0 +1,135 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+"""DINOv3 model unit tests.
+
+The full-model tests need a CUDA GPU (the inherited nvdinov2 attention uses xformers'
+memory_efficient_attention), so they skip when CUDA is unavailable.
+"""
+import pytest
+from omegaconf import OmegaConf
+import torch
+
+from nvidia_tao_pytorch.config.dinov3.default_config import ExperimentConfig
+from nvidia_tao_pytorch.ssl.dinov3.model.pl_model import DinoV3PlModel
+from nvidia_tao_pytorch.ssl.dinov3.model.vit import DinoV3VisionTransformer
+
+BATCH_SIZE = 2
+IMAGE_CHANNEL = 3
+N_GLOBAL_CROPS = 1
+GLOBAL_CROPS_SIZE = 256
+N_LOCAL_CROPS = 1
+LOCAL_CROPS_SIZE = 112
+PATCH_SIZE = 16
+TEACHER_TEMPERATURE = 0.995
+
+requires_cuda = pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA GPU")
+
+
+@pytest.fixture
+def _test_batch():
+    torch.manual_seed(47)
+    batch = {}
+    batch["global_crops"] = torch.randn(BATCH_SIZE * N_GLOBAL_CROPS, IMAGE_CHANNEL, GLOBAL_CROPS_SIZE, GLOBAL_CROPS_SIZE)
+    batch["local_crops"] = torch.randn(BATCH_SIZE * N_LOCAL_CROPS, IMAGE_CHANNEL, LOCAL_CROPS_SIZE, LOCAL_CROPS_SIZE)
+    n_tok = (GLOBAL_CROPS_SIZE // PATCH_SIZE) * (GLOBAL_CROPS_SIZE // PATCH_SIZE)
+    batch["global_masks"] = torch.zeros((BATCH_SIZE * N_GLOBAL_CROPS, n_tok), dtype=torch.bool)
+    batch["global_masks_indices"] = batch["global_masks"].flatten().nonzero().flatten()
+    batch["global_masks_weight"] = (
+        1 / batch["global_masks"].float().sum(-1).clamp(min=1.0)
+    ).unsqueeze(-1).expand_as(batch["global_masks"])[batch["global_masks"]]
+    yield batch
+
+
+@requires_cuda
+@pytest.mark.ssl_unit
+def test_dinov3_vit_builds_and_forwards():
+    """The v3 ViT-B builds with no absolute pos-embed and runs the single-tensor RoPE forward."""
+    model = DinoV3VisionTransformer(
+        img_size=GLOBAL_CROPS_SIZE, patch_size=PATCH_SIZE, embed_dim=768, depth=12,
+        num_heads=12, init_values=1e-5, drop_path_schedule="linear", num_classes=0,
+        drop_path_rate=0.0, register_tokens=4, use_custom_attention=True,
+    ).cuda().half().eval()
+
+    # DINOv3 drops the absolute positional embedding (RoPE replaces it).
+    assert model.pos_embed is None
+    assert "pos_embed" not in model.state_dict()
+
+    x = torch.randn(BATCH_SIZE, IMAGE_CHANNEL, GLOBAL_CROPS_SIZE, GLOBAL_CROPS_SIZE).cuda().half()
+    with torch.no_grad():
+        out = model(x)
+
+    n_patches = (GLOBAL_CROPS_SIZE // PATCH_SIZE) ** 2
+    assert out["x_norm_clstoken"].shape == (BATCH_SIZE, 768)
+    assert out["x_norm_patchtokens"].shape == (BATCH_SIZE, n_patches, 768)
+
+
+@requires_cuda
+@pytest.mark.ssl_unit
+def test_dinov3_backbone_multicrop_finite():
+    """The multi-crop RoPE list path yields finite features in both eval and train modes.
+
+    This is the meaningful check of the new code: RoPE is threaded through the nested
+    ``BlockDiagonalMask`` batching and, with drop_path > 0, the stochastic-depth path in
+    train mode. (Single-tensor eval is covered by ``test_dinov3_vit_builds_and_forwards``.)
+    """
+    backbone = DinoV3VisionTransformer(
+        img_size=GLOBAL_CROPS_SIZE, patch_size=PATCH_SIZE, embed_dim=768, depth=12,
+        num_heads=12, init_values=1e-5, drop_path_schedule="linear", num_classes=0,
+        drop_path_rate=0.4, register_tokens=4, use_custom_attention=True,
+    ).to(torch.float16).cuda()
+
+    gc = torch.randn(BATCH_SIZE, IMAGE_CHANNEL, GLOBAL_CROPS_SIZE, GLOBAL_CROPS_SIZE).half().cuda()
+    lc = torch.randn(BATCH_SIZE, IMAGE_CHANNEL, LOCAL_CROPS_SIZE, LOCAL_CROPS_SIZE).half().cuda()
+    n_tok = (GLOBAL_CROPS_SIZE // PATCH_SIZE) ** 2
+    gm = torch.zeros((BATCH_SIZE, n_tok), dtype=torch.bool).cuda()
+
+    for mode in ("eval", "train"):
+        getattr(backbone, mode)()
+        with torch.no_grad():
+            out = backbone([gc, lc], masks=[gm, None])
+        for crop in out:
+            assert torch.isfinite(crop["x_norm_patchtokens"]).all(), f"non-finite patches in {mode}"
+            assert torch.isfinite(crop["x_norm_clstoken"]).all(), f"non-finite cls in {mode}"
+
+
+@requires_cuda
+@pytest.mark.ssl_unit
+def test_dinov3_model_forward(_test_batch):
+    """Build DinoV3PlModel and run teacher + student forward (nested multi-crop RoPE path).
+
+    Mirrors the nvdinov2 model test's contract: the forward runs end-to-end and returns a
+    scalar loss tensor. Finiteness is not asserted -- on random fp16 inputs with an untrained
+    head and 131072 prototypes the DINO/iBOT/KoLeo terms can legitimately be inf/nan (the
+    nvdinov2 test likewise only checks the forward executes).
+    """
+    experiment_config = OmegaConf.structured(ExperimentConfig())
+
+    model = DinoV3PlModel(experiment_config)
+    model.to(torch.float16).train().cuda()
+
+    # The inherited _extra_losses hook is a no-op for the base/DINOv3 scaffold (Gram added later).
+    assert model._extra_losses() == []
+
+    global_crops = _test_batch["global_crops"].to(torch.float16).cuda()
+    local_crops = _test_batch["local_crops"].to(torch.float16).cuda()
+    global_masks = _test_batch["global_masks"].cuda()
+    global_masks_indices = _test_batch["global_masks_indices"].cuda()
+    global_masks_weight = _test_batch["global_masks_weight"].to(torch.float16).cuda()
+
+    with torch.no_grad():
+        teacher_dino_centered, teacher_ibot_centered, _ = model.teacher_forward(
+            global_crops=global_crops,
+            global_masks_indices=global_masks_indices,
+            teacher_temperature=TEACHER_TEMPERATURE,
+        )
+        loss = model.student_forward(
+            global_crops=global_crops,
+            global_masks=global_masks,
+            global_masks_indices=global_masks_indices,
+            global_masks_weight=global_masks_weight,
+            local_crops=local_crops,
+            teacher_dino_centered=teacher_dino_centered,
+            teacher_ibot_centered=teacher_ibot_centered,
+        )
+    assert isinstance(loss, torch.Tensor) and loss.ndim == 0
