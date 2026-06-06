@@ -24,6 +24,7 @@ import nvidia_tao_pytorch.config.dinov3.default_config as v3_params
 from nvidia_tao_pytorch.core.distributed.comm import get_global_rank
 from nvidia_tao_pytorch.core.tlt_logging import logging
 from nvidia_tao_pytorch.ssl.nvdinov2.model.head import DinoHead
+from nvidia_tao_pytorch.ssl.nvdinov2.model.loss import DinoV2Loss
 from nvidia_tao_pytorch.ssl.nvdinov2.model.pl_model import DinoV2PlModel
 from nvidia_tao_pytorch.ssl.nvdinov2.model.vit import SwiGLUFused
 from nvidia_tao_pytorch.ssl.dinov3.model.vit import DinoV3VisionTransformer
@@ -48,6 +49,23 @@ class DinoV3PlModel(DinoV2PlModel):
         """
         super().__init__(experiment_spec)
         self.checkpoint_filename = 'dinov3_model'
+
+        # DINOv3 centers teacher outputs with Sinkhorn-Knopp (SwAV), not the softmax centering
+        # nvdinov2 hardcodes. Rebuild the DINO/iBOT losses with the configured method (default
+        # sinkhorn). This is a dinov3-side override only; nvdinov2 is untouched. The base
+        # DinoV2Loss sinkhorn is numerically safe here because DinoHead L2-normalizes features
+        # and uses unit-norm prototypes, so logits are cosine sims in [-1, 1] (no exp overflow).
+        # See ssl/dinov3/README.md "Centering" for the watch-for note / softmax fallback.
+        centering_method = getattr(self.model_config, "centering_method", "sinkhorn")
+        if centering_method != "softmax":
+            self.dino_cls_token_loss = DinoV2Loss(
+                num_prototypes=self.num_prototypes,
+                centering_method=centering_method,
+            )
+            self.ibot_patch_tokens_loss = DinoV2Loss(
+                num_prototypes=self.num_prototypes,
+                centering_method=centering_method,
+            )
 
         # Gram anchoring (DINOv3). The frozen Gram teacher is constructed in _build_model
         # when enabled; sync it from the (now teacher==student) weights here so it is

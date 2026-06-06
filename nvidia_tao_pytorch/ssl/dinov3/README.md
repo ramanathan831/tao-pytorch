@@ -146,6 +146,28 @@ flowchart TD
 The Gram branch (`GT` + `LG`) is the **only** thing added to the v2 loss path, and it is added
 through one extension point, described next.
 
+### Centering: Sinkhorn-Knopp (⚠️ watch-for)
+
+DINOv3 centers the teacher's DINO/iBOT head outputs with **Sinkhorn-Knopp** (SwAV), not the
+**softmax** centering `nvdinov2` hardcodes. `DinoV3PlModel` rebuilds the two `DinoV2Loss` objects
+with `centering_method` from config (**default `sinkhorn`**) right after `super().__init__()` — a
+dinov3-side override only; `nvdinov2` is untouched.
+
+The Sinkhorn path in `DinoV2Loss` was previously **marked untested**. It is now exercised by:
+- `tests/ssl_unit_test/dinov3/test_sinkhorn.py` (CPU) — asserts the output is a valid per-sample
+  probability simplex (rows sum to 1, non-negative, finite) across the spec's teacher-temperature
+  range, for both the DINO (CLS) and iBOT (masked-patch) shapes; and
+- the GPU model test, which runs a full teacher/student step through the sinkhorn path.
+
+It is numerically safe here because `DinoHead` L2-normalizes features against unit-norm
+prototypes, so teacher logits are cosine similarities in `[-1, 1]` and `exp(logit / 0.04)` cannot
+overflow fp32.
+
+> **Watch for:** if T7 (or any later) training shows instability or representation **collapse**,
+> suspect the centering path **first** and fall back to softmax:
+> `dinov3 train ... model.centering_method=softmax`. Keep this note even if softmax is adopted, so
+> the next session knows the state.
+
 ---
 
 ## 4. The single edit to `nvdinov2`: the `_extra_losses` hook
@@ -304,8 +326,9 @@ overrides`.
 
 | Group | Key fields (v3 additions / overrides) |
 | :--- | :--- |
+| `model` | **`centering_method=sinkhorn`** (DINOv3 SwAV centering; `softmax` fallback — see §3) |
 | `model.backbone` | `student_type`/`teacher_type` (`vit_b`), `patch_size=16`, `num_register_tokens=4`, `img_size=256`, **`rope_theta=100.0`** |
-| `model.gram` | `enable`, `w_gram`, `start_step`, `teacher_source` |
+| `model.gram` | `enable`, `w_gram`, `start_step`, `teacher_source` — **off by default** in the baseline spec (paper doesn't use Gram for ViT-B); kept for the deferred high-res phase |
 | `model.lora` | disabled stub (forward-compat, Phase 2) |
 | `dataset.transform` | `global_crops_size=256`, `local_crops_size=112` (single-res 256) |
 | `model.head`, `model.distill`, `train`, `inference`, `export` | reused from nvdinov2 |

@@ -233,6 +233,18 @@ class LoRAConfig:
 class DINOv3ModelConfig:
     """DINOv3 model config (reuses nvdinov2 distill/head, adds gram + lora)."""
 
+    centering_method: str = STR_FIELD(
+        value="sinkhorn",
+        default_value="sinkhorn",
+        valid_options="sinkhorn,softmax",
+        description=(
+            "Teacher-output centering for the DINO/iBOT heads. DINOv3 uses Sinkhorn-Knopp "
+            "(SwAV); 'softmax' is the DINOv2 fallback. If training shows instability/collapse, "
+            "try 'softmax'."
+        ),
+        display_name="centering method",
+        popular="yes"
+    )
     distill: NVDINOv2ModelDistillConfig = DATACLASS_FIELD(
         NVDINOv2ModelDistillConfig(),
         description="Configuration for distillation (reused from nvdinov2)"

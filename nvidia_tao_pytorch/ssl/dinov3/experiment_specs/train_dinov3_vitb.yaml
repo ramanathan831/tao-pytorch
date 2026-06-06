@@ -6,6 +6,8 @@ model:
     enable: False
     disable_masking: False
     pretrained_non_distill_pl_model_path: null
+  # DINOv3 uses Sinkhorn-Knopp (SwAV) centering for the DINO/iBOT teacher outputs.
+  centering_method: "sinkhorn"
   backbone:
     teacher_type: "vit_b"
     student_type: "vit_b"
@@ -19,8 +21,11 @@ model:
     hidden_dim: 2048
     bottleneck_dim: 384
   gram:
-    enable: True
-    w_gram: 0.05
+    # Gram anchoring is OFF for the baseline: the DINOv3 paper does not use Gram for the
+    # smaller backbones (it is a 7B / long-schedule / high-res tool). The code stays intact
+    # and gated off; enable it (and set w_gram) only for the deferred high-res phase.
+    enable: False
+    w_gram: 0.0
     start_step: 0
     teacher_source: "pretrained"
   lora:
@@ -43,6 +48,12 @@ train:
   resume_training_checkpoint_path: null
   # Pretrained DINOv3 ViT-B weights (timm-format), mounted into the container.
   pretrained_model_path: /data/weights/dinov3/vitb16
+  # xformers memory_efficient_attention has no deterministic backward kernel, so this SSL
+  # backbone trains with determinism off (the global default is True). Reproducibility-only;
+  # required for the xformers attention path to run its backward.
+  cudnn:
+    deterministic: False
+    benchmark: True
   num_nodes: 1
   num_gpus: 1
   num_epochs: 10
