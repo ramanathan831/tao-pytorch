@@ -4,9 +4,8 @@ This package implements **DINOv3** self-supervised learning in TAO as a new `ssl
 family. It is built for **continual pre-training**: start from public DINOv3 weights and keep
 training (DINO + iBOT + KoLeo + **Gram anchoring**) to adapt the backbone to a new domain.
 
-> DINOv3 is Meta IP; this is a TAO re-implementation. The family/endpoint is named **`dinov3`**
-> (not `nvdinov3`). NVIDIA's own DINOv2 variant **`nvdinov2`** keeps its name and stays frozen —
-> `dinov3` inherits from it.
+> The family/endpoint is named **`dinov3`** (not `nvdinov3`). NVIDIA's own DINOv2 variant
+> **`nvdinov2`** keeps its name and stays frozen — `dinov3` inherits from it.
 
 Candidate v1 architecture: **ViT-B** (embed 768 / depth 12 / heads 12 / patch 16 / 4 register
 tokens / standard GELU MLP), single-resolution 256. `vit_l` and `vit_h_plus` are reserved
