@@ -316,6 +316,23 @@ teacher_patches = self.gram_teacher(global_crops)["x_norm_patchtokens"]   # no_g
 return [gram.w_gram * GramLoss()(student_patches, teacher_patches)]
 ```
 
+### High-resolution phase (Phase 1)
+
+Gram earns its keep in the high-res 256→768 adaptation phase (the paper doesn't use it for
+ViT-B at 256). The high-res spec `experiment_specs/train_dinov3_vitb_highres.yaml` turns it on and
+adds two knobs handled in `_extra_losses`:
+
+- **`gram.teacher_source: ema` + `gram.refresh_interval`** — an *early-EMA* Gram teacher refreshed
+  every N steps from the current EMA teacher (vs the Phase 0 frozen-from-pretrained snapshot).
+  `refresh_interval: 0` keeps the Phase 0 behavior.
+- **`gram.teacher_scale`** — the Gram teacher runs at this multiple of the student resolution
+  (paper uses 2×); the higher-res teacher grid is average-pooled back to the student grid before
+  the loss. `1.0` = same resolution. At 768 the 2× teacher is memory-heavy — start at `1.0`.
+
+RoPE needs no change at 768: `RoPE2D` normalizes coords to `[-1,1]`, so a 48×48 grid extrapolates
+with no interpolation (validated by the 768 case of the feature-parity test). See the Phase 1
+plan in `dinov3_docs/` for the full design and remaining FSDP-refresh follow-up.
+
 ---
 
 ## 8. Configuration
@@ -328,7 +345,7 @@ overrides`.
 | :--- | :--- |
 | `model` | **`centering_method=sinkhorn`** (DINOv3 SwAV centering; `softmax` fallback — see §3) |
 | `model.backbone` | `student_type`/`teacher_type` (`vit_b`), `patch_size=16`, `num_register_tokens=4`, `img_size=256`, **`rope_theta=100.0`** |
-| `model.gram` | `enable`, `w_gram`, `start_step`, `teacher_source` — **off by default** in the baseline spec (paper doesn't use Gram for ViT-B); kept for the deferred high-res phase |
+| `model.gram` | `enable`, `w_gram`, `start_step`, `teacher_source`, `refresh_interval`, `teacher_scale` — **off by default** in the baseline spec; turned on for the high-res phase (see §7) |
 | `model.lora` | disabled stub (forward-compat, Phase 2) |
 | `dataset.transform` | `global_crops_size=256`, `local_crops_size=112` (single-res 256) |
 | `model.head`, `model.distill`, `train`, `inference`, `export` | reused from nvdinov2 |

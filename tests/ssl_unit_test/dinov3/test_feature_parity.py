@@ -49,21 +49,26 @@ def _cosine(a, b):
 @requires_cuda
 @requires_weights
 @pytest.mark.ssl_unit
-def test_dinov3_vitb_feature_parity_vs_timm():
-    """Our remapped ViT-B matches timm's CLS/patch features (cosine > 0.99)."""
+@pytest.mark.parametrize("img_size", [256, 768])
+def test_dinov3_vitb_feature_parity_vs_timm(img_size):
+    """Our remapped ViT-B matches timm's CLS/patch features (cosine > 0.99).
+
+    Parametrized over 256 and **768** — the 768 case is the Phase 1 gate: it validates that our
+    normalized-coord RoPE extrapolates to a 48x48 grid identically to timm (no pos-embed interp).
+    """
     timm = pytest.importorskip("timm")
 
     ckpt = os.path.join(_weights, "model.safetensors") if os.path.isdir(_weights) else _weights
     ref = timm.create_model(
-        "vit_base_patch16_dinov3", pretrained=False, checkpoint_path=ckpt,
+        "vit_base_patch16_dinov3", pretrained=False, checkpoint_path=ckpt, img_size=img_size,
     ).cuda().half().eval()
 
     model = DinoV3VisionTransformer(
-        img_size=256, patch_size=16, embed_dim=768, depth=12, num_heads=12,
+        img_size=img_size, patch_size=16, embed_dim=768, depth=12, num_heads=12,
         init_values=1e-5, drop_path_schedule="linear", num_classes=0, drop_path_rate=0.0,
         register_tokens=4, use_custom_attention=True,
     )
-    # Load via the same remapper the pl_model uses.
+    # Load via the same remapper the pl_model uses (img_size doesn't change keys — no pos_embed).
     timm_sd = DinoV3PlModel._load_pretrained_state_dict(_weights)
     remapped, unmapped = DinoV3PlModel._remap_dinov3_state_dict(timm_sd, model.state_dict())
     missing, unexpected = model.load_state_dict(remapped, strict=False)
@@ -76,7 +81,7 @@ def test_dinov3_vitb_feature_parity_vs_timm():
     model = model.cuda().half().eval()
 
     torch.manual_seed(0)
-    x = torch.randn(2, 3, 256, 256).cuda().half()
+    x = torch.randn(2, 3, img_size, img_size).cuda().half()
     with torch.no_grad():
         feats = ref.forward_features(x)
         np = ref.num_prefix_tokens
@@ -86,5 +91,5 @@ def test_dinov3_vitb_feature_parity_vs_timm():
 
     cls_cos = _cosine(cls_ours, cls_ref)
     patch_cos = _cosine(patch_ours, patch_ref)
-    assert cls_cos > 0.99, f"CLS feature cosine too low: {cls_cos}"
-    assert patch_cos > 0.99, f"patch feature cosine too low: {patch_cos}"
+    assert cls_cos > 0.99, f"[{img_size}] CLS feature cosine too low: {cls_cos}"
+    assert patch_cos > 0.99, f"[{img_size}] patch feature cosine too low: {patch_cos}"
