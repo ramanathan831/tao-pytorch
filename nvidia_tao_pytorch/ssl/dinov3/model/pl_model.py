@@ -14,12 +14,15 @@ the family imports, ``dinov3 --help`` resolves, and the ViT-B builds.
 """
 
 import copy
+import os
 
 import torch
 import torch.nn as nn
 from timm.layers import Mlp
 
 import nvidia_tao_pytorch.config.dinov3.default_config as v3_params
+from nvidia_tao_pytorch.core.distributed.comm import get_global_rank
+from nvidia_tao_pytorch.core.tlt_logging import logging
 from nvidia_tao_pytorch.ssl.nvdinov2.model.head import DinoHead
 from nvidia_tao_pytorch.ssl.nvdinov2.model.pl_model import DinoV2PlModel
 from nvidia_tao_pytorch.ssl.nvdinov2.model.vit import SwiGLUFused
@@ -95,7 +98,10 @@ class DinoV3PlModel(DinoV2PlModel):
             drop_path_rate=self.drop_path_rate,
             mlp_layer=arch["mlp_layer"],
             norm_layer=nn.LayerNorm,
-            act_layer=nn.SiLU,
+            # DINOv3 ViT-B/L use a standard GELU MLP with no QKV bias (timm
+            # vit_base_patch16_dinov3 reference); these are the v3 ViT defaults.
+            act_layer=nn.GELU,
+            qkv_bias=False,
             register_tokens=self.register_tokens,
             use_custom_attention=self.use_custom_attention,
             rope_theta=self.model_config.backbone['rope_theta'],
@@ -196,14 +202,111 @@ class DinoV3PlModel(DinoV2PlModel):
             param.requires_grad = False
         self.gram_teacher.eval()
 
-    def restore_pretrained_weights(self):
-        """Load pretrained weights, then re-anchor the Gram teacher to them.
+    @staticmethod
+    def _load_pretrained_state_dict(path):
+        """Load a DINOv3 checkpoint into a flat ``{key: tensor}`` state dict.
 
-        Reuses the inherited loader (the DINOv3 timm-key remapper lands in a later step) and,
-        when Gram anchoring is on, snapshots the freshly-loaded teacher into the frozen Gram
-        teacher so the anchor matches the run's starting weights.
+        Accepts either a directory holding timm-format weights (``model.safetensors`` or
+        ``pytorch_model.bin``) or a direct ``.safetensors`` / ``.pth`` / ``.bin`` file, and
+        unwraps a ``state_dict`` / ``model`` container if present.
+
+        Args:
+            path (str): File or directory path to the pretrained weights.
+
+        Returns:
+            dict: Flat parameter-name -> tensor mapping.
         """
-        super().restore_pretrained_weights()
+        if os.path.isdir(path):
+            candidates = ["model.safetensors", "pytorch_model.bin", "model.pth"]
+            resolved = next(
+                (os.path.join(path, c) for c in candidates if os.path.exists(os.path.join(path, c))),
+                None,
+            )
+            assert resolved is not None, (
+                f"No DINOv3 weights ({candidates}) found in directory {path}"
+            )
+            path = resolved
+
+        if path.endswith(".safetensors"):
+            from safetensors.torch import load_file
+            return load_file(path)
+
+        state_dict = torch.load(path, map_location="cpu")
+        for container_key in ("state_dict", "model"):
+            if isinstance(state_dict, dict) and container_key in state_dict:
+                state_dict = state_dict[container_key]
+                break
+        return state_dict
+
+    @staticmethod
+    def _remap_dinov3_state_dict(timm_state_dict, reference_state_dict):
+        """Translate timm DINOv3 ViT keys to ``DinoV3VisionTransformer`` keys.
+
+        Renames the LayerScale gammas (``blocks.N.gamma_1/2`` -> ``blocks.N.ls1/ls2.gamma``)
+        and the register parameter (``reg_token`` -> ``register_tokens``); all other keys
+        (``cls_token``, ``patch_embed.proj.*``, ``blocks.N.{norm1,norm2,attn.qkv,attn.proj,
+        mlp.fc1,mlp.fc2}.*``, ``norm.*``) map by identity. timm carries no ``pos_embed`` (RoPE
+        replaces it) and no QKV bias. Only keys present in the reference state dict with a
+        matching shape are kept.
+
+        Args:
+            timm_state_dict (dict): Source timm/Meta DINOv3 state dict.
+            reference_state_dict (dict): ``self.student.backbone.state_dict()`` (target keys).
+
+        Returns:
+            Tuple[dict, list]: ``(remapped, unmapped)`` where ``remapped`` is loadable into
+            the backbone and ``unmapped`` lists source keys that had no shape-matching target.
+        """
+        remapped = {}
+        unmapped = []
+        for key, weight in timm_state_dict.items():
+            new_key = key
+            if key == "reg_token":
+                new_key = "register_tokens"
+            elif key.endswith(".gamma_1"):
+                new_key = key[: -len(".gamma_1")] + ".ls1.gamma"
+            elif key.endswith(".gamma_2"):
+                new_key = key[: -len(".gamma_2")] + ".ls2.gamma"
+
+            if new_key in reference_state_dict and reference_state_dict[new_key].shape == weight.shape:
+                remapped[new_key] = weight
+            else:
+                unmapped.append(key)
+        return remapped, unmapped
+
+    def restore_pretrained_weights(self):
+        """Load timm/Meta DINOv3 weights via the v3 key remapper, sync teacher + Gram teacher.
+
+        Replaces the inherited loader (which ``torch.load``s a single ``.pth`` of already-
+        matching keys): DINOv3 ships timm-format weights whose keys and token layout differ,
+        so this resolves the checkpoint, remaps the keys, loads them into the student backbone
+        (non-strict, reporting residual missing/unexpected), mirrors the student into the
+        teacher (non-distill), and re-anchors the frozen Gram teacher to the loaded weights.
+        """
+        reference_state_dict = self.student.backbone.state_dict()
+        timm_state_dict = self._load_pretrained_state_dict(self.pretrained_weights)
+        remapped, unmapped = self._remap_dinov3_state_dict(timm_state_dict, reference_state_dict)
+
+        missing_keys, unexpected_keys = self.student.backbone.load_state_dict(remapped, strict=False)
+
+        if get_global_rank() == 0:
+            logging.info(
+                f"DINOv3 remap: loaded {len(remapped)}/{len(timm_state_dict)} checkpoint tensors "
+                f"into the ViT backbone."
+            )
+            # ``mask_token`` is an iBOT parameter absent from the (inference) DINOv3 checkpoint;
+            # it is initialized by the constructor, so flag the rest as the meaningful residual.
+            residual_missing = [k for k in missing_keys if k != "mask_token"]
+            if residual_missing:
+                logging.info(f"DINOv3 remap missing keys (kept as initialized): {residual_missing}")
+            if unexpected_keys:
+                logging.info(f"DINOv3 remap unexpected keys: {unexpected_keys}")
+            if unmapped:
+                logging.info(f"DINOv3 checkpoint keys with no matching backbone param: {unmapped}")
+
+        if not self.model_config.distill.enable:
+            self.teacher.load_state_dict(self.student.state_dict(), strict=False)
+
         if getattr(self, 'gram_teacher', None) is not None:
             self._sync_gram_teacher()
 
