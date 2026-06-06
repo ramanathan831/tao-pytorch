@@ -68,7 +68,9 @@ class RoPENestedTensorBlock(NestedTensorBlock):
             use_custom_attention (bool): Whether to use xformers' memory_efficient_attention.
             **kwargs: Forwarded to :class:`Block`.
         """
-        Block.__init__(self, *args, attn_class=RoPEMemoryEfficientAttention, **kwargs)
+        # Intentional grandparent init (see docstring): bypasses NestedTensorBlock's attn-class
+        # guard to install the RoPE attention.
+        Block.__init__(self, *args, attn_class=RoPEMemoryEfficientAttention, **kwargs)  # pylint: disable=non-parent-init-called
         self.use_custom_attention = use_custom_attention
 
     def forward(
