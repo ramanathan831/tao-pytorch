@@ -10,7 +10,6 @@ term regularizes the student's patch-token feature *geometry* toward a frozen Gr
 during long pre-training. See the DINOv3 paper, "Gram anchoring".
 """
 
-import torch
 from torch import nn
 from torch.nn import functional as F
 
