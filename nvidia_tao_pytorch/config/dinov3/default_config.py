@@ -7,8 +7,8 @@ The DINOv3 SSL family inherits aggressively from ``nvdinov2``: the dataset, head
 distillation, scheduler, optimizer and train/inference/export schemas are reused by
 subclassing the nvdinov2 dataclasses. Only the genuinely new pieces are added here:
 
-* a v3 ``map_params`` table with **patch-16** ViT entries (ViT-B is the candidate
-  bring-up arch; ViT-L / ViT-H+ are reserved for later size steps),
+* a v3 ``map_params`` table with **patch-16** ViT entries (ViT-B bring-up + ViT-L are
+  supported; ViT-H+ is reserved for a later size step),
 * RoPE backbone fields (``rope_theta`` etc.) and patch-16 defaults,
 * a ``GramConfig`` for Gram anchoring (wired up in a later step), and
 * a disabled ``lora`` stub for forward-compatibility.
@@ -104,8 +104,8 @@ class DINOv3BackboneConfig(BackboneConfig):
         default_value="vit_b",
         display_name="teacher backbone",
         description=(
-            "Teacher backbone name. TAO's DINOv3 supports vit_b (bring-up); "
-            "vit_l and vit_h_plus are reserved for later size steps."
+            "Teacher backbone name. TAO's DINOv3 supports vit_b (bring-up) and vit_l; "
+            "vit_h_plus is reserved for a later size step."
         ),
         valid_options=",".join(SUPPORTED_BACKBONES),
         popular="no"
@@ -115,8 +115,8 @@ class DINOv3BackboneConfig(BackboneConfig):
         default_value="vit_b",
         display_name="student backbone",
         description=(
-            "Student backbone name. TAO's DINOv3 supports vit_b (bring-up); "
-            "vit_l and vit_h_plus are reserved for later size steps."
+            "Student backbone name. TAO's DINOv3 supports vit_b (bring-up) and vit_l; "
+            "vit_h_plus is reserved for a later size step."
         ),
         valid_options=",".join(SUPPORTED_BACKBONES),
         popular="no"
