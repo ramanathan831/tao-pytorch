@@ -475,7 +475,6 @@ class SFTrainExpConfig(TrainConfig):
         display_name="sync_batchnorm"
     )
 
-    checkpointer: Optional[Dict[str, Any]] = None
     enable_lr_monitor: Optional[bool] = False
 
 

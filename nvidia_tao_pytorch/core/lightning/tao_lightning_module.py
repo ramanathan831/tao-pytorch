@@ -14,6 +14,49 @@ from nvidia_tao_pytorch.core.cookbooks.tlt_pytorch_cookbook import TLTPyTorchCoo
 from nvidia_tao_pytorch.core.utilities import patch_decrypt_checkpoint
 
 
+def validate_monitor_metric(monitor: str, available_metrics) -> None:
+    """Raise a clear error if the monitored metric was never logged.
+
+    Args:
+        monitor (str): The metric key the best-checkpoint callback monitors.
+        available_metrics: Iterable/mapping of metric keys logged by the model
+            (typically ``trainer.callback_metrics``).
+
+    Raises:
+        ValueError: If ``monitor`` is not present in ``available_metrics``.
+    """
+    if monitor not in available_metrics:
+        raise ValueError(
+            f"checkpointer.monitor='{monitor}' is not logged by this model. "
+            f"Available metrics: {sorted(available_metrics)}"
+        )
+
+
+class BestCheckpointMetricGuard(Callback):
+    """Fail fast when the monitored best-checkpoint metric is never logged.
+
+    This is implemented as a callback (rather than a LightningModule hook) so the
+    guard fires for every model, including those that override
+    ``on_validation_epoch_end``. It hooks ``on_validation_end`` — the same point at
+    which ``ModelCheckpoint`` reads the monitored metric — so ``callback_metrics`` is
+    fully finalized (metrics logged in the model's ``on_validation_epoch_end`` are
+    present). Using ``on_validation_epoch_end`` here would be too early: Lightning
+    runs callback hooks before the LightningModule hook, so metrics the model logs
+    at epoch end would not yet be visible.
+    """
+
+    def __init__(self, monitor: str):
+        """Store the metric key the best-checkpoint callback monitors."""
+        super().__init__()
+        self.monitor = monitor
+
+    def on_validation_end(self, trainer, pl_module) -> None:
+        """Validate the monitored metric exists once real validation has run."""
+        if trainer.sanity_checking:
+            return
+        validate_monitor_metric(self.monitor, trainer.callback_metrics)
+
+
 class TAOLightningModule(pl.LightningModule):
     """
     Common PyTorch Lightning module for TAO (Train, Adapt, Optimize) workflows.
@@ -55,6 +98,43 @@ class TAOLightningModule(pl.LightningModule):
         self.model_config = experiment_spec["model"]
 
         self.checkpoint_filename = None
+        # Network-default fallbacks for best-checkpoint monitoring. Models override
+        # these in their own __init__ (mirrors self.checkpoint_filename); precedence
+        # at callback build time is: user config > network default > these fallbacks.
+        self.monitor_metric = "val_loss"   # global fallback
+        self.monitor_mode = "min"          # "min" for losses, "max" for acc/mAP/mIoU
+
+    def _configure_best_checkpoint(self, callbacks, results_dir):
+        """Append a monitored best-checkpoint callback (and its metric guard).
+
+        Additive to the periodic checkpoint: only acts when
+        ``train.checkpointer.enable_topk`` is set. Does not touch the periodic
+        ``ModelCheckpoint``, the ``*_latest`` symlink, or ``TAOExceptionCheckpoint``.
+        The monitored metric/mode resolve with precedence
+        user config > network default > base fallback.
+
+        Args:
+            callbacks (list): The callback list to append to (mutated in place).
+            results_dir (str): Default directory for best checkpoints.
+        """
+        checkpointer_cfg = self.experiment_spec["train"].get("checkpointer", None)
+        if not (checkpointer_cfg and checkpointer_cfg.get("enable_topk", False)):
+            return
+        monitor = checkpointer_cfg.get("monitor") or self.monitor_metric
+        mode = checkpointer_cfg.get("mode") or self.monitor_mode
+        best_ckpt = ModelCheckpoint(
+            dirpath=checkpointer_cfg.get("dirpath") or results_dir,
+            filename=checkpointer_cfg.get("filename", "model_best_{epoch:03d}"),
+            monitor=monitor,
+            mode=mode,
+            save_top_k=checkpointer_cfg.get("save_top_k", 1),
+            save_on_train_epoch_end=False,   # rank at validation end, when the metric exists
+            save_last=False,                 # periodic callback owns *_latest
+            auto_insert_metric_name=checkpointer_cfg.get("auto_insert_metric_name", False),
+            enable_version_counter=False,
+        )
+        callbacks.append(best_ckpt)
+        callbacks.append(BestCheckpointMetricGuard(monitor))
 
     def configure_callbacks(self) -> Sequence[Callback] | pl.Callback:
         """
@@ -110,18 +190,9 @@ class TAOLightningModule(pl.LightningModule):
 
         callbacks = [status_logger_callback, checkpoint_callback, exception_checkpoint_callback]
 
-        # top-K ModelCheckpoing(only append when it is set in config)
-        checkpointer_cfg = self.experiment_spec["train"].get("checkpointer", None)
-        if checkpointer_cfg and checkpointer_cfg.get("enable_topk", False):
-            callbacks.append(ModelCheckpoint(
-                dirpath=checkpointer_cfg.get("dirpath", "./checkpoints"),
-                filename=checkpointer_cfg.get("filename", "topk_epoch{epoch:03d}-m{val_miou:.4f}"),
-                monitor=checkpointer_cfg.get("monitor", "val_miou"),
-                mode=checkpointer_cfg.get("mode", "max"),
-                save_top_k=checkpointer_cfg.get("save_top_k", 3),
-                save_last=checkpointer_cfg.get("save_last", True),
-                auto_insert_metric_name=checkpointer_cfg.get("auto_insert_metric_name", False),
-            ))
+        # Best-checkpoint saving (only appended when train.checkpointer.enable_topk is set).
+        # Network-aware: monitor/mode resolve user config > network default > base fallback.
+        self._configure_best_checkpoint(callbacks, results_dir)
 
         # LearningRateMonitor(only append when it is set in config)
         if self.experiment_spec["train"].get("enable_lr_monitor", False):
