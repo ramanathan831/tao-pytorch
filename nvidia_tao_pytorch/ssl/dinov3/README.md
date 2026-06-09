@@ -8,8 +8,8 @@ training (DINO + iBOT + KoLeo + **Gram anchoring**) to adapt the backbone to a n
 > **`nvdinov2`** keeps its name and stays frozen — `dinov3` inherits from it.
 
 Candidate v1 architecture: **ViT-B** (embed 768 / depth 12 / heads 12 / patch 16 / 4 register
-tokens / standard GELU MLP), single-resolution 256. `vit_l` and `vit_h_plus` are reserved
-entries in the param map for later size steps.
+tokens / standard GELU MLP), single-resolution 256. **`vit_l`** (1024/24/16) is also supported
+(Phase 2); `vit_h_plus` is reserved for a later size step.
 
 ---
 
@@ -338,7 +338,7 @@ v3 param map (`vit_b` is the bring-up target):
 | arch | embed | depth | heads | FFN |
 | :--- | :--- | :--- | :--- | :--- |
 | `vit_b` | 768 | 12 | 12 | GELU MLP |
-| `vit_l` *(reserved)* | 1024 | 24 | 16 | GELU MLP |
+| `vit_l` *(Phase 2; spec `train_dinov3_vitl.yaml`)* | 1024 | 24 | 16 | GELU MLP |
 | `vit_h_plus` *(reserved)* | 1280 | 32 | 20 | SwiGLU |
 
 ---

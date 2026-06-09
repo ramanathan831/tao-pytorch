@@ -64,3 +64,15 @@ def test_param_map_vit_b():
     # ViT-H+ is reserved and uses SwiGLU.
     assert map_params["mlp_layer"]["vit_h_plus"] == "swiglu"
     assert set(SUPPORTED_BACKBONES) == {"vit_b", "vit_l", "vit_h_plus"}
+
+
+@pytest.mark.config
+@pytest.mark.ssl_unit
+def test_param_map_vit_l():
+    """The v3 param map carries the ViT-L (1024/24/16, standard GELU MLP) entry (Phase 2)."""
+    assert map_params["embed_dim"]["vit_l"] == 1024
+    assert map_params["depth"]["vit_l"] == 24
+    assert map_params["num_heads"]["vit_l"] == 16
+    assert map_params["mlp_layer"]["vit_l"] == "mlp"
+    # head_dim = 1024 / 16 = 64 (same as ViT-B) -> RoPE (needs head_dim % 4 == 0) works unchanged.
+    assert (map_params["embed_dim"]["vit_l"] // map_params["num_heads"]["vit_l"]) % 4 == 0
