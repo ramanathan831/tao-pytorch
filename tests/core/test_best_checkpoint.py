@@ -83,6 +83,27 @@ def test_custom_dirpath_respected(tmp_path):
     assert str(cb.dirpath) == str(sub)
 
 
+def test_helper_returns_list_when_disabled(tmp_path):
+    # Models that fully override configure_callbacks call
+    #   callbacks = self._configure_best_checkpoint(callbacks, results_dir)
+    # so the helper must return the list (not None) even when the feature is off.
+    m = _DummyModule(_spec(tmp_path))
+    cbs = []
+    out = m._configure_best_checkpoint(cbs, str(tmp_path))
+    assert out is cbs
+    assert _best_callbacks(out) == []
+
+
+def test_helper_returns_list_when_enabled(tmp_path):
+    m = _DummyModule(_spec(tmp_path, checkpointer={"enable_topk": True}),
+                     monitor="val_mAP", mode="max")
+    cbs = []
+    out = m._configure_best_checkpoint(cbs, str(tmp_path))
+    assert out is cbs                       # same list object returned
+    best = _best_callbacks(out)
+    assert len(best) == 1 and best[0].monitor == "val_mAP" and best[0].mode == "max"
+
+
 def test_runtime_guard_raises_on_unlogged_metric():
     with pytest.raises(ValueError, match="is not logged"):
         validate_monitor_metric("val_miou", {"val_loss", "val_acc"})

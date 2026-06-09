@@ -45,6 +45,9 @@ class RtdetrDistiller(Distiller):
         """Initializes the distiller from given experiment_spec."""
         super().__init__(experiment_spec, export)
         self.checkpoint_filename = 'rtdetr_model'
+        # Best-checkpoint default: monitor validation mAP (logged as "val_mAP").
+        self.monitor_metric = "val_mAP"
+        self.monitor_mode = "max"
 
     def configure_callbacks(self) -> Sequence[Callback] | pl.Callback:
         """Configures logging and checkpoint-saving callbacks"""
@@ -93,6 +96,9 @@ class RtdetrDistiller(Distiller):
                                         filename='model_{epoch:03d}',
                                         enable_version_counter=False)
         callbacks.append(checkpoint_callback)
+        # Additive best-checkpoint saving (only when train.checkpointer.enable_topk).
+        # This module overrides configure_callbacks without super(), so call the shared helper.
+        callbacks = self._configure_best_checkpoint(callbacks, results_dir)
         return callbacks
 
     def _setup_bindings(self):

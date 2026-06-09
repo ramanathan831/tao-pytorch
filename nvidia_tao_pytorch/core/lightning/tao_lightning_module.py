@@ -116,10 +116,14 @@ class TAOLightningModule(pl.LightningModule):
         Args:
             callbacks (list): The callback list to append to (mutated in place).
             results_dir (str): Default directory for best checkpoints.
+
+        Returns:
+            list: The same ``callbacks`` list (returned so callers that fully override
+            ``configure_callbacks`` can write ``callbacks = self._configure_best_checkpoint(...)``).
         """
         checkpointer_cfg = self.experiment_spec["train"].get("checkpointer", None)
         if not (checkpointer_cfg and checkpointer_cfg.get("enable_topk", False)):
-            return
+            return callbacks
         monitor = checkpointer_cfg.get("monitor") or self.monitor_metric
         mode = checkpointer_cfg.get("mode") or self.monitor_mode
         best_ckpt = ModelCheckpoint(
@@ -135,6 +139,7 @@ class TAOLightningModule(pl.LightningModule):
         )
         callbacks.append(best_ckpt)
         callbacks.append(BestCheckpointMetricGuard(monitor))
+        return callbacks
 
     def configure_callbacks(self) -> Sequence[Callback] | pl.Callback:
         """
@@ -192,7 +197,7 @@ class TAOLightningModule(pl.LightningModule):
 
         # Best-checkpoint saving (only appended when train.checkpointer.enable_topk is set).
         # Network-aware: monitor/mode resolve user config > network default > base fallback.
-        self._configure_best_checkpoint(callbacks, results_dir)
+        callbacks = self._configure_best_checkpoint(callbacks, results_dir)
 
         # LearningRateMonitor(only append when it is set in config)
         if self.experiment_spec["train"].get("enable_lr_monitor", False):

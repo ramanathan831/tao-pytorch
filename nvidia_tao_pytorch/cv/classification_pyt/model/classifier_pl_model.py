@@ -159,7 +159,7 @@ class ClassifierPlModel(TAOLightningModule):
         callbacks.append(checkpoint_callback)
         # Additive best-checkpoint saving (only when train.checkpointer.enable_topk).
         # This module overrides configure_callbacks, so wire the shared helper here too.
-        self._configure_best_checkpoint(callbacks, results_dir)
+        callbacks = self._configure_best_checkpoint(callbacks, results_dir)
         lr_monitor = LearningRateMonitor(logging_interval="step")
         callbacks.append(lr_monitor)
         return callbacks
