@@ -332,6 +332,31 @@ class DINOv3DatasetConfig(NVDINOv2DatasetConfig):
 
 
 @dataclass
+class DINOv3TrainExpConfig(NVDINOv2TrainExpConfig):
+    """DINOv3 train config.
+
+    Subclasses the nvdinov2 train config and adds a ``distributed_strategy`` selector.
+    The nvdinov2 default (Lightning ``'auto'`` -> single-device / DDP) is unchanged; FSDP
+    (FULL_SHARD) is opt-in and is what enables high-resolution and the larger ViT-L / ViT-H+
+    backbones, where DDP's full per-GPU replication does not fit. The ``DINOV3_STRATEGY`` env
+    var, kept for the de-risking smokes, overrides this field when set.
+    """
+
+    distributed_strategy: str = STR_FIELD(
+        value="auto",
+        default_value="auto",
+        valid_options="auto,ddp,fsdp",
+        description=(
+            "Lightning distributed strategy. 'auto' keeps the nvdinov2 behaviour "
+            "(single-device or DDP). 'fsdp' shards params/grads/optimizer (FULL_SHARD) "
+            "for high-resolution and large-backbone multi-GPU training."
+        ),
+        display_name="distributed strategy",
+        popular="yes"
+    )
+
+
+@dataclass
 class DINOv3ConvertConfig:
     """DINOv3 backbone-export (``convert``) config.
 
@@ -395,8 +420,8 @@ class ExperimentConfig(CommonExperimentConfig):
         DINOv3DatasetConfig(),
         description="Configurable parameters to construct the dataset for a DINOv3 experiment.",
     )
-    train: NVDINOv2TrainExpConfig = DATACLASS_FIELD(
-        NVDINOv2TrainExpConfig(),
+    train: DINOv3TrainExpConfig = DATACLASS_FIELD(
+        DINOv3TrainExpConfig(),
         description="Configurable parameters to construct the trainer for a DINOv3 experiment.",
     )
     inference: NVDINOv2InferenceExpConfig = DATACLASS_FIELD(

@@ -14,7 +14,10 @@ import torch.distributed as dist
 import torch.nn as nn
 import torch.optim as optim
 from torch.distributed.fsdp import FullyShardedDataParallel, ShardingStrategy
-from torch.distributed.fsdp._runtime_utils import _reshard
+try:
+    from torch.distributed.fsdp._runtime_utils import _reshard
+except ImportError:  # removed in newer PyTorch; the manual teacher reshard becomes a no-op
+    _reshard = None
 from torch.distributed.fsdp.wrap import wrap
 import pytorch_lightning as pl
 from pytorch_lightning.strategies.fsdp import FSDPStrategy
@@ -722,14 +725,19 @@ class DinoV2PlModel(TAOLightningModule):
             teacher_temperature=schedules["teacher_temperature"],
         )
 
-        # Reshard here to save memory
+        # Free the teacher's full params gathered during the teacher forward to trim peak
+        # memory. FULL_SHARD already reshards automatically in the FSDP post-forward hook, so
+        # this is only a best-effort optimization. The PyTorch <=2.1 manual-reshard internals
+        # (``m._handles`` / ``_runtime_utils._reshard``) were removed in newer PyTorch, so guard
+        # on their presence and otherwise rely on the automatic resharding.
         for m in FullyShardedDataParallel.fsdp_modules(self.teacher):
             if isinstance(m, FullyShardedDataParallel) is False or \
                     m.sharding_strategy == ShardingStrategy.NO_SHARD:
                 continue
 
-            handles = m._handles
-            _reshard(m, handles, [True] * len(handles))
+            handles = getattr(m, "_handles", None)
+            if _reshard is not None and handles:
+                _reshard(m, handles, [True] * len(handles))
 
         loss = self.student_forward(
             global_crops=global_crops,
@@ -842,13 +850,17 @@ class DinoV2PlModel(TAOLightningModule):
         student_params_list = []
 
         if isinstance(self.trainer.strategy, FSDPStrategy):
+            # Under FSDP (FULL_SHARD) each wrapped module's ``.parameters()`` yields the *local*
+            # sharded flat-params. The student and teacher ModuleDicts are wrapped identically,
+            # so their shards line up index-for-index and the element-wise EMA below is
+            # equivalent to a full-tensor update with no all-gather. (The previous path read
+            # ``fsdp_modules(...).params``, a PyTorch <=2.1 internal removed in newer PyTorch.)
             for key in student.keys():
                 for student_param, teacher_param in zip(
-                    FullyShardedDataParallel.fsdp_modules(student[key]),
-                    FullyShardedDataParallel.fsdp_modules(teacher[key]),
+                    student[key].parameters(), teacher[key].parameters()
                 ):
-                    teacher_params_list += teacher_param.params
-                    student_params_list += student_param.params
+                    teacher_params_list.append(teacher_param.data)
+                    student_params_list.append(student_param.data)
         else:
             for teacher_param, student_param in zip(
                 teacher.parameters(), student.parameters()
