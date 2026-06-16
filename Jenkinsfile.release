@@ -586,6 +586,7 @@ pipeline {
                                                         dockerfile: '${WORKSPACE}/release/docker/Dockerfile',
                                                         context: '${WORKSPACE}',
                                                         arch: 'amd64',
+                                                        squash: true,
                                                         registryUrl: 'https://nvcr.io',
                                                         registryCredentialsId: TaoConfig.credentials.NGC_API_KEY
                                                     )
@@ -639,6 +640,7 @@ pipeline {
                                                         context: '${WORKSPACE}',
                                                         arch: 'amd64',
                                                         appendToDockerfile: 'coverage_build.txt',
+                                                        squash: true,
                                                         registryUrl: 'https://nvcr.io',
                                                         registryCredentialsId: TaoConfig.credentials.NGC_API_KEY
                                                     )
@@ -841,6 +843,7 @@ pipeline {
                                                         dockerfile: '${WORKSPACE}/release/docker/Dockerfile',
                                                         context: '${WORKSPACE}',
                                                         arch: 'arm64',
+                                                        squash: true,
                                                         registryUrl: 'https://nvcr.io',
                                                         registryCredentialsId: TaoConfig.credentials.NGC_API_KEY
                                                     )
@@ -891,6 +894,7 @@ pipeline {
                                                         context: '${WORKSPACE}',
                                                         arch: 'arm64',
                                                         appendToDockerfile: 'coverage_build.txt',
+                                                        squash: true,
                                                         registryUrl: 'https://nvcr.io',
                                                         registryCredentialsId: TaoConfig.credentials.NGC_API_KEY
                                                     )
