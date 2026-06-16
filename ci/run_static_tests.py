@@ -22,6 +22,7 @@ Usage:
 
 import argparse
 import os
+import re
 import subprocess
 import sys
 
@@ -34,6 +35,56 @@ STATIC_TESTS = [
     "pydocstyle --ignore=D4,D107,D200,D203,D205,D210,D212,D213,D301,D400,D401",
     "flake8 --ignore=E24,W504,E501,C400,C403,C408,C409,C414,C413,C416,C417,C419"
 ]
+
+# Codec-royalty guard (TAO-2183 / FF-10). Fail the static suite if a royalty-bearing
+# software codec is reintroduced. Legal (2026-06-12) flagged the H.264 (libx264 / openh264),
+# H.265 (libx265), and AAC software codecs; mp4v is the MPEG-4 Part 2 fourcc dropped from the
+# Sparse4D writer (FF-5). Royalty-free codecs (libvpx-vp9, mjpeg) and the NVIDIA hardware path
+# (h264_nvenc / h264_cuvid) are allowed.
+FORBIDDEN_CODEC_PATTERNS = [
+    r"libx264",
+    r"libx265",
+    r"openh264",
+    r"mp4v",
+    r"""['"]aac['"]""",
+]
+CODEC_SCAN_ROOTS = ["nvidia_tao_pytorch"]
+# odise is third-party-derived and excluded from full-tree scans (mirrors get_changed_files /
+# run_static_tests_on_all_modules); this guard lives under ci/, outside the scan roots, so its
+# own pattern literals do not self-match.
+CODEC_SCAN_EXCLUDE_DIRS = (os.path.join("nvidia_tao_pytorch", "cv", "odise"),)
+
+
+def check_forbidden_codecs():
+    """Scan the package source for reintroduced royalty-bearing codec identifiers."""
+    regex = re.compile("|".join(FORBIDDEN_CODEC_PATTERNS))
+    violations = []
+    for scan_root in CODEC_SCAN_ROOTS:
+        abs_root = os.path.join(ROOT_DIR, scan_root)
+        for dirpath, _, filenames in os.walk(abs_root):
+            rel_dir = os.path.relpath(dirpath, ROOT_DIR)
+            if rel_dir.startswith(CODEC_SCAN_EXCLUDE_DIRS):
+                continue
+            for filename in filenames:
+                if not filename.endswith(".py"):
+                    continue
+                fpath = os.path.join(dirpath, filename)
+                with open(fpath, "r", encoding="utf-8", errors="ignore") as handle:
+                    for lineno, line in enumerate(handle, start=1):
+                        if regex.search(line):
+                            violations.append(
+                                "{}:{}: {}".format(
+                                    os.path.relpath(fpath, ROOT_DIR), lineno, line.strip()
+                                )
+                            )
+    if violations:
+        print("ERROR: royalty-bearing codec identifier(s) found in source (TAO-2183 / FF-10):")
+        print("\n".join(violations))
+        print(
+            "Use a royalty-free codec (libvpx-vp9 / mjpeg) or the NVIDIA hardware path "
+            "(h264_nvenc / h264_cuvid). See CODEC_ROYALTY_MITIGATION_PLAN.md."
+        )
+    assert not violations, "Forbidden codec identifiers present in source tree."
 
 
 def execute_test_command(test, target_path, docker_command_prefix, docker_image):
@@ -219,6 +270,9 @@ def main(cl_args=None):
     """Simple function to run local tests."""
     try:
         args = parse_command_line(cl_args)
+
+        # Source-tree codec guard runs first (pure-Python, no docker needed).
+        check_forbidden_codecs()
 
         manifest_file = os.path.join(ROOT_DIR, "docker/manifest.json")
         docker_command_prefix, docker_image = get_docker_command(manifest_file, args["tag"])
