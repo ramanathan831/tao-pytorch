@@ -12,19 +12,8 @@
 
 # Original source taken from https://github.com/wgcban/ChangeFormer
 #
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 
 """Visual ChangeNet Classification model builder"""
 
@@ -43,6 +32,7 @@ from nvidia_tao_pytorch.cv.visual_changenet.backbone.fan import fan_model_dict
 from nvidia_tao_pytorch.cv.visual_changenet.backbone.radio import radio_model_dict
 from nvidia_tao_pytorch.cv.visual_changenet.backbone.utils import ptm_adapter, visual_changenet_parser
 from nvidia_tao_pytorch.cv.visual_changenet.backbone.vit_adapter import vit_adapter_model_dict, ViTAdapter
+from nvidia_tao_pytorch.cv.deformable_detr.model.ops.modules import set_precise_msda
 from nvidia_tao_pytorch.cv.visual_changenet.segmentation.models.changenet_utils import (
     MLP,
     conv_diff,
@@ -612,6 +602,9 @@ def build_model(experiment_config,
 
     """
     model_config = experiment_config.model
+    # Opt-in deterministic MSDeformAttn path in the C-RADIO ViT-Adapter
+    # (no-op unless precise_msda=True).
+    set_precise_msda(getattr(model_config, "precise_msda", False))
     dataset_config = experiment_config.dataset.classify
 
     backbone = model_config.backbone['type']

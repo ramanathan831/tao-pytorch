@@ -1,16 +1,5 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 
 """The build nn module model."""
 
@@ -20,6 +9,7 @@ from nvidia_tao_pytorch.cv.deformable_detr.model.backbone import Backbone, Joine
 from nvidia_tao_pytorch.cv.deformable_detr.model.position_encoding import PositionEmbeddingSine, PositionEmbeddingSineExport
 from nvidia_tao_pytorch.cv.deformable_detr.model.deformable_transformer import DeformableTransformer
 from nvidia_tao_pytorch.cv.deformable_detr.model.deformable_detr_base import DeformableDETR
+from nvidia_tao_pytorch.cv.deformable_detr.model.ops.modules import set_precise_msda
 
 
 class DDModel(nn.Module):
@@ -144,6 +134,8 @@ def build_model(experiment_config,
         model (nn.Module): D-DETR model.
     """
     model_config = experiment_config.model
+    # Opt-in deterministic MSDeformAttn path (no-op unless precise_msda=True).
+    set_precise_msda(getattr(model_config, "precise_msda", False))
     dataset_config = experiment_config.dataset
     num_classes = dataset_config.num_classes
     backbone = model_config.backbone

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 """Prefetcher utilities for overlapping host-to-device copies with model compute."""
 from collections.abc import Mapping
 from typing import Iterator, Tuple, Union, List, Dict

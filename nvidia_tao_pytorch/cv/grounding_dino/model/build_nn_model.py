@@ -1,16 +1,5 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 
 """The build nn module model."""
 
@@ -22,6 +11,7 @@ from nvidia_tao_pytorch.cv.dino.model.backbone import Joiner
 from nvidia_tao_pytorch.cv.grounding_dino.model.backbone import Backbone
 from nvidia_tao_pytorch.cv.grounding_dino.model.transformer import Transformer
 from nvidia_tao_pytorch.cv.grounding_dino.model.groundingdino import GroundingDINO
+from nvidia_tao_pytorch.cv.deformable_detr.model.ops.modules import set_precise_msda
 
 
 class GDINOModel(nn.Module):
@@ -217,6 +207,8 @@ def build_model(experiment_config,
         model (nn.Module): DINO model.
     """
     model_config = experiment_config.model
+    # Opt-in deterministic MSDeformAttn path (no-op unless precise_msda=True).
+    set_precise_msda(getattr(model_config, "precise_msda", False))
 
     backbone = model_config.backbone
     hidden_dim = model_config.hidden_dim

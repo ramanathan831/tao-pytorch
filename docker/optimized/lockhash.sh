@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
 # lockhash.sh — content-addressable hashing for the TAO PyTorch base-image artifacts.
 #
 # For each component (ort, xformers, torch-scatter, warpconvnet) we compute a
