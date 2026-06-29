@@ -966,4 +966,10 @@ class DinoV2PlModel(TAOLightningModule):
         TAOExceptionCheckpoint.CHECKPOINT_NAME_LAST = CustomModelCheckpoint.CHECKPOINT_NAME_LAST
         exception_checkpoint_callback = TAOExceptionCheckpoint(dirpath=results_dir)
 
-        return [status_logger_callback, checkpoint_callback, exception_checkpoint_callback]
+        callbacks = [status_logger_callback, checkpoint_callback, exception_checkpoint_callback]
+        # Additive best-checkpoint saving (only when train.checkpointer.enable_topk).
+        # NVDINOv2 is SSL pretraining with no validation loop / no logged val metric, so the
+        # best callback is inert unless a validation metric is added (or an explicit
+        # train.checkpointer.monitor is supplied). Wired for consistency with other trainers.
+        callbacks = self._configure_best_checkpoint(callbacks, results_dir)
+        return callbacks
