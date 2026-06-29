@@ -18,6 +18,11 @@ import os
 
 import torch
 import torch.nn as nn
+from torch.distributed.fsdp import (
+    FullyShardedDataParallel as FSDP,
+    FullStateDictConfig,
+    StateDictType,
+)
 from timm.layers import Mlp
 
 import nvidia_tao_pytorch.config.dinov3.default_config as v3_params
@@ -219,13 +224,11 @@ class DinoV3PlModel(DinoV2PlModel):
         anchors to the same DINOv3 weights the run starts from.
         """
         teacher_backbone = self.teacher.backbone
-        from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
         if isinstance(teacher_backbone, FSDP):
             # Under FSDP the teacher backbone is sharded across ranks; gather a full, unsharded
             # state dict on every rank (rank0_only=False) so it can be copied into the unsharded,
             # replicated Gram teacher. This runs inside the training step at the same global step
             # on every rank, so the all-gather is symmetric and will not deadlock. (Risk R3.)
-            from torch.distributed.fsdp import StateDictType, FullStateDictConfig
             with FSDP.state_dict_type(
                 teacher_backbone,
                 StateDictType.FULL_STATE_DICT,

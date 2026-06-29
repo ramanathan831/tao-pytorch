@@ -6,41 +6,17 @@
 This module provides a DataLoader for datasets where images and their
 corresponding text captions are stored as individual files on disk.
 Used when dataset type is 'custom' in the config.
-
-Optional: when each dataset config includes train_pairs_file and balance_query_types
-is set, training uses balanced sampling across the query types present in the
-combined JSON metadata. If train_pairs_file includes a caption field per row,
-batches can optionally be built so each caption appears at most once per batch.
-Multiple images may share the same caption across rows; only one such row per
-batch is selected so CLIP/SigLIP contrastive loss does not treat other valid
-pairs as negatives. For very large datasets, set unique_caption_per_batch=False
-to avoid the expensive greedy unique-caption batch construction while keeping
-query-type frequency balancing. Otherwise the loader falls back to
-inverse-frequency query-type weighting only.
 """
 
-import json
 import random
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import List, Callable
 
 from PIL import Image
 import torch
-from torch.utils.data import (
-    DataLoader,
-    distributed,
-    RandomSampler,
-    BatchSampler,
-    Dataset,
-)
+from torch.utils.data import DataLoader, distributed, RandomSampler, BatchSampler, Dataset
 
 from nvidia_tao_pytorch.core.tlt_logging import logging
-from nvidia_tao_pytorch.multimodal.clip.dataloader.sampler import (
-    BalancedByQueryTypeSampler,
-    BalancedUniqueCaptionBatchSampler,
-    query_types_order_from_pairs,
-    query_types_order_from_types,
-)
 
 
 # New dataloader that takes a list of dataset sources
@@ -144,126 +120,6 @@ class ImageTextDataset(Dataset):
         return image, text
 
 
-def _read_image_list(image_list_file: str) -> List[str]:
-    """Read image basenames from an image_list_file, matching ImageTextDataset order."""
-    with open(image_list_file, 'r') as f:
-        return [line.strip() for line in f if line.strip()]
-
-
-def _load_train_pairs_metadata(
-    pairs_file: Path,
-    image_list: List[str],
-    load_captions: bool = True,
-) -> Optional[Tuple[List[str], Optional[List[str]], Tuple[str, ...]]]:
-    """Load query_type and optional caption metadata aligned with one image_list."""
-    with open(pairs_file, 'r') as f:
-        pairs = json.load(f)
-    if len(pairs) != len(image_list):
-        logging.warning(
-            f"{pairs_file} has {len(pairs)} items but image list has "
-            f"{len(image_list)}; balanced sampling disabled."
-        )
-        return None
-
-    query_types: List[str] = []
-    captions: List[str] = []
-    has_all_captions = True
-    for p in pairs:
-        query_types.append(p.get('query_type', 'easy'))
-        if not load_captions:
-            continue
-        cap = p.get('caption')
-        if cap is None:
-            has_all_captions = False
-        elif has_all_captions:
-            captions.append(cap)
-
-    if not load_captions:
-        captions = None
-    elif not has_all_captions:
-        logging.warning(
-            f"{pairs_file} entries missing 'caption'; falling back to "
-            "query-type frequency balancing only."
-        )
-        captions = None
-
-    return query_types, captions, query_types_order_from_pairs(pairs)
-
-
-def _resolve_train_pairs_file(
-    dataset: dict,
-    fallback_train_pairs_file: Optional[str],
-    dataset_count: int,
-) -> Optional[Path]:
-    """Resolve train_pairs_file from a dataset config, keeping legacy single-dataset fallback."""
-    train_pairs_file = dataset.get('train_pairs_file')
-    if train_pairs_file:
-        return Path(train_pairs_file)
-    if fallback_train_pairs_file and dataset_count == 1:
-        return Path(fallback_train_pairs_file)
-    return None
-
-
-def _load_combined_train_pairs_metadata(
-    datasets: List[dict],
-    fallback_train_pairs_file: Optional[str] = None,
-    load_captions: bool = True,
-) -> Optional[Tuple[List[str], Optional[List[str]], Tuple[str, ...]]]:
-    """Load and concatenate train_pairs metadata for every dataset config in dataloader order."""
-    all_query_types: List[str] = []
-    all_captions: Optional[List[str]] = []
-    dataset_count = len(datasets)
-
-    if fallback_train_pairs_file and dataset_count > 1:
-        logging.warning(
-            "The get_custom_dataloader train_pairs_file argument is ignored for "
-            "multi-dataset training; set train_pairs_file inside each dataset block."
-        )
-
-    for dataset_idx, dataset in enumerate(datasets):
-        image_list_file = dataset.get('image_list_file')
-        if not image_list_file:
-            logging.warning(
-                "Balanced query type sampling requires image_list_file for every "
-                f"training dataset; dataset[{dataset_idx}] is missing it."
-            )
-            return None
-
-        pairs_file = _resolve_train_pairs_file(
-            dataset, fallback_train_pairs_file, dataset_count
-        )
-        if not pairs_file or not pairs_file.is_file():
-            logging.warning(
-                "Balanced query type sampling requires a valid train_pairs_file for "
-                f"every training dataset; dataset[{dataset_idx}] has {pairs_file}."
-            )
-            return None
-
-        image_list = _read_image_list(image_list_file)
-        metadata = _load_train_pairs_metadata(
-            pairs_file, image_list, load_captions=load_captions
-        )
-        if metadata is None:
-            return None
-
-        query_types, captions, _ = metadata
-        all_query_types.extend(query_types)
-        if captions is None:
-            all_captions = None
-        elif all_captions is not None:
-            all_captions.extend(captions)
-
-    if not all_query_types:
-        logging.warning("No train_pairs metadata loaded; balanced sampling disabled.")
-        return None
-
-    return (
-        all_query_types,
-        all_captions,
-        query_types_order_from_types(all_query_types),
-    )
-
-
 def get_custom_dataloader(
     datasets: List[dict],
     batch_size: int = 32,
@@ -276,10 +132,7 @@ def get_custom_dataloader(
     shuffle=True,
     pin_memory=True,
     is_distributed=None,
-    mode='train',
-    train_pairs_file: Optional[str] = None,
-    balance_query_types: bool = False,
-    unique_caption_per_batch: bool = True,
+    mode='train'
 ):
     """
     Creates a DataLoader for custom filesystem-based image-text datasets.
@@ -297,9 +150,6 @@ def get_custom_dataloader(
         pin_memory (bool): Flag to pin memory.
         is_distributed (Optional[bool]): Flag for distributed training.
         mode (str): Mode for the DataLoader ('train' or 'val').
-        train_pairs_file (Optional[str]): Legacy single-dataset fallback path to train_pairs.json.
-        balance_query_types (bool): If True and train_pairs_file metadata is set, use balanced sampling over query types.
-        unique_caption_per_batch (bool): If True, balanced batches keep each caption string unique.
 
     Returns:
         DataLoader: A DataLoader for the specified datasets.
@@ -319,110 +169,17 @@ def get_custom_dataloader(
     )
     dataloader_kwargs = {}
 
-    use_balanced = mode == 'train' and balance_query_types
-    query_type_per_index = None
-    caption_per_index = None
-    query_types_order = None
-    pairs_metadata = None
-    if use_balanced:
-        pairs_metadata = _load_combined_train_pairs_metadata(
-            datasets,
-            train_pairs_file,
-            load_captions=unique_caption_per_batch,
-        )
-        if pairs_metadata is not None:
-            query_type_per_index, caption_per_index, query_types_order = pairs_metadata
-            if len(query_type_per_index) != len(dataset):
-                logging.warning(
-                    "Combined train_pairs metadata has "
-                    f"{len(query_type_per_index)} items but dataset has {len(dataset)}; "
-                    "balanced sampling disabled."
-                )
-                query_type_per_index = None
-                caption_per_index = None
-                query_types_order = None
-        if query_type_per_index is None:
-            use_balanced = False
-            logging.warning(
-                "Balanced query type sampling disabled (missing or invalid train_pairs_file)."
-            )
-        else:
-            logging.info(
-                f"Loaded train_pairs metadata for {len(datasets)} dataset(s), "
-                f"{len(query_type_per_index)} samples."
-            )
-
+    # TODO: Check multi-gpu training if automatically supports fast training or 1 vs multi-gpu issue?
+    batch_sampler = None
     if mode == 'train':
-        train_batch_sampler_set = False
-        if (
-            use_balanced
-            and unique_caption_per_batch
-            and caption_per_index is not None
-        ):
-            num_replicas = 1
-            rank = 0
-            if is_distributed and torch.distributed.is_initialized():
-                num_replicas = torch.distributed.get_world_size()
-                rank = torch.distributed.get_rank()
-            try:
-                dataloader_kwargs['batch_sampler'] = BalancedUniqueCaptionBatchSampler(
-                    num_samples=len(dataset),
-                    query_type_per_index=query_type_per_index,
-                    caption_per_index=caption_per_index,
-                    batch_size=batch_size,
-                    num_replicas=num_replicas,
-                    rank=rank,
-                    seed=seed,
-                    query_types_order=query_types_order,
-                )
-                train_batch_sampler_set = True
-                logging.info(
-                    "Using balanced batches with at most one row per caption string per batch "
-                    f"(query types: {', '.join(query_types_order)})."
-                )
-            except ValueError as e:
-                logging.warning(
-                    f"Cannot use unique-caption balanced batches ({e}); "
-                    "falling back to query-type frequency balancing."
-                )
-                caption_per_index = None
-        if (
-            not train_batch_sampler_set
-            and use_balanced
-            and query_type_per_index is not None
-        ):
-            num_replicas = 1
-            rank = 0
-            if is_distributed and torch.distributed.is_initialized():
-                num_replicas = torch.distributed.get_world_size()
-                rank = torch.distributed.get_rank()
-            balanced_sampler = BalancedByQueryTypeSampler(
-                num_samples=len(dataset),
-                query_type_per_index=query_type_per_index,
-                num_replicas=num_replicas,
-                rank=rank,
-                seed=seed,
-                replacement=True,
-            )
-            dataloader_kwargs['batch_sampler'] = BatchSampler(
-                balanced_sampler, batch_size, drop_last=True
-            )
-            train_batch_sampler_set = True
-            logging.info(
-                "Using balanced sampling across query types "
-                "(unique-caption batching disabled)."
-            )
-        if not train_batch_sampler_set:
-            if is_distributed:
-                dataloader_kwargs['batch_sampler'] = BatchSampler(
-                    distributed.DistributedSampler(dataset, shuffle=True),
-                    batch_size,
-                    drop_last=True,
-                )
-            else:
-                dataloader_kwargs['batch_sampler'] = BatchSampler(
-                    RandomSampler(dataset), batch_size, drop_last=True
-                )
+        if is_distributed:
+            batch_sampler = distributed.DistributedSampler(
+                dataset, shuffle=True)
+        else:
+            batch_sampler = RandomSampler(dataset)
+    if batch_sampler:
+        dataloader_kwargs['batch_sampler'] = BatchSampler(
+            batch_sampler, batch_size, drop_last=True)
     else:
         dataloader_kwargs['batch_size'] = batch_size
         dataloader_kwargs['shuffle'] = shuffle

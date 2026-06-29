@@ -44,8 +44,8 @@ TaoConfig.init([
     
     // Docker images
     images: [
-        BASE_IMAGE_X86: 'nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:0dda18f23cbdb62177afa1805a900d29fa4feb7e81feaecf0208495e1db4ccbe',
-        BASE_IMAGE_ARM64: 'nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:0edf38a0afd615dbbe169e96d5f00e7f7e1bbd8818221b0103541f81b61c4327',
+        BASE_IMAGE_X86: 'nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:23c2385c3d9232cf0e8b4d37d13fc7e9c9db8fece5c0f6475e5f7924dc6ac06a',
+        BASE_IMAGE_ARM64: 'nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:301d20445e2db49e05a7af256450a1a1d8f2d1d125ef77f03bef96725e741b10',
         DOCKER_DIND: 'docker:24.0.5-dind',
         SONAR_SCANNER: 'sonarsource/sonar-scanner-cli:11',
         IMAGE_NAME_PYT: 'nvcr.io/nvstaging/tao/tao-toolkit-pyt',
@@ -567,13 +567,42 @@ pipeline {
                             steps {
                                 container('dind-image') {
                                     catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                                        publishReleaseDockerImage(
-                                            statusName: 'x86_build_publish_docker',
-                                            imageName: params.RC ? TaoConfig.images.IMAGE_NAME_PYT : TaoConfig.images.IMAGE_NAME_TOOLKIT,
-                                            tag: params.RC ? "${TAO_VERSION}-rc-${BUILD_NUMBER}-x86" : "${TAO_VERSION}-pyt-x86",
-                                            arch: 'amd64',
-                                            envVar: 'DOCKER_IMAGE_TAG_X86'
-                                        )
+                                        script {
+                                            retry(count: 3) {
+                                                script {
+                                                    if (currentBuild.getPreviousBuild()?.getResult() == 'FAILURE') {
+                                                        echo "Previous attempt failed, sleeping 5 minutes before retry..."
+                                                        sleep time: 5, unit: 'MINUTES'
+                                                    }
+                                                }
+                                                withGitLabStatus('x86_build_publish_docker') {
+                                                    def IMAGE_NAME = params.RC ? TaoConfig.images.IMAGE_NAME_PYT : TaoConfig.images.IMAGE_NAME_TOOLKIT
+                                                    def IMAGE_TAG = params.RC ? "${TAO_VERSION}-rc-${BUILD_NUMBER}-x86" : "${TAO_VERSION}-pyt-x86"
+                                                    
+                                                    // Build Docker image
+                                                    def buildResult = buildDockerImage(
+                                                        imageName: IMAGE_NAME,
+                                                        tag: IMAGE_TAG,
+                                                        dockerfile: '${WORKSPACE}/release/docker/Dockerfile',
+                                                        context: '${WORKSPACE}',
+                                                        arch: 'amd64',
+                                                        registryUrl: 'https://nvcr.io',
+                                                        registryCredentialsId: TaoConfig.credentials.NGC_API_KEY
+                                                    )
+                                                    
+                                                    // Push Docker image
+                                                    pushDockerImage(
+                                                        imageName: buildResult.imageName,
+                                                        tag: buildResult.tag,
+                                                        registry: 'https://nvcr.io',
+                                                        registryCredentialsId: TaoConfig.credentials.NGC_API_KEY
+                                                    )
+                                                    
+                                                    // Store image tag for metadata
+                                                    env.DOCKER_IMAGE_TAG_X86 = buildResult.fullName
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -591,14 +620,44 @@ pipeline {
                                     // and the release proceeds. The consolidate stage skips
                                     // the CC multiarch manifest if the per-arch tags weren't set.
                                     catchError(buildResult: 'SUCCESS', stageResult: 'SUCCESS') {
-                                        publishReleaseDockerImage(
-                                            statusName: 'x86_docker_coverage_build_rc',
-                                            imageName: TaoConfig.images.IMAGE_NAME_PYT,
-                                            tag: "${TAO_VERSION}-rc-${BUILD_NUMBER}-cc-x86",
-                                            arch: 'amd64',
-                                            coverage: true,
-                                            envVar: 'DOCKER_CC_IMAGE_TAG_X86'
-                                        )
+                                        script {
+                                            retry(count: 3) {
+                                                script {
+                                                    if (currentBuild.getPreviousBuild()?.getResult() == 'FAILURE') {
+                                                        echo "Previous attempt failed, sleeping 5 minutes before retry..."
+                                                        sleep time: 5, unit: 'MINUTES'
+                                                    }
+                                                }
+                                                withGitLabStatus('x86_docker_coverage_build_rc') {
+                                                    def CC_IMAGE_TAG = "${TAO_VERSION}-rc-${BUILD_NUMBER}-cc-x86"
+                                                    
+                                                    // Build coverage Docker image
+                                                    def buildResult = buildDockerImage(
+                                                        imageName: TaoConfig.images.IMAGE_NAME_PYT,
+                                                        tag: CC_IMAGE_TAG,
+                                                        dockerfile: '${WORKSPACE}/release/docker/Dockerfile',
+                                                        context: '${WORKSPACE}',
+                                                        arch: 'amd64',
+                                                        appendToDockerfile: 'coverage_build.txt',
+                                                        registryUrl: 'https://nvcr.io',
+                                                        registryCredentialsId: TaoConfig.credentials.NGC_API_KEY
+                                                    )
+                                                    
+                                                    // Push coverage Docker image
+                                                    pushDockerImage(
+                                                        imageName: buildResult.imageName,
+                                                        tag: buildResult.tag,
+                                                        registry: 'https://nvcr.io',
+                                                        registryCredentialsId: TaoConfig.credentials.NGC_API_KEY
+                                                    )
+                                                    
+                                                    // Store CC image tag
+                                                    env.DOCKER_CC_IMAGE_TAG_X86 = buildResult.fullName
+                                                    
+                                                    echo "Coverage Docker image published: ${buildResult.fullName}"
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -763,13 +822,42 @@ pipeline {
                             steps {
                                 container('dind-image') {
                                     catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                                        publishReleaseDockerImage(
-                                            statusName: 'arm_build_publish_docker',
-                                            imageName: params.RC ? TaoConfig.images.IMAGE_NAME_PYT : TaoConfig.images.IMAGE_NAME_TOOLKIT,
-                                            tag: params.RC ? "${TAO_VERSION}-rc-${BUILD_NUMBER}-arm64" : "${TAO_VERSION}-pyt-arm64",
-                                            arch: 'arm64',
-                                            envVar: 'DOCKER_IMAGE_TAG_ARM64'
-                                        )
+                                        script {
+                                            retry(count: 3) {
+                                                script {
+                                                    if (currentBuild.getPreviousBuild()?.getResult() == 'FAILURE') {
+                                                        echo "Previous attempt failed, sleeping 5 minutes before retry..."
+                                                        sleep time: 5, unit: 'MINUTES'
+                                                    }
+                                                }
+                                                withGitLabStatus('arm_build_publish_docker') {
+                                                    def IMAGE_NAME = params.RC ? TaoConfig.images.IMAGE_NAME_PYT : TaoConfig.images.IMAGE_NAME_TOOLKIT
+                                                    def IMAGE_TAG = params.RC ? "${TAO_VERSION}-rc-${BUILD_NUMBER}-arm64" : "${TAO_VERSION}-pyt-arm64"
+                                                    
+                                                    // Build Docker image
+                                                    def buildResult = buildDockerImage(
+                                                        imageName: IMAGE_NAME,
+                                                        tag: IMAGE_TAG,
+                                                        dockerfile: '${WORKSPACE}/release/docker/Dockerfile',
+                                                        context: '${WORKSPACE}',
+                                                        arch: 'arm64',
+                                                        registryUrl: 'https://nvcr.io',
+                                                        registryCredentialsId: TaoConfig.credentials.NGC_API_KEY
+                                                    )
+                                                    
+                                                    // Push Docker image
+                                                    pushDockerImage(
+                                                        imageName: buildResult.imageName,
+                                                        tag: buildResult.tag,
+                                                        registry: 'https://nvcr.io',
+                                                        registryCredentialsId: TaoConfig.credentials.NGC_API_KEY
+                                                    )
+                                                    
+                                                    // Store image tag for metadata
+                                                    env.DOCKER_IMAGE_TAG_ARM64 = buildResult.fullName
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -784,14 +872,44 @@ pipeline {
                                 container('dind-image') {
                                     // CC image is best-effort: see x86_docker_coverage_build_rc.
                                     catchError(buildResult: 'SUCCESS', stageResult: 'SUCCESS') {
-                                        publishReleaseDockerImage(
-                                            statusName: 'arm_docker_coverage_build_rc',
-                                            imageName: TaoConfig.images.IMAGE_NAME_PYT,
-                                            tag: "${TAO_VERSION}-rc-${BUILD_NUMBER}-cc-arm64",
-                                            arch: 'arm64',
-                                            coverage: true,
-                                            envVar: 'DOCKER_CC_IMAGE_TAG_ARM64'
-                                        )
+                                        script {
+                                            retry(count: 3) {
+                                                script {
+                                                    if (currentBuild.getPreviousBuild()?.getResult() == 'FAILURE') {
+                                                        echo "Previous attempt failed, sleeping 5 minutes before retry..."
+                                                        sleep time: 5, unit: 'MINUTES'
+                                                    }
+                                                }
+                                                withGitLabStatus('arm_docker_coverage_build_rc') {
+                                                    def CC_IMAGE_TAG = "${TAO_VERSION}-rc-${BUILD_NUMBER}-cc-arm64"
+                                                    
+                                                    // Build coverage Docker image
+                                                    def buildResult = buildDockerImage(
+                                                        imageName: TaoConfig.images.IMAGE_NAME_PYT,
+                                                        tag: CC_IMAGE_TAG,
+                                                        dockerfile: '${WORKSPACE}/release/docker/Dockerfile',
+                                                        context: '${WORKSPACE}',
+                                                        arch: 'arm64',
+                                                        appendToDockerfile: 'coverage_build.txt',
+                                                        registryUrl: 'https://nvcr.io',
+                                                        registryCredentialsId: TaoConfig.credentials.NGC_API_KEY
+                                                    )
+                                                    
+                                                    // Push coverage Docker image
+                                                    pushDockerImage(
+                                                        imageName: buildResult.imageName,
+                                                        tag: buildResult.tag,
+                                                        registry: 'https://nvcr.io',
+                                                        registryCredentialsId: TaoConfig.credentials.NGC_API_KEY
+                                                    )
+                                                    
+                                                    // Store CC image tag
+                                                    env.DOCKER_CC_IMAGE_TAG_ARM64 = buildResult.fullName
+                                                    
+                                                    echo "Coverage Docker image published: ${buildResult.fullName}"
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -833,12 +951,88 @@ pipeline {
                 stage('consolidate_multiarch_image') {
                     steps {
                         container('docker-consolidate') {
-                            consolidateReleaseImages(
-                                isRC: params.RC,
-                                taoVersion: TAO_VERSION,
-                                buildNumber: env.BUILD_NUMBER,
-                                skipProdPromote: SKIP_PROD_PROMOTE
-                            )
+                            retry(count: 3) {
+                                script {
+                                    if (currentBuild.getPreviousBuild()?.getResult() == 'FAILURE') {
+                                        echo "Previous attempt failed, sleeping 5 minutes before retry..."
+                                        sleep time: 5, unit: 'MINUTES'
+                                    }
+                                }
+                                withGitLabStatus('consolidate_multiarch_image') {
+                                    script {
+                                        echo "=== Consolidating Multi-Architecture Images ==="
+                                        
+                                        def IMAGE_NAME_PYT = TaoConfig.images.IMAGE_NAME_PYT
+                                        def IMAGE_NAME_TOOLKIT = TaoConfig.images.IMAGE_NAME_TOOLKIT
+                                        
+                                        if (params.RC) {
+                                            def rcTag = "${TAO_VERSION}-rc-${BUILD_NUMBER}"
+                                            
+                                            // RC multiarch manifest
+                                            createMultiArchManifest(
+                                                imageName: IMAGE_NAME_PYT,
+                                                manifestTag: "${rcTag}-multiarch",
+                                                sourceTags: ["${rcTag}-x86", "${rcTag}-arm64"],
+                                                registry: 'https://nvcr.io',
+                                                registryCredentialsId: TaoConfig.credentials.NGC_API_KEY
+                                            )
+                                            env.MULTIARCH_IMAGE_TAG = "${IMAGE_NAME_PYT}:${rcTag}-multiarch"
+                                            
+                                            // Also tag as latest version (skipped if SKIP_PROD_PROMOTE is true)
+                                            if (!SKIP_PROD_PROMOTE) {
+                                                createMultiArchManifest(
+                                                    manifestImage: "${IMAGE_NAME_TOOLKIT}:${TAO_VERSION}-pyt",
+                                                    sourceImages: [
+                                                        "${IMAGE_NAME_PYT}:${rcTag}-x86",
+                                                        "${IMAGE_NAME_PYT}:${rcTag}-arm64"
+                                                    ],
+                                                    registry: 'https://nvcr.io',
+                                                    registryCredentialsId: TaoConfig.credentials.NGC_API_KEY
+                                                )
+                                            } else {
+                                                echo "⏭ Skipping production image tagging (SKIP_PROD_PROMOTE = true)"
+                                            }
+                                            
+                                            // CC multiarch manifest — best-effort. The CC build
+                                            // stages swallow their own failures (e.g. overlay
+                                            // max-depth on dind) and leave DOCKER_CC_IMAGE_TAG_*
+                                            // unset. Skip the manifest if either arch is
+                                            // missing, and tolerate manifest creation errors
+                                            // so the release stays green.
+                                            if (env.DOCKER_CC_IMAGE_TAG_X86 && env.DOCKER_CC_IMAGE_TAG_ARM64) {
+                                                catchError(buildResult: 'SUCCESS', stageResult: 'SUCCESS') {
+                                                    createMultiArchManifest(
+                                                        imageName: IMAGE_NAME_PYT,
+                                                        manifestTag: "${rcTag}-cc-multiarch",
+                                                        sourceTags: ["${rcTag}-cc-x86", "${rcTag}-cc-arm64"],
+                                                        registry: 'https://nvcr.io',
+                                                        registryCredentialsId: TaoConfig.credentials.NGC_API_KEY
+                                                    )
+                                                    env.CC_MULTIARCH_IMAGE_TAG = "${IMAGE_NAME_PYT}:${rcTag}-cc-multiarch"
+                                                }
+                                            } else {
+                                                echo "⏭ Skipping CC multiarch manifest — per-arch CC build(s) did not publish: " +
+                                                     "x86=${env.DOCKER_CC_IMAGE_TAG_X86 ?: 'missing'}, " +
+                                                     "arm64=${env.DOCKER_CC_IMAGE_TAG_ARM64 ?: 'missing'}"
+                                            }
+                                            
+                                        } else {
+                                            // Final release multiarch manifest
+                                            createMultiArchManifest(
+                                                imageName: IMAGE_NAME_TOOLKIT,
+                                                manifestTag: "${TAO_VERSION}-pyt",
+                                                sourceTags: ["${TAO_VERSION}-pyt-x86", "${TAO_VERSION}-pyt-arm64"],
+                                                registry: 'https://nvcr.io',
+                                                registryCredentialsId: TaoConfig.credentials.NGC_API_KEY
+                                            )
+                                            env.MULTIARCH_IMAGE_TAG = "${IMAGE_NAME_TOOLKIT}:${TAO_VERSION}-pyt"
+                                        }
+                                        
+                                        echo "✓ Multi-arch image consolidation complete"
+                                        echo "Multiarch image: ${env.MULTIARCH_IMAGE_TAG}"
+                                    }
+                                }
+                            }
                         }
                     }
                 }
