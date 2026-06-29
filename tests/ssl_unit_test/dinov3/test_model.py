@@ -13,6 +13,7 @@ import torch
 from nvidia_tao_pytorch.config.dinov3.default_config import ExperimentConfig
 from nvidia_tao_pytorch.ssl.dinov3.model.pl_model import DinoV3PlModel
 from nvidia_tao_pytorch.ssl.dinov3.model.vit import DinoV3VisionTransformer
+from nvidia_tao_pytorch.ssl.dinov3.model.layers.attention import RoPEMemoryEfficientAttention
 
 BATCH_SIZE = 2
 IMAGE_CHANNEL = 3
@@ -91,6 +92,33 @@ def test_dinov3_backbone_multicrop_finite():
         for crop in out:
             assert torch.isfinite(crop["x_norm_patchtokens"]).all(), f"non-finite patches in {mode}"
             assert torch.isfinite(crop["x_norm_clstoken"]).all(), f"non-finite cls in {mode}"
+
+
+@requires_cuda
+@pytest.mark.ssl_unit
+def test_dinov3_attention_fallback_matches_xformers():
+    """The non-xformers fallback (used e.g. on Blackwell) must match memory_efficient_attention.
+
+    Regression guard: the fallback previously computed scores over the head axis
+    (``[B, N, H, H]``) instead of the sequence axis, succeeding dimensionally but returning
+    garbage. With ``attn_drop=0`` and identical input the fallback should track the xformers
+    path closely (fp16 tolerance).
+    """
+    torch.manual_seed(0)
+    attn = RoPEMemoryEfficientAttention(
+        dim=768, num_heads=12, qkv_bias=False, qk_norm=False, attn_drop=0.0, proj_drop=0.0,
+    ).cuda().half().eval()
+
+    x = torch.randn(BATCH_SIZE, 197, 768).cuda().half()
+    with torch.no_grad():
+        out_xf = attn(x, use_custom_attention=True)
+        out_fb = attn(x, use_custom_attention=False)
+
+    assert out_fb.shape == out_xf.shape == (BATCH_SIZE, 197, 768)
+    cos = torch.nn.functional.cosine_similarity(
+        out_fb.float().reshape(-1, 768), out_xf.float().reshape(-1, 768), dim=-1
+    ).mean().item()
+    assert cos > 0.99, f"fallback attention diverges from xformers: cosine {cos}"
 
 
 @requires_cuda

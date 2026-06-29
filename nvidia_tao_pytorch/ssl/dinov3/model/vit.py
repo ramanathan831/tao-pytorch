@@ -191,10 +191,10 @@ class DinoV3VisionTransformer(DinoV2VisionTransformer):
             Tuple[torch.Tensor, torch.Tensor]: ``(sin, cos)`` each shaped ``[N, head_dim]``
             for this crop's token sequence (fp32).
         """
-        _, _, w, h = x.shape
+        _, _, h, w = x.shape
         ps = self.patch_embed.patch_size
-        grid_h = w // ps[0]
-        grid_w = h // ps[1]
+        grid_h = h // ps[0]
+        grid_w = w // ps[1]
         return self.rope(grid_h, grid_w, x.device, torch.float32)
 
     def forward(self, x, masks=None, keep_last_n_layers=None, keep_level: str = "chunk"):
