@@ -215,12 +215,14 @@ class GramConfig:
         popular="no"
     )
     teacher_scale: float = FLOAT_FIELD(
-        value=2.0,
-        default_value=2.0,
+        value=1.0,
+        default_value=1.0,
         description=(
             "Resolution multiple at which the Gram teacher runs relative to the student. "
             "DINOv3 computes Gram on higher-res teacher features; the teacher grid is "
-            "average-pooled back to the student grid before the loss. 1.0 = same resolution."
+            "average-pooled back to the student grid before the loss. 1.0 = same resolution "
+            "(default, memory-safe). The paper uses 2.0, but at 768 the teacher then runs at "
+            "1536 (96x96=9216 tokens) -> heavy; raise to 1.5/2.0 only if memory allows."
         ),
         display_name="gram teacher scale",
         popular="no"

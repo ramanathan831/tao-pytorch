@@ -16,7 +16,7 @@ def test_gram_phase1_config_fields():
     """Gram config exposes the Phase 1 knobs with sensible defaults."""
     cfg = OmegaConf.structured(ExperimentConfig())
     assert cfg.model.gram.refresh_interval == 0      # never refresh -> Phase 0 behavior
-    assert cfg.model.gram.teacher_scale == 2.0       # paper default (spec may override)
+    assert cfg.model.gram.teacher_scale == 1.0       # memory-safe default (paper 2.0; spec may raise)
     assert cfg.model.gram.teacher_source == "pretrained"
 
 

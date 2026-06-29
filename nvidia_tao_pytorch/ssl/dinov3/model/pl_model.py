@@ -278,6 +278,21 @@ class DinoV3PlModel(DinoV2PlModel):
         if get_global_rank() == 0:
             logging.info(f"Gram teacher refreshed from EMA teacher at step {self.global_step}.")
 
+    def on_save_checkpoint(self, checkpoint):
+        """Persist the Gram-teacher refresh bookkeeping so resume keeps a consistent cadence.
+
+        ``_gram_last_refresh_step`` drives the EMA-refresh schedule; without it a resumed run
+        re-initializes to -1 and would refresh on the wrong steps relative to the original run.
+        """
+        super().on_save_checkpoint(checkpoint)
+        checkpoint["gram_last_refresh_step"] = self._gram_last_refresh_step
+
+    def on_load_checkpoint(self, checkpoint):
+        """Restore the Gram-teacher refresh bookkeeping on resume (mirror of on_save_checkpoint)."""
+        super().on_load_checkpoint(checkpoint)
+        if "gram_last_refresh_step" in checkpoint:
+            self._gram_last_refresh_step = checkpoint["gram_last_refresh_step"]
+
     @staticmethod
     def _load_pretrained_state_dict(path):
         """Load a DINOv3 checkpoint into a flat ``{key: tensor}`` state dict.
