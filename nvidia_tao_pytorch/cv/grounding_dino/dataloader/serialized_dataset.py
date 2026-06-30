@@ -139,10 +139,10 @@ class ODVGSerializedDatasetFromList(torch.utils.data.Dataset):
             # neg bbox labels
             neg_labels = label_index.difference(pos_labels)
 
-            vg_labels = list(pos_labels)
+            vg_labels = sorted(pos_labels)
             num_to_add = min(len(neg_labels), self.max_labels - len(pos_labels))
             if num_to_add > 0:
-                vg_labels.extend(random.sample(tuple(neg_labels), num_to_add))
+                vg_labels.extend(random.sample(sorted(neg_labels), num_to_add))
 
             # shuffle
             for i in range(len(vg_labels) - 1, 0, -1):
@@ -165,7 +165,7 @@ class ODVGSerializedDatasetFromList(torch.utils.data.Dataset):
             c = list(zip(boxes, caption_list))
             random.shuffle(c)
             boxes[:], caption_list[:] = zip(*c)
-            uni_caption_list = list(set(caption_list))
+            uni_caption_list = sorted(set(caption_list))
             label_map = {}
             for idx in range(len(uni_caption_list)):
                 label_map[uni_caption_list[idx]] = idx
