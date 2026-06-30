@@ -18,6 +18,11 @@ import os
 
 import torch
 import torch.nn as nn
+from torch.distributed.fsdp import (
+    FullyShardedDataParallel as FSDP,
+    FullStateDictConfig,
+    StateDictType,
+)
 from timm.layers import Mlp
 
 import nvidia_tao_pytorch.config.dinov3.default_config as v3_params
@@ -74,6 +79,8 @@ class DinoV3PlModel(DinoV2PlModel):
         # teacher (the intended provenance for continual pre-training).
         if getattr(self, 'gram_teacher', None) is not None:
             self._sync_gram_teacher()
+        # Tracks the last global step the Gram teacher was EMA-refreshed (Phase 1 high-res).
+        self._gram_last_refresh_step = -1
 
     def _resolve_arch(self, backbone_type):
         """Look up DINOv3 ViT hyper-parameters for a backbone type from the v3 param map.
@@ -216,10 +223,94 @@ class DinoV3PlModel(DinoV2PlModel):
         checkpoint is loaded (``restore_pretrained_weights``), so the Gram teacher always
         anchors to the same DINOv3 weights the run starts from.
         """
-        self.gram_teacher.load_state_dict(self.teacher.backbone.state_dict())
+        teacher_backbone = self.teacher.backbone
+        if isinstance(teacher_backbone, FSDP):
+            # Under FSDP the teacher backbone is sharded across ranks; gather a full, unsharded
+            # state dict on every rank (rank0_only=False) so it can be copied into the unsharded,
+            # replicated Gram teacher. This runs inside the training step at the same global step
+            # on every rank, so the all-gather is symmetric and will not deadlock. (Risk R3.)
+            with FSDP.state_dict_type(
+                teacher_backbone,
+                StateDictType.FULL_STATE_DICT,
+                FullStateDictConfig(offload_to_cpu=False, rank0_only=False),
+            ):
+                state_dict = teacher_backbone.state_dict()
+        else:
+            state_dict = teacher_backbone.state_dict()
+        self.gram_teacher.load_state_dict(state_dict)
         for param in self.gram_teacher.parameters():
             param.requires_grad = False
         self.gram_teacher.eval()
+
+    @staticmethod
+    def _gram_refresh_due(step, interval, last_refreshed):
+        """Whether the Gram teacher should be EMA-refreshed at this step.
+
+        Args:
+            step (int): Current global step.
+            interval (int): Refresh period in steps (0 disables refresh).
+            last_refreshed (int): Step at which the last refresh happened.
+
+        Returns:
+            bool: True if a refresh is due now.
+        """
+        if not interval or interval <= 0:
+            return False
+        return step > 0 and step % interval == 0 and step != last_refreshed
+
+    @staticmethod
+    def _pool_tokens(tokens, src_grid, dst_grid):
+        """Average-pool a patch-token grid to a smaller grid (Gram teacher -> student grid).
+
+        Args:
+            tokens (torch.Tensor): Patch tokens ``[B, src_h*src_w, C]`` (row-major).
+            src_grid (tuple): Source ``(h, w)`` patch grid.
+            dst_grid (tuple): Target ``(h, w)`` patch grid.
+
+        Returns:
+            torch.Tensor: Pooled tokens ``[B, dst_h*dst_w, C]``. Returned unchanged if grids match.
+        """
+        if tuple(src_grid) == tuple(dst_grid):
+            return tokens
+        b, _, c = tokens.shape
+        src_h, src_w = src_grid
+        grid = tokens.reshape(b, src_h, src_w, c).permute(0, 3, 1, 2)  # [B, C, src_h, src_w]
+        grid = nn.functional.adaptive_avg_pool2d(grid, dst_grid)        # [B, C, dst_h, dst_w]
+        return grid.permute(0, 2, 3, 1).reshape(b, dst_grid[0] * dst_grid[1], c)
+
+    def _maybe_refresh_gram_teacher(self):
+        """Refresh the Gram teacher from the EMA teacher on the configured cadence (Phase 1).
+
+        Only acts when ``gram.teacher_source='ema'`` and ``gram.refresh_interval>0``. This is the
+        early-EMA-snapshot scheme DINOv3 uses for the high-res phase. Single-device path: under
+        FSDP the EMA teacher is sharded, so refreshing needs a ``summon_full_params`` gather —
+        tracked as a Phase-1 follow-up (see the high-res plan, risk R3).
+        """
+        gram_cfg = self.model_config.gram
+        if gram_cfg.teacher_source != "ema":
+            return
+        if not self._gram_refresh_due(self.global_step, getattr(gram_cfg, "refresh_interval", 0),
+                                      self._gram_last_refresh_step):
+            return
+        self._sync_gram_teacher()
+        self._gram_last_refresh_step = self.global_step
+        if get_global_rank() == 0:
+            logging.info(f"Gram teacher refreshed from EMA teacher at step {self.global_step}.")
+
+    def on_save_checkpoint(self, checkpoint):
+        """Persist the Gram-teacher refresh bookkeeping so resume keeps a consistent cadence.
+
+        ``_gram_last_refresh_step`` drives the EMA-refresh schedule; without it a resumed run
+        re-initializes to -1 and would refresh on the wrong steps relative to the original run.
+        """
+        super().on_save_checkpoint(checkpoint)
+        checkpoint["gram_last_refresh_step"] = self._gram_last_refresh_step
+
+    def on_load_checkpoint(self, checkpoint):
+        """Restore the Gram-teacher refresh bookkeeping on resume (mirror of on_save_checkpoint)."""
+        super().on_load_checkpoint(checkpoint)
+        if "gram_last_refresh_step" in checkpoint:
+            self._gram_last_refresh_step = checkpoint["gram_last_refresh_step"]
 
     @staticmethod
     def _load_pretrained_state_dict(path):
@@ -349,13 +440,37 @@ class DinoV3PlModel(DinoV2PlModel):
         if student_backbone_global_output is None or global_crops is None:
             return []
 
+        # Phase 1: EMA-refresh the Gram teacher on cadence (no-op when teacher_source != 'ema').
+        self._maybe_refresh_gram_teacher()
+
         student_patch_tokens = student_backbone_global_output["x_norm_patchtokens"]
 
-        # Frozen Gram teacher: same global crops, no grad. Force eval so the module's
-        # stochastic depth / dropout stay off even though the parent module is in train mode.
+        # Student patch grid (global crops are square; derive from the input + patch size).
+        ps = self.patch_size
+        student_grid = (global_crops.shape[-2] // ps, global_crops.shape[-1] // ps)
+
+        # Frozen Gram teacher: optionally at a higher resolution (gram.teacher_scale), no grad.
+        # Force eval so stochastic depth / dropout stay off even though the parent is in train mode.
+        scale = getattr(gram_cfg, "teacher_scale", 1.0) or 1.0
         self.gram_teacher.eval()
+        # The frozen Gram teacher lives outside the FSDP-wrapped student/teacher ModuleDicts, so
+        # FSDP never places it on the sharding device — co-locate it with the input here (no-op
+        # once moved / on single-GPU, where the module already follows the LightningModule). It
+        # then runs under the ambient autocast just like the student/teacher backbones (GramLoss
+        # upcasts to fp32 internally for the Gram product).
+        if next(self.gram_teacher.parameters()).device != global_crops.device:
+            self.gram_teacher.to(global_crops.device)
         with torch.no_grad():
-            teacher_patch_tokens = self.gram_teacher(global_crops)["x_norm_patchtokens"]
+            if scale != 1.0:
+                teacher_input = nn.functional.interpolate(
+                    global_crops, scale_factor=scale, mode="bilinear", align_corners=False
+                )
+            else:
+                teacher_input = global_crops
+            teacher_patch_tokens = self.gram_teacher(teacher_input)["x_norm_patchtokens"]
+            # Pool the (higher-res) teacher grid back to the student grid before the Gram loss.
+            teacher_grid = (teacher_input.shape[-2] // ps, teacher_input.shape[-1] // ps)
+            teacher_patch_tokens = self._pool_tokens(teacher_patch_tokens, teacher_grid, student_grid)
 
         gram_loss = self.gram_loss(student_patch_tokens, teacher_patch_tokens)
         self.log(
