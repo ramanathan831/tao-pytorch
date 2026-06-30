@@ -18,6 +18,11 @@ import os
 
 import torch
 import torch.nn as nn
+from torch.distributed.fsdp import (
+    FullyShardedDataParallel as FSDP,
+    FullStateDictConfig,
+    StateDictType,
+)
 from timm.layers import Mlp
 
 import nvidia_tao_pytorch.config.dinov3.default_config as v3_params
@@ -218,7 +223,21 @@ class DinoV3PlModel(DinoV2PlModel):
         checkpoint is loaded (``restore_pretrained_weights``), so the Gram teacher always
         anchors to the same DINOv3 weights the run starts from.
         """
-        self.gram_teacher.load_state_dict(self.teacher.backbone.state_dict())
+        teacher_backbone = self.teacher.backbone
+        if isinstance(teacher_backbone, FSDP):
+            # Under FSDP the teacher backbone is sharded across ranks; gather a full, unsharded
+            # state dict on every rank (rank0_only=False) so it can be copied into the unsharded,
+            # replicated Gram teacher. This runs inside the training step at the same global step
+            # on every rank, so the all-gather is symmetric and will not deadlock. (Risk R3.)
+            with FSDP.state_dict_type(
+                teacher_backbone,
+                StateDictType.FULL_STATE_DICT,
+                FullStateDictConfig(offload_to_cpu=False, rank0_only=False),
+            ):
+                state_dict = teacher_backbone.state_dict()
+        else:
+            state_dict = teacher_backbone.state_dict()
+        self.gram_teacher.load_state_dict(state_dict)
         for param in self.gram_teacher.parameters():
             param.requires_grad = False
         self.gram_teacher.eval()
@@ -434,6 +453,13 @@ class DinoV3PlModel(DinoV2PlModel):
         # Force eval so stochastic depth / dropout stay off even though the parent is in train mode.
         scale = getattr(gram_cfg, "teacher_scale", 1.0) or 1.0
         self.gram_teacher.eval()
+        # The frozen Gram teacher lives outside the FSDP-wrapped student/teacher ModuleDicts, so
+        # FSDP never places it on the sharding device — co-locate it with the input here (no-op
+        # once moved / on single-GPU, where the module already follows the LightningModule). It
+        # then runs under the ambient autocast just like the student/teacher backbones (GramLoss
+        # upcasts to fp32 internally for the Gram product).
+        if next(self.gram_teacher.parameters()).device != global_crops.device:
+            self.gram_teacher.to(global_crops.device)
         with torch.no_grad():
             if scale != 1.0:
                 teacher_input = nn.functional.interpolate(
