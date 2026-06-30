@@ -8,9 +8,10 @@ remapper and confirms the CLS + patch features are cosine-close to timm's own fo
 validates the remapper key/shape coverage AND the RoPE convention end-to-end (rope_theta, coord
 normalization, rotation layout).
 
-Parametrized over the supported architectures (**ViT-B**, **ViT-L**); each case skips if its
-weights are not staged. Requires a CUDA GPU (xformers memory-efficient attention). Point
-``DINOV3_VITB_WEIGHTS`` / ``DINOV3_VITL_WEIGHTS`` at the dir/file if not in a default location.
+Parametrized over architecture x resolution (**ViT-B** @ 256/768, **ViT-L** @ 256); each case
+skips if its weights are not staged. Requires a CUDA GPU (xformers memory-efficient attention).
+Point ``DINOV3_VITB_WEIGHTS`` / ``DINOV3_VITL_WEIGHTS`` at the dir/file if not in a default
+location.
 """
 import os
 
@@ -34,6 +35,10 @@ _ARCHS = {
     ),
 }
 
+# (arch, img_size) cases: ViT-B at 256 and the Phase 1 high-res 768; ViT-L at 256.
+# (ViT-L @ 768 is intentionally omitted -- very heavy and not a validated gate.)
+_CASES = [("vit_b", 256), ("vit_b", 768), ("vit_l", 256)]
+
 requires_cuda = pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA GPU")
 
 
@@ -54,9 +59,13 @@ def _cosine(a, b):
 
 @requires_cuda
 @pytest.mark.ssl_unit
-@pytest.mark.parametrize("arch", list(_ARCHS))
-def test_dinov3_feature_parity_vs_timm(arch):
-    """Our remapped ViT matches timm's CLS/patch features (cosine > 0.99), per arch."""
+@pytest.mark.parametrize("arch,img_size", _CASES)
+def test_dinov3_feature_parity_vs_timm(arch, img_size):
+    """Our remapped ViT matches timm's CLS/patch features (cosine > 0.99), per arch and resolution.
+
+    The 768 case (ViT-B) is the Phase 1 gate: it validates that our normalized-coord RoPE
+    extrapolates to a 48x48 grid identically to timm (no pos-embed interpolation).
+    """
     timm = pytest.importorskip("timm")
     spec = _ARCHS[arch]
     weights = _find_weights(spec["weights"])
@@ -68,16 +77,16 @@ def test_dinov3_feature_parity_vs_timm(arch):
     # eval overflows the deep ViT-L residual stream (fp16 max ~65504) and yields NaN; bf16 autocast
     # keeps the residual stream in fp32 range while still exercising the fp16 xformers attention.
     ref = timm.create_model(
-        spec["timm"], pretrained=False, checkpoint_path=ckpt,
+        spec["timm"], pretrained=False, checkpoint_path=ckpt, img_size=img_size,
     ).cuda().eval()
 
     model = DinoV3VisionTransformer(
-        img_size=256, patch_size=16, embed_dim=spec["embed_dim"], depth=spec["depth"],
+        img_size=img_size, patch_size=16, embed_dim=spec["embed_dim"], depth=spec["depth"],
         num_heads=spec["num_heads"], init_values=1e-5, drop_path_schedule="linear",
         num_classes=0, drop_path_rate=0.0, register_tokens=spec["registers"],
         use_custom_attention=True,
     )
-    # Load via the same remapper the pl_model uses (depth-agnostic; works for ViT-B and ViT-L).
+    # Load via the same remapper the pl_model uses (depth-agnostic; img_size doesn't change keys).
     timm_sd = DinoV3PlModel._load_pretrained_state_dict(weights)
     remapped, unmapped = DinoV3PlModel._remap_dinov3_state_dict(timm_sd, model.state_dict())
     missing, unexpected = model.load_state_dict(remapped, strict=False)
@@ -90,7 +99,7 @@ def test_dinov3_feature_parity_vs_timm(arch):
     model = model.cuda().eval()
 
     torch.manual_seed(0)
-    x = torch.randn(2, 3, 256, 256).cuda()
+    x = torch.randn(2, 3, img_size, img_size).cuda()
     with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16):
         feats = ref.forward_features(x)
         np = ref.num_prefix_tokens
@@ -98,10 +107,10 @@ def test_dinov3_feature_parity_vs_timm(arch):
         out = model(x)
         cls_ours, patch_ours = out["x_norm_clstoken"], out["x_norm_patchtokens"]
 
-    assert torch.isfinite(cls_ours).all(), f"[{arch}] our CLS features are non-finite"
-    assert torch.isfinite(cls_ref).all(), f"[{arch}] timm CLS features are non-finite"
+    assert torch.isfinite(cls_ours).all(), f"[{arch}@{img_size}] our CLS features are non-finite"
+    assert torch.isfinite(cls_ref).all(), f"[{arch}@{img_size}] timm CLS features are non-finite"
 
     cls_cos = _cosine(cls_ours, cls_ref)
     patch_cos = _cosine(patch_ours, patch_ref)
-    assert cls_cos > 0.99, f"[{arch}] CLS feature cosine too low: {cls_cos}"
-    assert patch_cos > 0.99, f"[{arch}] patch feature cosine too low: {patch_cos}"
+    assert cls_cos > 0.99, f"[{arch}@{img_size}] CLS feature cosine too low: {cls_cos}"
+    assert patch_cos > 0.99, f"[{arch}@{img_size}] patch feature cosine too low: {patch_cos}"

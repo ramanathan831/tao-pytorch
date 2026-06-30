@@ -193,9 +193,38 @@ class GramConfig:
     teacher_source: str = STR_FIELD(
         value="pretrained",
         default_value="pretrained",
-        description="Source of the frozen Gram teacher weights",
+        description=(
+            "Source of the frozen Gram teacher weights: 'pretrained' anchors to the loaded "
+            "DINOv3 weights (Phase 0 default); 'ema' uses an early-EMA snapshot of the current "
+            "run's teacher, refreshed every 'refresh_interval' steps (Phase 1 / high-res)."
+        ),
         display_name="gram teacher source",
         valid_options="pretrained,ema",
+        popular="no"
+    )
+    refresh_interval: int = INT_FIELD(
+        value=0,
+        default_value=0,
+        valid_min=0,
+        valid_max="inf",
+        description=(
+            "Steps between refreshing the Gram teacher from the EMA teacher (only when "
+            "teacher_source='ema'). 0 = never refresh (frozen snapshot, Phase 0 behavior)."
+        ),
+        display_name="gram refresh interval",
+        popular="no"
+    )
+    teacher_scale: float = FLOAT_FIELD(
+        value=1.0,
+        default_value=1.0,
+        description=(
+            "Resolution multiple at which the Gram teacher runs relative to the student. "
+            "DINOv3 computes Gram on higher-res teacher features; the teacher grid is "
+            "average-pooled back to the student grid before the loss. 1.0 = same resolution "
+            "(default, memory-safe). The paper uses 2.0, but at 768 the teacher then runs at "
+            "1536 (96x96=9216 tokens) -> heavy; raise to 1.5/2.0 only if memory allows."
+        ),
+        display_name="gram teacher scale",
         popular="no"
     )
 

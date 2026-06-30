@@ -128,7 +128,7 @@ class RoPENestedTensorBlock(NestedTensorBlock):
                 residual_func=ffn_residual_func,
                 drop_ratio=drop_ratio,
                 scaling_vector=self.ls2.gamma
-                if isinstance(self.ls1, LayerScale)
+                if isinstance(self.ls2, LayerScale)
                 else None,
             )
             return x_list
