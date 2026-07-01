@@ -10,6 +10,7 @@ Lightning training flow and data module.
 import os
 
 from pytorch_lightning import Trainer
+from pytorch_lightning.strategies import FSDPStrategy
 
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
@@ -18,6 +19,31 @@ from nvidia_tao_pytorch.core.tlt_logging import obfuscate_logs
 from nvidia_tao_pytorch.config.dinov3.default_config import ExperimentConfig
 from nvidia_tao_pytorch.ssl.nvdinov2.dataloader.pl_dinov2_data_module import DinoV2DataModule
 from nvidia_tao_pytorch.ssl.dinov3.model.pl_model import DinoV3PlModel
+
+
+def _resolve_strategy(experiment_config):
+    """Pick the Lightning distributed strategy.
+
+    FSDP (needed for high-resolution and the larger ViT-L/H backbones, where DDP's full
+    per-GPU replication does not fit) is selected via ``train.distributed_strategy``
+    (``auto`` | ``ddp`` | ``fsdp``); the ``DINOV3_STRATEGY`` env var overrides the config when
+    set, kept for the de-risking smokes. The inherited ``DinoV2PlModel.configure_model``
+    already wraps the student/teacher ModuleDicts as FSDP units and its EMA update is
+    FSDP-aware; this just constructs the strategy. Defaults to Lightning ``'auto'``
+    (single-GPU / DDP), unchanged.
+    """
+    choice = os.environ.get(
+        "DINOV3_STRATEGY", experiment_config.train.distributed_strategy
+    ).lower()
+    if choice == "fsdp":
+        from torch.distributed.fsdp import ShardingStrategy
+        # FULL_SHARD params/grads/optimizer; gather full state on save so the
+        # CustomModelCheckpoint (which pulls student/teacher state dicts) works.
+        return FSDPStrategy(
+            sharding_strategy=ShardingStrategy.FULL_SHARD,
+            state_dict_type="full",
+        )
+    return choice
 
 
 def run_experiment(experiment_config, key):
@@ -41,7 +67,7 @@ def run_experiment(experiment_config, key):
 
     trainer = Trainer(**trainer_kwargs,
                       num_nodes=num_nodes,
-                      strategy='auto',
+                      strategy=_resolve_strategy(experiment_config),
                       precision=precision,
                       use_distributed_sampler=False,
                       sync_batchnorm=True,
