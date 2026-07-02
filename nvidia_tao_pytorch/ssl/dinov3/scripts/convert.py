@@ -63,7 +63,7 @@ def run_convert(experiment_config):
     )
     logging.info(
         f"Backbone written to {output_path}. Load it downstream via "
-        f"BACKBONE_REGISTRY.get('dinov3_vitb16')(pretrained_backbone_path='{output_path}')."
+        f"BACKBONE_REGISTRY.get('{arch}')(pretrained_backbone_path='{output_path}')."
     )
 
 

@@ -117,6 +117,9 @@ class CustomModelCheckpoint(ModelCheckpoint):
 class DinoV2PlModel(TAOLightningModule):
     """Pytorch Lightning module for NVDINOv2"""
 
+    # Backbone hyper-parameter table (embed_dim/depth/num_heads/...) keyed by backbone type.
+    param_map = model_params.map_params
+
     def __init__(self, experiment_spec):
         """Initializes the DinoV2PlModel with the specified experiment configuration.
 
@@ -148,20 +151,20 @@ class DinoV2PlModel(TAOLightningModule):
             logging.info("Using flash attention if set by user")
         # Teacher Backbone
         self.teacher_backbone_type = self.model_config.backbone['teacher_type']
-        self.teacher_depth = model_params.map_params['depth'][self.teacher_backbone_type]
-        self.teacher_num_heads = model_params.map_params['num_heads'][self.teacher_backbone_type]
-        self.teacher_init_values = model_params.map_params['init_values'][self.teacher_backbone_type]
-        self.teacher_drop_path_schedule = model_params.map_params['drop_path_schedule'][self.teacher_backbone_type]
-        self.teacher_num_classes = model_params.map_params['num_classes'][self.teacher_backbone_type]
-        self.teacher_embed_dim = model_params.map_params['embed_dim'][self.teacher_backbone_type]  # self.teacher_embed_dim should be equal to self.student_embed_dim
+        self.teacher_depth = self.param_map['depth'][self.teacher_backbone_type]
+        self.teacher_num_heads = self.param_map['num_heads'][self.teacher_backbone_type]
+        self.teacher_init_values = self.param_map['init_values'][self.teacher_backbone_type]
+        self.teacher_drop_path_schedule = self.param_map['drop_path_schedule'][self.teacher_backbone_type]
+        self.teacher_num_classes = self.param_map['num_classes'][self.teacher_backbone_type]
+        self.teacher_embed_dim = self.param_map['embed_dim'][self.teacher_backbone_type]  # self.teacher_embed_dim should be equal to self.student_embed_dim
         # Student Backbone
         self.student_backbone_type = self.model_config.backbone['student_type']
-        self.student_depth = model_params.map_params['depth'][self.student_backbone_type]
-        self.student_num_heads = model_params.map_params['num_heads'][self.student_backbone_type]
-        self.student_init_values = model_params.map_params['init_values'][self.student_backbone_type]
-        self.student_drop_path_schedule = model_params.map_params['drop_path_schedule'][self.student_backbone_type]
-        self.student_num_classes = model_params.map_params['num_classes'][self.student_backbone_type]
-        self.student_embed_dim = model_params.map_params['embed_dim'][self.student_backbone_type]
+        self.student_depth = self.param_map['depth'][self.student_backbone_type]
+        self.student_num_heads = self.param_map['num_heads'][self.student_backbone_type]
+        self.student_init_values = self.param_map['init_values'][self.student_backbone_type]
+        self.student_drop_path_schedule = self.param_map['drop_path_schedule'][self.student_backbone_type]
+        self.student_num_classes = self.param_map['num_classes'][self.student_backbone_type]
+        self.student_embed_dim = self.param_map['embed_dim'][self.student_backbone_type]
 
         self.patch_size = self.model_config.backbone['patch_size']
         self.img_size = self.model_config.backbone['img_size']

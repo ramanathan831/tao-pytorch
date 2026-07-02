@@ -7,8 +7,7 @@ The DINOv3 SSL family inherits aggressively from ``nvdinov2``: the dataset, head
 distillation, scheduler, optimizer and train/inference/export schemas are reused by
 subclassing the nvdinov2 dataclasses. Only the genuinely new pieces are added here:
 
-* a v3 ``map_params`` table with **patch-16** ViT entries (ViT-B bring-up + ViT-L are
-  supported; ViT-H+ is reserved for a later size step),
+* a v3 ``map_params`` table with **patch-16** ViT entries (vit_b, vit_l, vit_h_plus, vit_7b),
 * RoPE backbone fields (``rope_theta`` etc.) and patch-16 defaults,
 * a ``GramConfig`` for Gram anchoring (wired up in a later step), and
 * a disabled ``lora`` stub for forward-compatibility.
@@ -40,10 +39,9 @@ from nvidia_tao_pytorch.config.nvdinov2.default_config import (
 )
 from nvidia_tao_pytorch.config.common.common_config import CommonExperimentConfig
 
-# DINOv3 candidate / reserved architectures. ViT-B is the v1 bring-up target.
-# ViT-L and ViT-H+ are reserved param-map entries for later size steps (Phase 2).
+# DINOv3 patch-16 ViT architectures supported by the backbone config.
 SUPPORTED_BACKBONES = [
-    *["vit_b", "vit_l", "vit_h_plus"]
+    *["vit_b", "vit_l", "vit_h_plus", "vit_7b"]
 ]
 
 # DINOv3 ViT param map (patch-16). Distinct from the nvdinov2 (patch-14) map.
@@ -55,36 +53,55 @@ map_params = {
         'vit_b': 768,
         'vit_l': 1024,
         'vit_h_plus': 1280,
+        'vit_7b': 4096,
     },
     'depth': {
         'vit_b': 12,
         'vit_l': 24,
         'vit_h_plus': 32,
+        'vit_7b': 40,
     },
     'num_heads': {
         'vit_b': 12,
         'vit_l': 16,
         'vit_h_plus': 20,
+        'vit_7b': 32,
     },
     'init_values': {
         'vit_b': 1e-5,
         'vit_l': 1e-5,
         'vit_h_plus': 1e-5,
+        'vit_7b': 1e-5,
     },
     'drop_path_schedule': {
         'vit_b': 'linear',
         'vit_l': 'linear',
         'vit_h_plus': 'linear',
+        'vit_7b': 'linear',
     },
     'num_classes': {
         'vit_b': 0,
         'vit_l': 0,
         'vit_h_plus': 0,
+        'vit_7b': 0,
     },
     'mlp_layer': {
         'vit_b': 'mlp',
         'vit_l': 'mlp',
         'vit_h_plus': 'swiglu',
+        'vit_7b': 'swiglu',
+    },
+    # SwiGLU inner width = mlp_ratio * embed_dim per gate/value branch. ViT-B/L/H+ use 4.0
+    # (timm default); the public DINOv3 ViT-7B checkpoint uses 2.0. Verified against timm
+    # 1.0.26 `vit_7b_patch16_dinov3` (eva.py), which sets `mlp_ratio=2` explicitly while H+
+    # leaves it at the EVA default of 4.0. With swiglu_align_to=64 this yields fc1_g/fc1_x of
+    # (8192, 4096) each, i.e. 2*dim, matching `fuse_timm_swiglu_fc1`'s expected fused shape.
+    # Threaded into the backbone build via _resolve_arch.
+    'mlp_ratio': {
+        'vit_b': 4.0,
+        'vit_l': 4.0,
+        'vit_h_plus': 4.0,
+        'vit_7b': 2.0,
     },
 }
 
@@ -104,8 +121,7 @@ class DINOv3BackboneConfig(BackboneConfig):
         default_value="vit_b",
         display_name="teacher backbone",
         description=(
-            "Teacher backbone name. TAO's DINOv3 supports vit_b (bring-up) and vit_l; "
-            "vit_h_plus is reserved for a later size step."
+            "Teacher backbone name. TAO's DINOv3 supports vit_b, vit_l, vit_h_plus and vit_7b."
         ),
         valid_options=",".join(SUPPORTED_BACKBONES),
         popular="no"
@@ -115,8 +131,7 @@ class DINOv3BackboneConfig(BackboneConfig):
         default_value="vit_b",
         display_name="student backbone",
         description=(
-            "Student backbone name. TAO's DINOv3 supports vit_b (bring-up) and vit_l; "
-            "vit_h_plus is reserved for a later size step."
+            "Student backbone name. TAO's DINOv3 supports vit_b, vit_l, vit_h_plus and vit_7b."
         ),
         valid_options=",".join(SUPPORTED_BACKBONES),
         popular="no"
