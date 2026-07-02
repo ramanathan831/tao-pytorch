@@ -12,7 +12,7 @@ DINOv3 requires:
 * **RoPE blocks.** ``self.blocks`` is rebuilt with :class:`RoPENestedTensorBlock`, which
   rotates Q/K of patch tokens before the xformers memory-efficient attention call.
 * **Per-type FFN.** The MLP class is passed in by the param map (``Mlp`` for ViT-B/L,
-  ``SwiGLUFused`` for ViT-H+/7B).
+  ``SwiGLUFusedFull`` for ViT-H+/7B).
 
 Everything else (iBOT mask token, register tokens, nested-tensor batching, FSDP wrapping,
 the multi-crop ``forward`` contract returning ``x_norm_clstoken`` / ``x_norm_patchtokens``)
@@ -30,12 +30,51 @@ from typing import Optional, Type
 
 import torch
 from torch import nn
-from timm.layers import Mlp
+from timm.layers import GluMlp, Mlp
 
 from nvidia_tao_pytorch.ssl.nvdinov2.model.vit import DinoV2VisionTransformer
 from nvidia_tao_pytorch.ssl.nvdinov2.model.layers.block import NestedTensorBlock
 from nvidia_tao_pytorch.ssl.dinov3.model.layers.block import RoPENestedTensorBlock
 from nvidia_tao_pytorch.ssl.dinov3.model.layers.rope import RoPE2D
+
+
+class SwiGLUFusedFull(GluMlp):
+    """Fused SwiGLU with the full inner width (no LLaMA-style 2/3 reduction).
+
+    DINOv3 ViT-H+/7B use SwiGLU whose inner width is ``mlp_ratio * dim`` per branch: the public
+    timm ``vit_*_patch16_dinov3`` checkpoints store ``fc1_g``/``fc1_x`` of that width and ``fc2``
+    of matching in-width. timm's ``Block`` passes ``hidden_features = int(dim * mlp_ratio)`` (one
+    branch's width); ``GluMlp`` expects the fused (gate + value) width, so it is doubled here and
+    the gating activation is SiLU. ``gate_last=False`` gives the fused layout ``[gate, value]``,
+    which the checkpoint remapper matches by concatenating ``fc1_g`` then ``fc1_x``.
+    """
+
+    def __init__(
+        self,
+        in_features,
+        hidden_features=None,
+        out_features=None,
+        act_layer=nn.GELU,
+        norm_layer=None,
+        bias=True,
+        drop=0.0,
+        **kwargs,
+    ):
+        """Build a full-width fused SwiGLU (gate-first), doubling the per-branch hidden width."""
+        out_features = out_features or in_features
+        hidden_features = hidden_features or in_features
+        hidden_features *= 2  # gate + value branches fused into one fc1 (no 2/3 reduction)
+        super().__init__(
+            in_features=in_features,
+            hidden_features=hidden_features,
+            out_features=out_features,
+            act_layer=nn.SiLU,  # SwiGLU gating non-linearity (ignore the ViT MLP act_layer)
+            norm_layer=norm_layer,
+            bias=bias,
+            drop=drop,
+            gate_last=False,
+            **kwargs,
+        )
 
 
 class DinoV3VisionTransformer(DinoV2VisionTransformer):
@@ -82,7 +121,7 @@ class DinoV3VisionTransformer(DinoV2VisionTransformer):
             drop_path_schedule (str): 'uniform' or 'linear' drop-path schedule.
             norm_layer (Type[nn.Module]): Normalization layer.
             act_layer (Type[nn.Module]): Activation layer.
-            mlp_layer (Type[nn.Module]): FFN class (Mlp for ViT-B/L, SwiGLUFused for H+/7B).
+            mlp_layer (Type[nn.Module]): FFN class (Mlp for ViT-B/L, SwiGLUFusedFull for H+/7B).
             use_custom_attention (bool): Whether to use memory_efficient_attention.
             **kwargs: Forwarded to :class:`DinoV2VisionTransformer` (e.g. img_size, patch_size).
         """

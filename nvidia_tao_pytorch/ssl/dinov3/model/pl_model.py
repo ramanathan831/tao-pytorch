@@ -31,20 +31,25 @@ from nvidia_tao_pytorch.core.tlt_logging import logging
 from nvidia_tao_pytorch.ssl.nvdinov2.model.head import DinoHead
 from nvidia_tao_pytorch.ssl.nvdinov2.model.loss import DinoV2Loss
 from nvidia_tao_pytorch.ssl.nvdinov2.model.pl_model import DinoV2PlModel
-from nvidia_tao_pytorch.ssl.nvdinov2.model.vit import SwiGLUFused
-from nvidia_tao_pytorch.ssl.dinov3.model.vit import DinoV3VisionTransformer
+from nvidia_tao_pytorch.ssl.dinov3.model.vit import DinoV3VisionTransformer, SwiGLUFusedFull
 from nvidia_tao_pytorch.ssl.dinov3.model.loss import GramLoss
-from nvidia_tao_pytorch.ssl.dinov3.utils.checkpoint_remap import timm_to_tao
+from nvidia_tao_pytorch.ssl.dinov3.utils.checkpoint_remap import timm_to_tao, fuse_timm_swiglu_fc1
 
 # Resolve the param-map FFN name to a layer class without importing torch in the config.
+# DINOv3 ViT-H+/7B use SwiGLUFusedFull (full inner width matching the public DINOv3 SwiGLU
+# checkpoint).
 _MLP_LAYERS = {
     "mlp": Mlp,
-    "swiglu": SwiGLUFused,
+    "swiglu": SwiGLUFusedFull,
 }
 
 
 class DinoV3PlModel(DinoV2PlModel):
     """PyTorch Lightning module for DINOv3 (inherits nvdinov2)."""
+
+    # Use the DINOv3 (patch-16) param map for the dim attributes the inherited
+    # DinoV2PlModel.__init__ reads (depth/num_heads/embed_dim/...).
+    param_map = v3_params.map_params
 
     def __init__(self, experiment_spec):
         """Initialize the DINOv3 Lightning module.
@@ -101,6 +106,7 @@ class DinoV3PlModel(DinoV2PlModel):
             "drop_path_schedule": mp['drop_path_schedule'][backbone_type],
             "num_classes": mp['num_classes'][backbone_type],
             "mlp_layer": _MLP_LAYERS[mp['mlp_layer'][backbone_type]],
+            "mlp_ratio": mp['mlp_ratio'][backbone_type],
         }
 
     def _make_backbone(self, arch):
@@ -123,6 +129,7 @@ class DinoV3PlModel(DinoV2PlModel):
             num_classes=arch["num_classes"],
             drop_path_rate=self.drop_path_rate,
             mlp_layer=arch["mlp_layer"],
+            mlp_ratio=arch["mlp_ratio"],
             norm_layer=nn.LayerNorm,
             # DINOv3 ViT-B/L use a standard GELU MLP with no QKV bias (timm
             # vit_base_patch16_dinov3 reference); these are the v3 ViT defaults.
@@ -367,6 +374,10 @@ class DinoV3PlModel(DinoV2PlModel):
             Tuple[dict, list]: ``(remapped, unmapped)`` where ``remapped`` is loadable into
             the backbone and ``unmapped`` lists source keys that had no shape-matching target.
         """
+        # Fuse split SwiGLU projections (fc1_g/fc1_x) into the fused fc1 for ViT-H+/7B before
+        # the per-key shape match; plain-MLP (ViT-B/L) checkpoints are unaffected.
+        timm_state_dict = fuse_timm_swiglu_fc1(timm_state_dict)
+
         remapped = {}
         unmapped = []
         for key, weight in timm_state_dict.items():
@@ -394,8 +405,10 @@ class DinoV3PlModel(DinoV2PlModel):
         missing_keys, unexpected_keys = self.student.backbone.load_state_dict(remapped, strict=False)
 
         if get_global_rank() == 0:
+            # Denominator is the post-fusion source-key count (remapped + unmapped); for SwiGLU
+            # backbones the split fc1_g/fc1_x are fused into one fc1 before this count.
             logging.info(
-                f"DINOv3 remap: loaded {len(remapped)}/{len(timm_state_dict)} checkpoint tensors "
+                f"DINOv3 remap: loaded {len(remapped)}/{len(remapped) + len(unmapped)} checkpoint tensors "
                 f"into the ViT backbone."
             )
             # ``mask_token`` is an iBOT parameter absent from the (inference) DINOv3 checkpoint;

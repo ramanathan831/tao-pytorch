@@ -18,6 +18,7 @@ is purely a key-naming translation; no weights are transformed.
 
 import os
 
+import timm
 import torch
 
 # Exact full-key renames, timm name -> TAO name.
@@ -43,6 +44,7 @@ _TIMM_MODEL_BY_ARCH = {
     "vit_b": "vit_base_patch16_dinov3",
     "vit_l": "vit_large_patch16_dinov3",
     "vit_h_plus": "vit_huge_plus_patch16_dinov3",
+    "vit_7b": "vit_7b_patch16_dinov3",
 }
 
 
@@ -94,6 +96,67 @@ def tao_to_timm(key):
         if key.endswith(src):
             return key[: -len(src)] + dst
     return key
+
+
+def fuse_timm_swiglu_fc1(timm_state_dict):
+    """Fuse timm's split SwiGLU projections into the ``GluMlp`` fused ``fc1``.
+
+    This is timm -> TAO path. Concatenates ``[fc1_g, fc1_x]`` into ``fc1`` for
+    both weight and bias. Plain-MLP checkpoints (ViT-B/L) pass through
+    unchanged.
+
+    Args:
+        timm_state_dict (dict): Source timm DINOv3 state dict.
+
+    Returns:
+        dict: A new state dict with split SwiGLU projections fused into ``fc1``.
+    """
+    fused = dict(timm_state_dict)
+    gate_weight_keys = [k for k in timm_state_dict if k.endswith("mlp.fc1_g.weight")]
+    for gate_weight_key in gate_weight_keys:
+        prefix = gate_weight_key[: -len("fc1_g.weight")]  # e.g. 'blocks.0.mlp.'
+        for suffix in ("weight", "bias"):
+            g_key = f"{prefix}fc1_g.{suffix}"
+            x_key = f"{prefix}fc1_x.{suffix}"
+            if g_key in fused and x_key in fused:
+                fused[f"{prefix}fc1.{suffix}"] = torch.cat(
+                    [fused.pop(g_key), fused.pop(x_key)], dim=0
+                ).contiguous()
+    return fused
+
+
+def split_fused_swiglu_fc1(timm_state_dict, reference):
+    """Split a fused ``GluMlp`` back into timm's ``mlp.fc1_g``/``mlp.fc1_x``.
+
+    This is TAO -> timm path. Splits each fused ``mlp.fc1`` into ``fc1_g`` and
+    ``fc1_x``. Applied only when the target ``reference`` actually uses split
+    projections (ViT-H+/7B); plain-MLP targets (ViT-B/L) keep ``fc1`` unchanged.
+
+    Args:
+        timm_state_dict (dict): State dict in timm naming, possibly with a fused
+            ``mlp.fc1``.
+        reference (Mapping): Target timm model state dict (or any key iterable);
+            its keys decide whether to split.
+
+    Returns:
+        dict: State dict with fused ``mlp.fc1`` split into
+            ``mlp.fc1_g``/``mlp.fc1_x`` when the target is SwiGLU; otherwise the
+            input unchanged.
+    """
+    if not any(k.endswith("mlp.fc1_g.weight") for k in reference):
+        return timm_state_dict
+    out = dict(timm_state_dict)
+    fused_weight_keys = [k for k in timm_state_dict if k.endswith("mlp.fc1.weight")]
+    for fused_weight_key in fused_weight_keys:
+        prefix = fused_weight_key[: -len("fc1.weight")]  # e.g. 'blocks.0.mlp.'
+        for suffix in ("weight", "bias"):
+            fused = out.pop(f"{prefix}fc1.{suffix}", None)
+            if fused is None:
+                continue
+            half = fused.shape[0] // 2
+            out[f"{prefix}fc1_g.{suffix}"] = fused[:half].contiguous()
+            out[f"{prefix}fc1_x.{suffix}"] = fused[half:].contiguous()
+    return out
 
 
 def load_checkpoint_file(path):
@@ -179,18 +242,21 @@ def remap_tao_backbone_to_timm(tao_state_dict):
     return out
 
 
-def validate_against_timm(timm_state_dict, timm_model_name="vit_base_patch16_dinov3"):
+def validate_against_timm(timm_state_dict, timm_model_name="vit_base_patch16_dinov3", reference=None):
     """Assert a state dict matches a fresh timm DINOv3 model's keys and shapes.
 
     Args:
         timm_state_dict (dict): Candidate state dict in timm naming.
         timm_model_name (str): timm model whose architecture defines the expected keys.
+        reference (dict, optional): Pre-built reference state dict (e.g. shared with
+            :func:`split_fused_swiglu_fc1`). When ``None``, a fresh timm model is created;
+            passing it avoids building large models (e.g. ViT-7B) twice.
 
     Raises:
         ValueError: If any key is missing, unexpected, or shape-mismatched.
     """
-    import timm
-    reference = timm.create_model(timm_model_name, pretrained=False).state_dict()
+    if reference is None:
+        reference = timm.create_model(timm_model_name, pretrained=False).state_dict()
     missing = sorted(set(reference) - set(timm_state_dict))
     unexpected = sorted(set(timm_state_dict) - set(reference))
     shape_mismatch = [
@@ -224,7 +290,13 @@ def convert_ssl_to_timm(src_path, dst_path, source="teacher", validate=True,
     raw = load_checkpoint_file(src_path)
     backbone_state_dict = extract_backbone_state_dict(raw, source=source)
     timm_state_dict = remap_tao_backbone_to_timm(backbone_state_dict)
+    reference = timm.create_model(timm_model_name, pretrained=False).state_dict()
+    timm_state_dict = split_fused_swiglu_fc1(timm_state_dict, reference)
     if validate:
-        validate_against_timm(timm_state_dict, timm_model_name=timm_model_name)
+        validate_against_timm(
+            timm_state_dict,
+            timm_model_name=timm_model_name,
+            reference=reference,
+        )
     save_state_dict(timm_state_dict, dst_path)
     return timm_state_dict

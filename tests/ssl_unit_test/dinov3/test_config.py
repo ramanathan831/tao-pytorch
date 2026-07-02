@@ -61,9 +61,10 @@ def test_param_map_vit_b():
     assert map_params["depth"]["vit_b"] == 12
     assert map_params["num_heads"]["vit_b"] == 12
     assert map_params["mlp_layer"]["vit_b"] == "mlp"
-    # ViT-H+ is reserved and uses SwiGLU.
+    # ViT-H+ and ViT-7B use SwiGLU.
     assert map_params["mlp_layer"]["vit_h_plus"] == "swiglu"
-    assert set(SUPPORTED_BACKBONES) == {"vit_b", "vit_l", "vit_h_plus"}
+    assert map_params["mlp_layer"]["vit_7b"] == "swiglu"
+    assert set(SUPPORTED_BACKBONES) == {"vit_b", "vit_l", "vit_h_plus", "vit_7b"}
 
 
 @pytest.mark.config
