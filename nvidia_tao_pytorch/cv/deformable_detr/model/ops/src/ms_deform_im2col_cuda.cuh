@@ -40,6 +40,22 @@ inline int GET_BLOCKS(const int N, const int num_threads)
   return (N + num_threads - 1) / num_threads;
 }
 
+// Deterministic grad_value scatter helper.
+// Fused path (DET==false): floating-point atomicAdd -> order-dependent -> NON-deterministic.
+// Deterministic path (DET==true): scale the contribution to a fixed-point int64 and
+//   atomicAdd on unsigned long long. Integer addition is associative, so the accumulated
+//   result is order-independent -> bitwise reproducible. A finalize pass rescales to float.
+// DET is a template parameter, so the branch is resolved at compile time (no runtime cost).
+#define MSDA_SCATTER_GRAD_VALUE(dst_float, dst_fixed, contrib)                                    \
+  do {                                                                                            \
+    if (DET) {                                                                                    \
+      atomicAdd((unsigned long long*)(dst_fixed),                                                 \
+                (unsigned long long)(int64_t)llrint((double)(contrib) * scale));                  \
+    } else {                                                                                      \
+      atomicAdd((dst_float), (contrib));                                                          \
+    }                                                                                             \
+  } while (0)
+
 
 template <typename scalar_t>
 __device__ scalar_t ms_deform_attn_im2col_bilinear(const scalar_t* &bottom_data, 
@@ -95,15 +111,17 @@ __device__ scalar_t ms_deform_attn_im2col_bilinear(const scalar_t* &bottom_data,
 }
 
 
-template <typename scalar_t>
-__device__ void ms_deform_attn_col2im_bilinear(const scalar_t* &bottom_data, 
+template <typename scalar_t, bool DET = false>
+__device__ void ms_deform_attn_col2im_bilinear(const scalar_t* &bottom_data,
                                                    const int &height, const int &width, const int &nheads, const int &channels,
                                                    const scalar_t &h, const scalar_t &w, const int &m, const int &c,
                                                    const scalar_t &top_grad,
                                                    const scalar_t &attn_weight,
-                                                   scalar_t* &grad_value, 
+                                                   scalar_t* &grad_value,
                                                    scalar_t* grad_sampling_loc,
-                                                   scalar_t* grad_attn_weight)
+                                                   scalar_t* grad_attn_weight,
+                                                   int64_t* grad_value_fixed = nullptr,
+                                                   double scale = 1.0)
 {
   const int h_low = floor(h);
   const int w_low = floor(w);
@@ -133,7 +151,7 @@ __device__ void ms_deform_attn_col2im_bilinear(const scalar_t* &bottom_data,
     v1 = bottom_data[ptr1];
     grad_h_weight -= hw * v1;
     grad_w_weight -= hh * v1;
-    atomicAdd(grad_value+ptr1, w1*top_grad_value);
+    MSDA_SCATTER_GRAD_VALUE(grad_value + ptr1, grad_value_fixed + ptr1, w1 * top_grad_value);
   }
   scalar_t v2 = 0;
   if (h_low >= 0 && w_high <= width - 1)
@@ -142,7 +160,7 @@ __device__ void ms_deform_attn_col2im_bilinear(const scalar_t* &bottom_data,
     v2 = bottom_data[ptr2];
     grad_h_weight -= lw * v2;
     grad_w_weight += hh * v2;
-    atomicAdd(grad_value+ptr2, w2*top_grad_value);
+    MSDA_SCATTER_GRAD_VALUE(grad_value + ptr2, grad_value_fixed + ptr2, w2 * top_grad_value);
   }
   scalar_t v3 = 0;
   if (h_high <= height - 1 && w_low >= 0)
@@ -151,7 +169,7 @@ __device__ void ms_deform_attn_col2im_bilinear(const scalar_t* &bottom_data,
     v3 = bottom_data[ptr3];
     grad_h_weight += hw * v3;
     grad_w_weight -= lh * v3;
-    atomicAdd(grad_value+ptr3, w3*top_grad_value); 
+    MSDA_SCATTER_GRAD_VALUE(grad_value + ptr3, grad_value_fixed + ptr3, w3 * top_grad_value);
   }
   scalar_t v4 = 0;
   if (h_high <= height - 1 && w_high <= width - 1)
@@ -160,7 +178,7 @@ __device__ void ms_deform_attn_col2im_bilinear(const scalar_t* &bottom_data,
     v4 = bottom_data[ptr4];
     grad_h_weight += lw * v4;
     grad_w_weight += lh * v4;
-    atomicAdd(grad_value+ptr4, w4*top_grad_value);
+    MSDA_SCATTER_GRAD_VALUE(grad_value + ptr4, grad_value_fixed + ptr4, w4 * top_grad_value);
   }
 
   const scalar_t val = (w1 * v1 + w2 * v2 + w3 * v3 + w4 * v4);
@@ -170,15 +188,17 @@ __device__ void ms_deform_attn_col2im_bilinear(const scalar_t* &bottom_data,
 }
 
 
-template <typename scalar_t>
-__device__ void ms_deform_attn_col2im_bilinear_gm(const scalar_t* &bottom_data, 
+template <typename scalar_t, bool DET = false>
+__device__ void ms_deform_attn_col2im_bilinear_gm(const scalar_t* &bottom_data,
                                                    const int &height, const int &width, const int &nheads, const int &channels,
                                                    const scalar_t &h, const scalar_t &w, const int &m, const int &c,
                                                    const scalar_t &top_grad,
                                                    const scalar_t &attn_weight,
-                                                   scalar_t* &grad_value, 
+                                                   scalar_t* &grad_value,
                                                    scalar_t* grad_sampling_loc,
-                                                   scalar_t* grad_attn_weight)
+                                                   scalar_t* grad_attn_weight,
+                                                   int64_t* grad_value_fixed = nullptr,
+                                                   double scale = 1.0)
 {
   const int h_low = floor(h);
   const int w_low = floor(w);
@@ -208,7 +228,7 @@ __device__ void ms_deform_attn_col2im_bilinear_gm(const scalar_t* &bottom_data,
     v1 = bottom_data[ptr1];
     grad_h_weight -= hw * v1;
     grad_w_weight -= hh * v1;
-    atomicAdd(grad_value+ptr1, w1*top_grad_value);
+    MSDA_SCATTER_GRAD_VALUE(grad_value + ptr1, grad_value_fixed + ptr1, w1 * top_grad_value);
   }
   scalar_t v2 = 0;
   if (h_low >= 0 && w_high <= width - 1)
@@ -217,7 +237,7 @@ __device__ void ms_deform_attn_col2im_bilinear_gm(const scalar_t* &bottom_data,
     v2 = bottom_data[ptr2];
     grad_h_weight -= lw * v2;
     grad_w_weight += hh * v2;
-    atomicAdd(grad_value+ptr2, w2*top_grad_value);
+    MSDA_SCATTER_GRAD_VALUE(grad_value + ptr2, grad_value_fixed + ptr2, w2 * top_grad_value);
   }
   scalar_t v3 = 0;
   if (h_high <= height - 1 && w_low >= 0)
@@ -226,7 +246,7 @@ __device__ void ms_deform_attn_col2im_bilinear_gm(const scalar_t* &bottom_data,
     v3 = bottom_data[ptr3];
     grad_h_weight += hw * v3;
     grad_w_weight -= lh * v3;
-    atomicAdd(grad_value+ptr3, w3*top_grad_value); 
+    MSDA_SCATTER_GRAD_VALUE(grad_value + ptr3, grad_value_fixed + ptr3, w3 * top_grad_value);
   }
   scalar_t v4 = 0;
   if (h_high <= height - 1 && w_high <= width - 1)
@@ -235,11 +255,14 @@ __device__ void ms_deform_attn_col2im_bilinear_gm(const scalar_t* &bottom_data,
     v4 = bottom_data[ptr4];
     grad_h_weight += lw * v4;
     grad_w_weight += lh * v4;
-    atomicAdd(grad_value+ptr4, w4*top_grad_value);
+    MSDA_SCATTER_GRAD_VALUE(grad_value + ptr4, grad_value_fixed + ptr4, w4 * top_grad_value);
   }
 
   const scalar_t val = (w1 * v1 + w2 * v2 + w3 * v3 + w4 * v4);
-  atomicAdd(grad_attn_weight, top_grad * val); 
+  // NOTE: for channels>1024 (gm/multi_blocks dispatch) grad_sampling_loc/grad_attn_weight
+  // remain FP-atomic and are NOT made deterministic here (never reached at real model shapes,
+  // where channels-per-head <= 64). grad_value IS deterministic via the fixed-point scatter above.
+  atomicAdd(grad_attn_weight, top_grad * val);
   atomicAdd(grad_sampling_loc, width * grad_w_weight * top_grad_value);
   atomicAdd(grad_sampling_loc + 1, height * grad_h_weight * top_grad_value);
 }
@@ -309,24 +332,26 @@ __global__ void ms_deformable_im2col_gpu_kernel(const int n,
   }
 }
 
-template <typename scalar_t, unsigned int blockSize>
+template <typename scalar_t, unsigned int blockSize, bool DET = false>
 __global__ void ms_deformable_col2im_gpu_kernel_shm_blocksize_aware_reduce_v1(const int n,
                                                 const scalar_t *grad_col,
                                                 const scalar_t *data_value,
                                                 const int64_t *data_spatial_shapes,
-                                                const int64_t *data_level_start_index, 
+                                                const int64_t *data_level_start_index,
                                                 const scalar_t *data_sampling_loc,
                                                 const scalar_t *data_attn_weight,
-                                                const int batch_size, 
-                                                const int spatial_size, 
+                                                const int batch_size,
+                                                const int spatial_size,
                                                 const int num_heads,
-                                                const int channels, 
+                                                const int channels,
                                                 const int num_levels,
                                                 const int num_query,
                                                 const int num_point,
                                                 scalar_t *grad_value,
                                                 scalar_t *grad_sampling_loc,
-                                                scalar_t *grad_attn_weight)
+                                                scalar_t *grad_attn_weight,
+                                                int64_t *grad_value_fixed = nullptr,
+                                                double scale = 1.0)
 {
   CUDA_KERNEL_LOOP(index, n)
   {
@@ -364,6 +389,7 @@ __global__ void ms_deformable_col2im_gpu_kernel_shm_blocksize_aware_reduce_v1(co
       const int value_ptr_offset = data_value_ptr_init_offset + level_start_id * qid_stride;
       const scalar_t *data_value_ptr = data_value + value_ptr_offset;
       scalar_t *grad_value_ptr = grad_value + value_ptr_offset;
+      int64_t *grad_value_fixed_ptr = DET ? (grad_value_fixed + value_ptr_offset) : nullptr;
 
       for (int p_col=0; p_col < num_point; ++p_col)
       {
@@ -378,10 +404,11 @@ __global__ void ms_deformable_col2im_gpu_kernel_shm_blocksize_aware_reduce_v1(co
         *(cache_grad_attn_weight+threadIdx.x)=0;
         if (h_im > -1 && w_im > -1 && h_im < spatial_h && w_im < spatial_w)
         {
-          ms_deform_attn_col2im_bilinear(
+          ms_deform_attn_col2im_bilinear<scalar_t, DET>(
             data_value_ptr, spatial_h, spatial_w, num_heads, channels, h_im, w_im, m_col, c_col,
-            top_grad, weight, grad_value_ptr, 
-            cache_grad_sampling_loc+(threadIdx.x << 1), cache_grad_attn_weight+threadIdx.x);
+            top_grad, weight, grad_value_ptr,
+            cache_grad_sampling_loc+(threadIdx.x << 1), cache_grad_attn_weight+threadIdx.x,
+            grad_value_fixed_ptr, scale);
         }
         
         __syncthreads();
@@ -414,7 +441,7 @@ __global__ void ms_deformable_col2im_gpu_kernel_shm_blocksize_aware_reduce_v1(co
 }
 
 
-template <typename scalar_t, unsigned int blockSize>
+template <typename scalar_t, unsigned int blockSize, bool DET = false>
 __global__ void ms_deformable_col2im_gpu_kernel_shm_blocksize_aware_reduce_v2(const int n,
                                                 const scalar_t *grad_col,
                                                 const scalar_t *data_value,
@@ -431,7 +458,9 @@ __global__ void ms_deformable_col2im_gpu_kernel_shm_blocksize_aware_reduce_v2(co
                                                 const int num_point,
                                                 scalar_t *grad_value,
                                                 scalar_t *grad_sampling_loc,
-                                                scalar_t *grad_attn_weight)
+                                                scalar_t *grad_attn_weight,
+                                                int64_t *grad_value_fixed = nullptr,
+                                                double scale = 1.0)
 {
   CUDA_KERNEL_LOOP(index, n)
   {
@@ -469,6 +498,7 @@ __global__ void ms_deformable_col2im_gpu_kernel_shm_blocksize_aware_reduce_v2(co
       const int value_ptr_offset = data_value_ptr_init_offset + level_start_id * qid_stride;
       const scalar_t *data_value_ptr = data_value + value_ptr_offset;
       scalar_t *grad_value_ptr = grad_value + value_ptr_offset;
+      int64_t *grad_value_fixed_ptr = DET ? (grad_value_fixed + value_ptr_offset) : nullptr;
 
       for (int p_col=0; p_col < num_point; ++p_col)
       {
@@ -483,10 +513,11 @@ __global__ void ms_deformable_col2im_gpu_kernel_shm_blocksize_aware_reduce_v2(co
         *(cache_grad_attn_weight+threadIdx.x)=0;
         if (h_im > -1 && w_im > -1 && h_im < spatial_h && w_im < spatial_w)
         {
-          ms_deform_attn_col2im_bilinear(
+          ms_deform_attn_col2im_bilinear<scalar_t, DET>(
             data_value_ptr, spatial_h, spatial_w, num_heads, channels, h_im, w_im, m_col, c_col,
-            top_grad, weight, grad_value_ptr, 
-            cache_grad_sampling_loc+(threadIdx.x << 1), cache_grad_attn_weight+threadIdx.x);
+            top_grad, weight, grad_value_ptr,
+            cache_grad_sampling_loc+(threadIdx.x << 1), cache_grad_attn_weight+threadIdx.x,
+            grad_value_fixed_ptr, scale);
         }
         
         __syncthreads();
@@ -521,7 +552,7 @@ __global__ void ms_deformable_col2im_gpu_kernel_shm_blocksize_aware_reduce_v2(co
 }
 
 
-template <typename scalar_t>
+template <typename scalar_t, bool DET = false>
 __global__ void ms_deformable_col2im_gpu_kernel_shm_reduce_v1(const int n,
                                                 const scalar_t *grad_col,
                                                 const scalar_t *data_value,
@@ -538,7 +569,9 @@ __global__ void ms_deformable_col2im_gpu_kernel_shm_reduce_v1(const int n,
                                                 const int num_point,
                                                 scalar_t *grad_value,
                                                 scalar_t *grad_sampling_loc,
-                                                scalar_t *grad_attn_weight)
+                                                scalar_t *grad_attn_weight,
+                                                int64_t *grad_value_fixed = nullptr,
+                                                double scale = 1.0)
 {
   CUDA_KERNEL_LOOP(index, n)
   {
@@ -577,6 +610,7 @@ __global__ void ms_deformable_col2im_gpu_kernel_shm_reduce_v1(const int n,
       const int value_ptr_offset = data_value_ptr_init_offset + level_start_id * qid_stride;
       const scalar_t *data_value_ptr = data_value + value_ptr_offset;
       scalar_t *grad_value_ptr = grad_value + value_ptr_offset;
+      int64_t *grad_value_fixed_ptr = DET ? (grad_value_fixed + value_ptr_offset) : nullptr;
 
       for (int p_col=0; p_col < num_point; ++p_col)
       {
@@ -591,10 +625,11 @@ __global__ void ms_deformable_col2im_gpu_kernel_shm_reduce_v1(const int n,
         *(cache_grad_attn_weight+threadIdx.x)=0;
         if (h_im > -1 && w_im > -1 && h_im < spatial_h && w_im < spatial_w)
         {
-          ms_deform_attn_col2im_bilinear(
+          ms_deform_attn_col2im_bilinear<scalar_t, DET>(
             data_value_ptr, spatial_h, spatial_w, num_heads, channels, h_im, w_im, m_col, c_col,
-            top_grad, weight, grad_value_ptr, 
-            cache_grad_sampling_loc+(threadIdx.x << 1), cache_grad_attn_weight+threadIdx.x);
+            top_grad, weight, grad_value_ptr,
+            cache_grad_sampling_loc+(threadIdx.x << 1), cache_grad_attn_weight+threadIdx.x,
+            grad_value_fixed_ptr, scale);
         }
         
         __syncthreads();
@@ -626,7 +661,7 @@ __global__ void ms_deformable_col2im_gpu_kernel_shm_reduce_v1(const int n,
   }
 }
 
-template <typename scalar_t>
+template <typename scalar_t, bool DET = false>
 __global__ void ms_deformable_col2im_gpu_kernel_shm_reduce_v2(const int n,
                                                 const scalar_t *grad_col,
                                                 const scalar_t *data_value,
@@ -643,7 +678,9 @@ __global__ void ms_deformable_col2im_gpu_kernel_shm_reduce_v2(const int n,
                                                 const int num_point,
                                                 scalar_t *grad_value,
                                                 scalar_t *grad_sampling_loc,
-                                                scalar_t *grad_attn_weight)
+                                                scalar_t *grad_attn_weight,
+                                                int64_t *grad_value_fixed = nullptr,
+                                                double scale = 1.0)
 {
   CUDA_KERNEL_LOOP(index, n)
   {
@@ -682,6 +719,7 @@ __global__ void ms_deformable_col2im_gpu_kernel_shm_reduce_v2(const int n,
       const int value_ptr_offset = data_value_ptr_init_offset + level_start_id * qid_stride;
       const scalar_t *data_value_ptr = data_value + value_ptr_offset;
       scalar_t *grad_value_ptr = grad_value + value_ptr_offset;
+      int64_t *grad_value_fixed_ptr = DET ? (grad_value_fixed + value_ptr_offset) : nullptr;
 
       for (int p_col=0; p_col < num_point; ++p_col)
       {
@@ -696,10 +734,11 @@ __global__ void ms_deformable_col2im_gpu_kernel_shm_reduce_v2(const int n,
         *(cache_grad_attn_weight+threadIdx.x)=0;
         if (h_im > -1 && w_im > -1 && h_im < spatial_h && w_im < spatial_w)
         {
-          ms_deform_attn_col2im_bilinear(
+          ms_deform_attn_col2im_bilinear<scalar_t, DET>(
             data_value_ptr, spatial_h, spatial_w, num_heads, channels, h_im, w_im, m_col, c_col,
-            top_grad, weight, grad_value_ptr, 
-            cache_grad_sampling_loc+(threadIdx.x << 1), cache_grad_attn_weight+threadIdx.x);
+            top_grad, weight, grad_value_ptr,
+            cache_grad_sampling_loc+(threadIdx.x << 1), cache_grad_attn_weight+threadIdx.x,
+            grad_value_fixed_ptr, scale);
         }
         
         __syncthreads();
@@ -739,7 +778,7 @@ __global__ void ms_deformable_col2im_gpu_kernel_shm_reduce_v2(const int n,
   }
 }
 
-template <typename scalar_t>
+template <typename scalar_t, bool DET = false>
 __global__ void ms_deformable_col2im_gpu_kernel_shm_reduce_v2_multi_blocks(const int n,
                                                 const scalar_t *grad_col,
                                                 const scalar_t *data_value,
@@ -756,7 +795,9 @@ __global__ void ms_deformable_col2im_gpu_kernel_shm_reduce_v2_multi_blocks(const
                                                 const int num_point,
                                                 scalar_t *grad_value,
                                                 scalar_t *grad_sampling_loc,
-                                                scalar_t *grad_attn_weight)
+                                                scalar_t *grad_attn_weight,
+                                                int64_t *grad_value_fixed = nullptr,
+                                                double scale = 1.0)
 {
   CUDA_KERNEL_LOOP(index, n)
   {
@@ -795,6 +836,7 @@ __global__ void ms_deformable_col2im_gpu_kernel_shm_reduce_v2_multi_blocks(const
       const int value_ptr_offset = data_value_ptr_init_offset + level_start_id * qid_stride;
       const scalar_t *data_value_ptr = data_value + value_ptr_offset;
       scalar_t *grad_value_ptr = grad_value + value_ptr_offset;
+      int64_t *grad_value_fixed_ptr = DET ? (grad_value_fixed + value_ptr_offset) : nullptr;
 
       for (int p_col=0; p_col < num_point; ++p_col)
       {
@@ -809,10 +851,11 @@ __global__ void ms_deformable_col2im_gpu_kernel_shm_reduce_v2_multi_blocks(const
         *(cache_grad_attn_weight+threadIdx.x)=0;
         if (h_im > -1 && w_im > -1 && h_im < spatial_h && w_im < spatial_w)
         {
-          ms_deform_attn_col2im_bilinear(
+          ms_deform_attn_col2im_bilinear<scalar_t, DET>(
             data_value_ptr, spatial_h, spatial_w, num_heads, channels, h_im, w_im, m_col, c_col,
-            top_grad, weight, grad_value_ptr, 
-            cache_grad_sampling_loc+(threadIdx.x << 1), cache_grad_attn_weight+threadIdx.x);
+            top_grad, weight, grad_value_ptr,
+            cache_grad_sampling_loc+(threadIdx.x << 1), cache_grad_attn_weight+threadIdx.x,
+            grad_value_fixed_ptr, scale);
         }
         
         __syncthreads();
@@ -853,7 +896,7 @@ __global__ void ms_deformable_col2im_gpu_kernel_shm_reduce_v2_multi_blocks(const
 }
 
 
-template <typename scalar_t>
+template <typename scalar_t, bool DET = false>
 __global__ void ms_deformable_col2im_gpu_kernel_gm(const int n,
                                                 const scalar_t *grad_col,
                                                 const scalar_t *data_value,
@@ -870,7 +913,9 @@ __global__ void ms_deformable_col2im_gpu_kernel_gm(const int n,
                                                 const int num_point,
                                                 scalar_t *grad_value,
                                                 scalar_t *grad_sampling_loc,
-                                                scalar_t *grad_attn_weight)
+                                                scalar_t *grad_attn_weight,
+                                                int64_t *grad_value_fixed = nullptr,
+                                                double scale = 1.0)
 {
   CUDA_KERNEL_LOOP(index, n)
   {
@@ -905,6 +950,7 @@ __global__ void ms_deformable_col2im_gpu_kernel_gm(const int n,
       const int value_ptr_offset = data_value_ptr_init_offset + level_start_id * qid_stride;
       const scalar_t *data_value_ptr = data_value + value_ptr_offset;
       scalar_t *grad_value_ptr = grad_value + value_ptr_offset;
+      int64_t *grad_value_fixed_ptr = DET ? (grad_value_fixed + value_ptr_offset) : nullptr;
 
       for (int p_col=0; p_col < num_point; ++p_col)
       {
@@ -916,10 +962,11 @@ __global__ void ms_deformable_col2im_gpu_kernel_gm(const int n,
         const scalar_t w_im = loc_w * spatial_w - 0.5;
         if (h_im > -1 && w_im > -1 && h_im < spatial_h && w_im < spatial_w)
         {
-          ms_deform_attn_col2im_bilinear_gm(
+          ms_deform_attn_col2im_bilinear_gm<scalar_t, DET>(
             data_value_ptr, spatial_h, spatial_w, num_heads, channels, h_im, w_im, m_col, c_col,
-            top_grad, weight, grad_value_ptr, 
-            grad_sampling_loc, grad_attn_weight);
+            top_grad, weight, grad_value_ptr,
+            grad_sampling_loc, grad_attn_weight,
+            grad_value_fixed_ptr, scale);
         }
         data_weight_ptr += 1;
         data_loc_w_ptr += 2;
@@ -964,7 +1011,7 @@ void ms_deformable_im2col_cuda(cudaStream_t stream,
 
 }
 
-template <typename scalar_t>
+template <typename scalar_t, bool DET = false>
 void ms_deformable_col2im_cuda(cudaStream_t stream,
                               const scalar_t* grad_col,
                               const scalar_t* data_value,
@@ -972,16 +1019,18 @@ void ms_deformable_col2im_cuda(cudaStream_t stream,
                               const int64_t * data_level_start_index,
                               const scalar_t * data_sampling_loc,
                               const scalar_t * data_attn_weight,
-                              const int batch_size, 
-                              const int spatial_size, 
+                              const int batch_size,
+                              const int spatial_size,
                               const int num_heads,
-                              const int channels, 
+                              const int channels,
                               const int num_levels,
                               const int num_query,
-                              const int num_point, 
+                              const int num_point,
                               scalar_t* grad_value,
                               scalar_t* grad_sampling_loc,
-                              scalar_t* grad_attn_weight)
+                              scalar_t* grad_attn_weight,
+                              int64_t* grad_value_fixed = nullptr,
+                              double scale = 1.0)
 {
   const int num_threads = (channels > CUDA_NUM_THREADS)?CUDA_NUM_THREADS:channels;
   const int num_kernels = batch_size * num_query * num_heads * channels;
@@ -990,7 +1039,7 @@ void ms_deformable_col2im_cuda(cudaStream_t stream,
   {
     if ((channels & 1023) == 0)
     {
-      ms_deformable_col2im_gpu_kernel_shm_reduce_v2_multi_blocks<scalar_t>
+      ms_deformable_col2im_gpu_kernel_shm_reduce_v2_multi_blocks<scalar_t, DET>
           <<<GET_BLOCKS(num_actual_kernels, num_threads), num_threads,
               num_threads*3*sizeof(scalar_t), stream>>>(
                         num_kernels, 
@@ -1009,11 +1058,13 @@ void ms_deformable_col2im_cuda(cudaStream_t stream,
                         num_point,
                         grad_value,
                         grad_sampling_loc,
-                        grad_attn_weight);
+                        grad_attn_weight,
+                        grad_value_fixed,
+                        scale);
     }
     else
     {
-      ms_deformable_col2im_gpu_kernel_gm<scalar_t>
+      ms_deformable_col2im_gpu_kernel_gm<scalar_t, DET>
         <<<GET_BLOCKS(num_actual_kernels, num_threads), num_threads,
             0, stream>>>(
                       num_kernels, 
@@ -1032,14 +1083,16 @@ void ms_deformable_col2im_cuda(cudaStream_t stream,
                       num_point,
                       grad_value,
                       grad_sampling_loc,
-                      grad_attn_weight);
+                      grad_attn_weight,
+                      grad_value_fixed,
+                      scale);
     }
   }
   else{
     switch(channels)
     {
       case 1:
-        ms_deformable_col2im_gpu_kernel_shm_blocksize_aware_reduce_v1<scalar_t, 1>
+        ms_deformable_col2im_gpu_kernel_shm_blocksize_aware_reduce_v1<scalar_t, 1, DET>
         <<<GET_BLOCKS(num_actual_kernels, num_threads), num_threads,
             0, stream>>>(
                       num_kernels, 
@@ -1058,10 +1111,12 @@ void ms_deformable_col2im_cuda(cudaStream_t stream,
                       num_point,
                       grad_value,
                       grad_sampling_loc,
-                      grad_attn_weight);
+                      grad_attn_weight,
+                      grad_value_fixed,
+                      scale);
         break;
       case 2:
-        ms_deformable_col2im_gpu_kernel_shm_blocksize_aware_reduce_v1<scalar_t, 2>
+        ms_deformable_col2im_gpu_kernel_shm_blocksize_aware_reduce_v1<scalar_t, 2, DET>
         <<<GET_BLOCKS(num_actual_kernels, num_threads), num_threads,
             0, stream>>>(
                       num_kernels, 
@@ -1080,10 +1135,12 @@ void ms_deformable_col2im_cuda(cudaStream_t stream,
                       num_point,
                       grad_value,
                       grad_sampling_loc,
-                      grad_attn_weight);
+                      grad_attn_weight,
+                      grad_value_fixed,
+                      scale);
         break;
       case 4:
-        ms_deformable_col2im_gpu_kernel_shm_blocksize_aware_reduce_v1<scalar_t, 4>
+        ms_deformable_col2im_gpu_kernel_shm_blocksize_aware_reduce_v1<scalar_t, 4, DET>
         <<<GET_BLOCKS(num_actual_kernels, num_threads), num_threads,
             0, stream>>>(
                       num_kernels, 
@@ -1102,10 +1159,12 @@ void ms_deformable_col2im_cuda(cudaStream_t stream,
                       num_point,
                       grad_value,
                       grad_sampling_loc,
-                      grad_attn_weight);
+                      grad_attn_weight,
+                      grad_value_fixed,
+                      scale);
         break;
       case 8:
-        ms_deformable_col2im_gpu_kernel_shm_blocksize_aware_reduce_v1<scalar_t, 8>
+        ms_deformable_col2im_gpu_kernel_shm_blocksize_aware_reduce_v1<scalar_t, 8, DET>
         <<<GET_BLOCKS(num_actual_kernels, num_threads), num_threads,
             0, stream>>>(
                       num_kernels, 
@@ -1124,10 +1183,12 @@ void ms_deformable_col2im_cuda(cudaStream_t stream,
                       num_point,
                       grad_value,
                       grad_sampling_loc,
-                      grad_attn_weight);
+                      grad_attn_weight,
+                      grad_value_fixed,
+                      scale);
         break;
       case 16:
-        ms_deformable_col2im_gpu_kernel_shm_blocksize_aware_reduce_v1<scalar_t, 16>
+        ms_deformable_col2im_gpu_kernel_shm_blocksize_aware_reduce_v1<scalar_t, 16, DET>
         <<<GET_BLOCKS(num_actual_kernels, num_threads), num_threads,
             0, stream>>>(
                       num_kernels, 
@@ -1146,10 +1207,12 @@ void ms_deformable_col2im_cuda(cudaStream_t stream,
                       num_point,
                       grad_value,
                       grad_sampling_loc,
-                      grad_attn_weight);
+                      grad_attn_weight,
+                      grad_value_fixed,
+                      scale);
         break;
       case 32:
-        ms_deformable_col2im_gpu_kernel_shm_blocksize_aware_reduce_v1<scalar_t, 32>
+        ms_deformable_col2im_gpu_kernel_shm_blocksize_aware_reduce_v1<scalar_t, 32, DET>
         <<<GET_BLOCKS(num_actual_kernels, num_threads), num_threads,
             0, stream>>>(
                       num_kernels, 
@@ -1168,10 +1231,12 @@ void ms_deformable_col2im_cuda(cudaStream_t stream,
                       num_point,
                       grad_value,
                       grad_sampling_loc,
-                      grad_attn_weight);
+                      grad_attn_weight,
+                      grad_value_fixed,
+                      scale);
         break;
       case 64:
-        ms_deformable_col2im_gpu_kernel_shm_blocksize_aware_reduce_v2<scalar_t, 64>
+        ms_deformable_col2im_gpu_kernel_shm_blocksize_aware_reduce_v2<scalar_t, 64, DET>
         <<<GET_BLOCKS(num_actual_kernels, num_threads), num_threads,
             0, stream>>>(
                       num_kernels, 
@@ -1190,10 +1255,12 @@ void ms_deformable_col2im_cuda(cudaStream_t stream,
                       num_point,
                       grad_value,
                       grad_sampling_loc,
-                      grad_attn_weight);
+                      grad_attn_weight,
+                      grad_value_fixed,
+                      scale);
         break;
       case 128:
-        ms_deformable_col2im_gpu_kernel_shm_blocksize_aware_reduce_v2<scalar_t, 128>
+        ms_deformable_col2im_gpu_kernel_shm_blocksize_aware_reduce_v2<scalar_t, 128, DET>
         <<<GET_BLOCKS(num_actual_kernels, num_threads), num_threads,
             0, stream>>>(
                       num_kernels, 
@@ -1212,10 +1279,12 @@ void ms_deformable_col2im_cuda(cudaStream_t stream,
                       num_point,
                       grad_value,
                       grad_sampling_loc,
-                      grad_attn_weight);
+                      grad_attn_weight,
+                      grad_value_fixed,
+                      scale);
         break;
       case 256:
-        ms_deformable_col2im_gpu_kernel_shm_blocksize_aware_reduce_v2<scalar_t, 256>
+        ms_deformable_col2im_gpu_kernel_shm_blocksize_aware_reduce_v2<scalar_t, 256, DET>
         <<<GET_BLOCKS(num_actual_kernels, num_threads), num_threads,
             0, stream>>>(
                       num_kernels, 
@@ -1234,10 +1303,12 @@ void ms_deformable_col2im_cuda(cudaStream_t stream,
                       num_point,
                       grad_value,
                       grad_sampling_loc,
-                      grad_attn_weight);
+                      grad_attn_weight,
+                      grad_value_fixed,
+                      scale);
         break;
       case 512:
-        ms_deformable_col2im_gpu_kernel_shm_blocksize_aware_reduce_v2<scalar_t, 512>
+        ms_deformable_col2im_gpu_kernel_shm_blocksize_aware_reduce_v2<scalar_t, 512, DET>
         <<<GET_BLOCKS(num_actual_kernels, num_threads), num_threads,
             0, stream>>>(
                       num_kernels, 
@@ -1256,10 +1327,12 @@ void ms_deformable_col2im_cuda(cudaStream_t stream,
                       num_point,
                       grad_value,
                       grad_sampling_loc,
-                      grad_attn_weight);
+                      grad_attn_weight,
+                      grad_value_fixed,
+                      scale);
         break;
       case 1024:
-        ms_deformable_col2im_gpu_kernel_shm_blocksize_aware_reduce_v2<scalar_t, 1024>
+        ms_deformable_col2im_gpu_kernel_shm_blocksize_aware_reduce_v2<scalar_t, 1024, DET>
         <<<GET_BLOCKS(num_actual_kernels, num_threads), num_threads,
             0, stream>>>(
                       num_kernels, 
@@ -1278,12 +1351,14 @@ void ms_deformable_col2im_cuda(cudaStream_t stream,
                       num_point,
                       grad_value,
                       grad_sampling_loc,
-                      grad_attn_weight);
+                      grad_attn_weight,
+                      grad_value_fixed,
+                      scale);
         break;
       default:
         if (channels < 64)
         {
-          ms_deformable_col2im_gpu_kernel_shm_reduce_v1<scalar_t>
+          ms_deformable_col2im_gpu_kernel_shm_reduce_v1<scalar_t, DET>
           <<<GET_BLOCKS(num_actual_kernels, num_threads), num_threads,
               num_threads*3*sizeof(scalar_t), stream>>>(
                         num_kernels, 
@@ -1302,11 +1377,13 @@ void ms_deformable_col2im_cuda(cudaStream_t stream,
                         num_point,
                         grad_value,
                         grad_sampling_loc,
-                        grad_attn_weight);
+                        grad_attn_weight,
+                        grad_value_fixed,
+                        scale);
         }
         else
         {
-          ms_deformable_col2im_gpu_kernel_shm_reduce_v2<scalar_t>
+          ms_deformable_col2im_gpu_kernel_shm_reduce_v2<scalar_t, DET>
           <<<GET_BLOCKS(num_actual_kernels, num_threads), num_threads,
               num_threads*3*sizeof(scalar_t), stream>>>(
                         num_kernels, 
@@ -1325,7 +1402,9 @@ void ms_deformable_col2im_cuda(cudaStream_t stream,
                         num_point,
                         grad_value,
                         grad_sampling_loc,
-                        grad_attn_weight);
+                        grad_attn_weight,
+                        grad_value_fixed,
+                        scale);
         }
     }
   }
@@ -1335,4 +1414,36 @@ void ms_deformable_col2im_cuda(cudaStream_t stream,
     printf("error in ms_deformable_col2im_cuda: %s\n", cudaGetErrorString(err));
   }
 
+}
+
+
+// Finalize pass for the deterministic backward: convert the int64 fixed-point
+// grad_value accumulator back to floating point (grad_value[i] = fixed[i] / scale).
+template <typename scalar_t>
+__global__ void ms_deform_fixed_to_float_kernel(const int n,
+                                                const int64_t* grad_value_fixed,
+                                                scalar_t* grad_value,
+                                                const double scale)
+{
+  CUDA_KERNEL_LOOP(index, n)
+  {
+    grad_value[index] = (scalar_t)((double)grad_value_fixed[index] / scale);
+  }
+}
+
+template <typename scalar_t>
+void ms_deform_fixed_to_float_cuda(cudaStream_t stream,
+                                   const int64_t* grad_value_fixed,
+                                   scalar_t* grad_value,
+                                   const int num_elements,
+                                   const double scale)
+{
+  ms_deform_fixed_to_float_kernel<scalar_t>
+      <<<GET_BLOCKS(num_elements, CUDA_NUM_THREADS), CUDA_NUM_THREADS, 0, stream>>>(
+          num_elements, grad_value_fixed, grad_value, scale);
+  cudaError_t err = cudaGetLastError();
+  if (err != cudaSuccess)
+  {
+    printf("error in ms_deform_fixed_to_float_cuda: %s\n", cudaGetErrorString(err));
+  }
 }
