@@ -1,16 +1,5 @@
-# Copyright (c) 2026, NVIDIA CORPORATION.  All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 
 """CLIP Data Module for training and retrieval-based validation."""
 
@@ -71,8 +60,15 @@ class CLIPDataModule(pl.LightningDataModule):
         train_type = self.dataset_config.train.type
 
         if train_type == 'custom':
+            train_datasets = self.dataset_config.train.datasets
+            balance_query_types = getattr(
+                self.dataset_config.train, 'balance_query_types', False
+            )
+            unique_caption_per_batch = getattr(
+                self.dataset_config.train, 'unique_caption_per_batch', True
+            )
             self.train_dataset = get_custom_dataloader(
-                datasets=self.dataset_config.train.datasets,
+                datasets=train_datasets,
                 transform=self.preprocess_train,
                 tokenizer=self.tokenizer,
                 batch_size=self.dataset_config.train.batch_size,
@@ -81,7 +77,9 @@ class CLIPDataModule(pl.LightningDataModule):
                 shuffle=True,
                 pin_memory=self.dataset_config.pin_memory,
                 is_distributed=is_distributed,
-                mode='train'
+                mode='train',
+                balance_query_types=balance_query_types,
+                unique_caption_per_batch=unique_caption_per_batch,
             )
         elif train_type == 'wds':
             self.train_dataset = get_train_dataloader(

@@ -1,8 +1,8 @@
-# FROM nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:4d6c2f98bcb233a7ab7c87f187b3d5a3e1c405d1206fb2b0d3c7b410bb93e84d
+# FROM nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:23c2385c3d9232cf0e8b4d37d13fc7e9c9db8fece5c0f6475e5f7924dc6ac06a
 # Select base image based on architecture
 ARG TARGETARCH # provided by Docker if using BuildKit. Else pass in explicitly.
-ARG X86_DIGEST=fd0ab5b45f79cf72a4e90ab91dd7bac4e364748bb640c0fb2c32c3b006c7acdd
-ARG ARM64_DIGEST=5d3f0a7ba65e60744a7b8de0d16a0f928c479647c2056726a4a59c00fe946821
+ARG X86_DIGEST=0dda18f23cbdb62177afa1805a900d29fa4feb7e81feaecf0208495e1db4ccbe
+ARG ARM64_DIGEST=0edf38a0afd615dbbe169e96d5f00e7f7e1bbd8818221b0103541f81b61c4327
 
 FROM nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:${ARM64_DIGEST} AS base-arm64
 FROM nvcr.io/nvstaging/tao/tao_pytorch_base_image@sha256:${X86_DIGEST} AS base-amd64
@@ -25,9 +25,8 @@ RUN apt-get update && \
     apt --only-upgrade install libcurl3-gnutls -y && \
     apt --only-upgrade install libcurl4 -y && \
     apt --only-upgrade install libcurl4-openssl-dev -y && \
-    apt --only-upgrade install openssh-client -y
-
-RUN rm -rf /opt/nvidia/entrypoint.d/*.txt
+    apt --only-upgrade install openssh-client -y && \
+    rm -rf /opt/nvidia/entrypoint.d/*.txt
 COPY release/docker/entrypoint.d/* /opt/nvidia/entrypoint.d/
 
 # Installing TAO-Core
@@ -38,8 +37,6 @@ RUN cd tao-core && bash release/python/build_wheel.sh && \
     cd .. && rm -rf tao-core
 
 COPY dist/*.whl /opt/nvidia/wheels/
-RUN cd wheels && ls ./*.whl|xargs -I'{}' python -m pip install '{}' \
-    && rm *.whl
 
 # Copying tlt-converter and building it in the docker.
 # ENV TRT_LIB_PATH="/usr/lib/x86_64-linux-gnu"
@@ -50,14 +47,10 @@ RUN cd wheels && ls ./*.whl|xargs -I'{}' python -m pip install '{}' \
 #     && rm -rf Makefile *.cc *.h *.o
 # RUN ln -s tao-converter converter
 
-ENV NVIDIA_PRODUCT_NAME "TAO Toolkit"
-ENV TAO_TOOLKIT_VERSION="6.25.10"
+ENV NVIDIA_PRODUCT_NAME="TAO Toolkit"
+ENV TAO_TOOLKIT_VERSION="7.0.1"
 ENV NVIDIA_TAO_TOOLKIT_VERSION="${TAO_TOOLKIT_VERSION}-PyTorch"
 ENV CUBLAS_WORKSPACE_CONFIG=":4096:8"
-
-# Remove ARCH_LIB_PATH from the beginning of LD_LIBRARY_PATH and append it to the end
-RUN ARCH_LIB_PATH="/usr/lib/$(uname -m)-linux-gnu" && \
-    sed -i "s|export LD_LIBRARY_PATH=${ARCH_LIB_PATH}:\${LD_LIBRARY_PATH}|export LD_LIBRARY_PATH=\${LD_LIBRARY_PATH}:${ARCH_LIB_PATH}|g" /etc/bash.bashrc
 
 # Defining the telemetry URL.
 ENV TAO_TELEMETRY_SERVER="https://api.tao.ngc.nvidia.com"
@@ -69,15 +62,21 @@ ENV FLASK_APP=nvidia_tao_core.microservices.app
 
 ENV RUN_CLI=0
 
-# Security: Remove all git-related files and folders from the image
-# This addresses security scan failures (credentials, internal URLs) and reduces image size
-RUN find / -type d -name ".git" -exec rm -rf {} + 2>/dev/null || true && \
-    find / -type f -name ".git" -exec rm -f {} + 2>/dev/null || true && \
-    find / -type f -name ".gitignore" -exec rm -f {} + 2>/dev/null || true && \
-    find / -type d -name ".github" -exec rm -rf {} + 2>/dev/null || true && \
-    find / -type d -name ".gitlab" -exec rm -rf {} + 2>/dev/null || true && \
-    find / -type f -name ".gitlab-ci.yml" -exec rm -f {} + 2>/dev/null || true && \
-    find / -type f -name "gitlab-ci.yml" -exec rm -f {} + 2>/dev/null || true
+# Install the TAO wheels, fix LD_LIBRARY_PATH ordering, and strip git metadata (NGC
+# security scan) in a SINGLE RUN layer. The base image already ships ~120 filesystem
+# layers and overlay2 caps a container at 128, so every extra RUN/COPY layer counts;
+# collapsing these three steps into one keeps the release image buildable.
+RUN cd /opt/nvidia/wheels && ls ./*.whl | xargs -I'{}' python -m pip install '{}' && rm -f *.whl && \
+    ARCH_LIB_PATH="/usr/lib/$(uname -m)-linux-gnu" && \
+    sed -i "s|export LD_LIBRARY_PATH=${ARCH_LIB_PATH}:\${LD_LIBRARY_PATH}|export LD_LIBRARY_PATH=\${LD_LIBRARY_PATH}:${ARCH_LIB_PATH}|g" /etc/bash.bashrc && \
+    { find / -type d -name ".git" -exec rm -rf {} + 2>/dev/null; \
+      find / -type f -name ".git" -exec rm -f {} + 2>/dev/null; \
+      find / -type f -name ".gitignore" -exec rm -f {} + 2>/dev/null; \
+      find / -type d -name ".github" -exec rm -rf {} + 2>/dev/null; \
+      find / -type d -name ".gitlab" -exec rm -rf {} + 2>/dev/null; \
+      find / -type f -name ".gitlab-ci.yml" -exec rm -f {} + 2>/dev/null; \
+      find / -type f -name "gitlab-ci.yml" -exec rm -f {} + 2>/dev/null; \
+      true; }
 
 CMD if [ "$RUN_CLI" = "1" ]; then \
         /bin/bash; \

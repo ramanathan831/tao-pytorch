@@ -1,16 +1,5 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 
 """Backbone unit tests."""
 
@@ -26,6 +15,7 @@ from nvidia_tao_pytorch.cv.backbone_v2 import (
     convnext,
     convnext_v2,
     dino_v2,
+    dino_v3,
     efficientvit,
     fan,
     fastervit,
@@ -65,6 +55,16 @@ TEST_TOPOLOGIES = [
             [0.4775, 0.1357, -0.4266, -0.6113, 1.6212],
         ),
         id="vit_large_patch14_dinov2_swiglu",
+    ),
+    # DINOV3.
+    pytest.param(
+        (
+            dino_v3.dinov3_vitb16,
+            "dinov3_base_lvd1689m.safetensors",  # From TIMM.
+            (1, 768),
+            [0.4872, 0.5306, 0.9414, -0.0965, -0.2063],
+        ),
+        id="dinov3_vitb16",
     ),
     # EfficientViT.
     pytest.param((efficientvit.efficientvit_b0, None, None, None), id="efficientvit_b0"),
@@ -189,6 +189,25 @@ LARGE_BACKBONES = [
     # DINOV2.
     pytest.param(
         (dino_v2.vit_giant_patch14_reg4_dinov2_swiglu, None, None, None), id="vit_giant_patch14_reg4_dinov2_swiglu"
+    ),
+    # DINOV3.
+    pytest.param(
+        (
+            dino_v3.dinov3_vith16plus,
+            "dinov3_huge_plus_lvd1689m.safetensors",  # From TIMM.
+            (1, 1280),
+            [-0.1892, 0.0466, 0.1439, 0.2925, 0.0699],
+        ),
+        id="dinov3_vith16plus",
+    ),
+    pytest.param(
+        (
+            dino_v3.dinov3_vit7b16,
+            None,
+            (1, 4096),
+            None,
+        ),
+        id="dinov3_vit7b16",
     ),
     # RADIO.
     pytest.param(

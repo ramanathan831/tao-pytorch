@@ -1,18 +1,5 @@
-# Original source taken from https://github.com/autonomousvision/stylegan-xl
-#
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 
 """StyleGAN Model PyTorch Lightning Module"""
 
@@ -258,6 +245,11 @@ class StyleganPlModel(TAOLightningModule):
         super().__init__(experiment_spec)
 
         self.checkpoint_filename = 'styleganxl_model'
+        # Best-checkpoint default: monitor FID (logged as "fid_score" in
+        # on_validation_epoch_end). Lower FID is better. This module's configure_callbacks
+        # calls super(), so it already gets the best-checkpoint plumbing.
+        self.monitor_metric = "fid_score"
+        self.monitor_mode = "min"
         self.dm = dm
         self.cudnn_benchmark = True
 

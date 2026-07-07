@@ -1,16 +1,5 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 
 """Common config fields across all models"""
 
@@ -35,6 +24,50 @@ class CuDNNConfig:
 
     benchmark: bool = BOOL_FIELD(value=False)
     deterministic: bool = BOOL_FIELD(value=True)
+
+
+@dataclass
+class CheckpointerConfig:
+    """Config for monitoring a metric and saving the best checkpoint(s).
+
+    This is additive to the periodic checkpointing: when ``enable_topk`` is set,
+    a separate monitored ``ModelCheckpoint`` is appended that ranks checkpoints by
+    a metric. The periodic checkpoint, the ``*_latest`` symlink, and the exception
+    checkpoint are untouched.
+    """
+
+    enable_topk: bool = BOOL_FIELD(
+        value=False, default_value=False,
+        display_name="Enable best-checkpoint saving",
+        description="Save the top-K checkpoints ranked by a monitored metric, "
+                    "in addition to the periodic checkpoints.",
+    )
+    monitor: Optional[str] = STR_FIELD(
+        value=None,
+        display_name="Monitored metric",
+        description="Override the network's default monitored metric (e.g. val_loss, "
+                    "val_acc, val_miou, mAP). Leave unset to use the network default.",
+    )
+    mode: Optional[str] = STR_FIELD(
+        value=None, valid_options="min,max",
+        display_name="Monitor mode",
+        description="Override direction. 'min' for losses, 'max' for accuracy/mAP/mIoU. "
+                    "Leave unset to use the network default.",
+    )
+    save_top_k: int = INT_FIELD(
+        value=1, default_value=1, valid_min=1,
+        display_name="Number of best checkpoints",
+        description="How many best checkpoints to keep (1 = only the single best).",
+    )
+    filename: str = STR_FIELD(
+        value="model_best_{epoch:03d}", default_value="model_best_{epoch:03d}",
+        display_name="Best-checkpoint filename pattern",
+    )
+    dirpath: Optional[str] = STR_FIELD(
+        value=None,
+        description="Directory for best checkpoints. Defaults to results_dir.",
+    )
+    auto_insert_metric_name: bool = BOOL_FIELD(value=False, default_value=False)
 
 
 @dataclass
@@ -115,6 +148,7 @@ class TrainConfig:
         description="""
         Path to where all the assets generated from a task are stored.
         """)
+    checkpointer: CheckpointerConfig = DATACLASS_FIELD(CheckpointerConfig())
 
 
 @dataclass

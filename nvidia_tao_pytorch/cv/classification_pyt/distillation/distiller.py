@@ -1,16 +1,5 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 
 """Distiller module for classification model"""
 import os
@@ -112,6 +101,13 @@ class ClassDistiller(Distiller):
         self.train_acc = MetricCollection(train_acc)
         self.valid_acc = MetricCollection(val_acc)
         self.batch_size = self.dataset_config.batch_size
+        # Best-checkpoint default: monitor top-1 val accuracy when classification metrics
+        # exist (logged per-k as "val_acc_{topk}"). Feature distillation (num_classes==0)
+        # logs no accuracy, so it keeps the base val_loss/min fallback. Set after
+        # super().__init__ so it is not overwritten by the base default.
+        if self.num_classes > 0:
+            self.monitor_metric = f"val_acc_{self.model_config.head.topk[0]}"
+            self.monitor_mode = "max"
 
     def configure_callbacks(self) -> Sequence[Callback] | pl.Callback:
         """Configures logging and checkpoint-saving callbacks"""
@@ -169,6 +165,9 @@ class ClassDistiller(Distiller):
             enable_version_counter=False,
         )
         callbacks.append(checkpoint_callback)
+        # Additive best-checkpoint saving (only when train.checkpointer.enable_topk).
+        # This module overrides configure_callbacks without super(), so call the shared helper.
+        callbacks = self._configure_best_checkpoint(callbacks, results_dir)
         return callbacks
 
     def _setup_bindings(self):

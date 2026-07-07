@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
 # build.sh — driver for the optimized base-image build path.
 #
 #   1. Verify docker/optimized/artifacts.lock.json matches its inputs.
