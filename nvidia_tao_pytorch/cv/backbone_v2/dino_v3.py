@@ -213,7 +213,7 @@ def _load_dino_v3(dino_v3_model: str, pretrained_backbone_path: Optional[str] = 
             checkpoint_path=pretrained_backbone_path,
         )
     else:
-        model = timm.create_model(dino_v3_model, pretrained=True)
+        model = timm.create_model(dino_v3_model, pretrained=False)
     return model
 
 
