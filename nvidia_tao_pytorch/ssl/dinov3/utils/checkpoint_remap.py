@@ -41,6 +41,8 @@ TAO_ONLY_KEYS = ("mask_token",)
 
 # TAO backbone arch -> timm DINOv3 model name (architecture only; pretrained=False).
 _TIMM_MODEL_BY_ARCH = {
+    "vit_s": "vit_small_patch16_dinov3",
+    "vit_s_plus": "vit_small_plus_patch16_dinov3",
     "vit_b": "vit_base_patch16_dinov3",
     "vit_l": "vit_large_patch16_dinov3",
     "vit_h_plus": "vit_huge_plus_patch16_dinov3",
