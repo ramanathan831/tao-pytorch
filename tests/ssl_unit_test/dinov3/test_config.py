@@ -64,7 +64,7 @@ def test_param_map_vit_b():
     # ViT-H+ and ViT-7B use SwiGLU.
     assert map_params["mlp_layer"]["vit_h_plus"] == "swiglu"
     assert map_params["mlp_layer"]["vit_7b"] == "swiglu"
-    assert set(SUPPORTED_BACKBONES) == {"vit_b", "vit_l", "vit_h_plus", "vit_7b"}
+    assert set(SUPPORTED_BACKBONES) == {"vit_s", "vit_s_plus", "vit_b", "vit_l", "vit_h_plus", "vit_7b"}
 
 
 @pytest.mark.config
@@ -77,3 +77,53 @@ def test_param_map_vit_l():
     assert map_params["mlp_layer"]["vit_l"] == "mlp"
     # head_dim = 1024 / 16 = 64 (same as ViT-B) -> RoPE (needs head_dim % 4 == 0) works unchanged.
     assert (map_params["embed_dim"]["vit_l"] // map_params["num_heads"]["vit_l"]) % 4 == 0
+
+
+@pytest.mark.config
+@pytest.mark.ssl_unit
+def test_param_map_vit_s():
+    """The v3 param map carries the ViT-S (384/12/6, standard MLP) entry."""
+    assert map_params["embed_dim"]["vit_s"] == 384
+    assert map_params["depth"]["vit_s"] == 12
+    assert map_params["num_heads"]["vit_s"] == 6
+    assert map_params["mlp_layer"]["vit_s"] == "mlp"
+    assert map_params["mlp_ratio"]["vit_s"] == 4.0
+    # head_dim = 384 / 6 = 64 (same as ViT-B/L) -> RoPE (needs head_dim % 4 == 0) works unchanged.
+    assert (map_params["embed_dim"]["vit_s"] // map_params["num_heads"]["vit_s"]) % 4 == 0
+
+
+@pytest.mark.config
+@pytest.mark.ssl_unit
+def test_param_map_vit_s_plus():
+    """The v3 param map carries the ViT-S+ (384/12/6, SwiGLU) entry."""
+    assert map_params["embed_dim"]["vit_s_plus"] == 384
+    assert map_params["depth"]["vit_s_plus"] == 12
+    assert map_params["num_heads"]["vit_s_plus"] == 6
+    assert map_params["mlp_layer"]["vit_s_plus"] == "swiglu"
+    assert map_params["mlp_ratio"]["vit_s_plus"] == 4.0
+    assert (map_params["embed_dim"]["vit_s_plus"] // map_params["num_heads"]["vit_s_plus"]) % 4 == 0
+
+
+@pytest.mark.config
+@pytest.mark.ssl_unit
+def test_param_map_vit_h_plus():
+    """The v3 param map carries the ViT-H+ (1280/32/20, SwiGLU) entry."""
+    assert map_params["embed_dim"]["vit_h_plus"] == 1280
+    assert map_params["depth"]["vit_h_plus"] == 32
+    assert map_params["num_heads"]["vit_h_plus"] == 20
+    assert map_params["mlp_layer"]["vit_h_plus"] == "swiglu"
+    assert map_params["mlp_ratio"]["vit_h_plus"] == 4.0
+    assert (map_params["embed_dim"]["vit_h_plus"] // map_params["num_heads"]["vit_h_plus"]) % 4 == 0
+
+
+@pytest.mark.config
+@pytest.mark.ssl_unit
+def test_param_map_vit_7b():
+    """The v3 param map carries the ViT-7B (4096/40/32, SwiGLU) entry; the public 7B
+    checkpoint uses the narrow SwiGLU (mlp_ratio 2.0)."""
+    assert map_params["embed_dim"]["vit_7b"] == 4096
+    assert map_params["depth"]["vit_7b"] == 40
+    assert map_params["num_heads"]["vit_7b"] == 32
+    assert map_params["mlp_layer"]["vit_7b"] == "swiglu"
+    assert map_params["mlp_ratio"]["vit_7b"] == 2.0
+    assert (map_params["embed_dim"]["vit_7b"] // map_params["num_heads"]["vit_7b"]) % 4 == 0
