@@ -41,6 +41,7 @@ from nvidia_tao_pytorch.cv.backbone_v2.nn.norm import FrozenBatchNorm2d
 from nvidia_tao_pytorch.cv.visual_changenet.backbone.fan import fan_model_dict
 from nvidia_tao_pytorch.cv.visual_changenet.backbone.utils import ptm_adapter, visual_changenet_parser
 from nvidia_tao_pytorch.cv.visual_changenet.backbone.vit_adapter import vit_adapter_model_dict
+from nvidia_tao_pytorch.cv.deformable_detr.model.ops.modules import set_precise_msda
 from nvidia_tao_pytorch.cv.visual_changenet.segmentation.models.changenet_utils import (
     MLP,
     ConvLayer,
@@ -424,6 +425,10 @@ def build_model(experiment_config,
 
     """
     model_config = experiment_config.model
+    # Opt-in deterministic MSDeformAttn path in the C-RADIO / ViT-Adapter backbones
+    # (vit_adapter_model_dict). No-op unless precise_msda=True. Mirrors the classification
+    # build_model so segmentation runs with a ViT-Adapter backbone are also reproducible.
+    set_precise_msda(getattr(model_config, "precise_msda", False))
     dataset_config = experiment_config.dataset.segment
 
     backbone = model_config.backbone['type']
