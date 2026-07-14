@@ -5,6 +5,7 @@
 
 import argparse
 import os
+import shlex
 import subprocess
 import sys
 
@@ -15,7 +16,16 @@ from utils import (
 
 from utils import get_docker_command
 
-TESTS = f"pytest -v --color=yes --testmon {os.path.join(ROOT_DIR, 'tests')}" # -ss
+PYTEST = "pytest -v --color=yes --testmon" # -ss
+
+
+def resolve_test_path(test_path):
+    """Resolve a host or relative test path to the path visible to pytest."""
+    if os.path.isabs(test_path):
+        if not CI and os.path.commonpath([ROOT_DIR, test_path]) == ROOT_DIR:
+            return os.path.join(DOCKER_ROOT, os.path.relpath(test_path, ROOT_DIR))
+        return test_path
+    return os.path.join(DOCKER_ROOT, test_path)
 
 
 def parse_command_line(args=sys.argv[1:]):
@@ -34,6 +44,12 @@ def parse_command_line(args=sys.argv[1:]):
         default=False,
         action="store_true"
     )
+    parser.add_argument(
+        "--test-path",
+        action="append",
+        default=[],
+        help="Test path to run. Can be repeated. Defaults to the full tests directory.",
+        type=str)
     args, unknown_args = parser.parse_known_args(args)
     return vars(args), unknown_args
 
@@ -46,20 +62,25 @@ def main(cl_args=None):
         docker_command_prefix, docker_image = get_docker_command(
             manifest_file, args["tag"]
         )
-        launcher_command = " ".join([TESTS] + unknown_args)
+        test_paths = args["test_path"] or [os.path.join(DOCKER_ROOT, "tests")]
+        launcher_command = " ".join(
+            [PYTEST]
+            + [shlex.quote(resolve_test_path(test_path)) for test_path in test_paths]
+            + [shlex.quote(arg) for arg in unknown_args]
+        )
         if args["skip_slow"]:
             print("Skipping slow tests.")
             launcher_command += " -m \"not slow\""
         tao_core_path = "/tao-pt/tao-core"
         if not CI:
             # To build the required libraries.
-            launcher_command = f"python setup.py develop && {launcher_command}"
+            launcher_command = f"python -m pip install --no-build-isolation -e . && {launcher_command}"
             # We append tao-core to the pythonpath so imports will work
             # The functional tests are run on the base container which does not have the core wheel installed
-            launcher_command = "{} -v {}:{} -e PYTHONPATH={}:{} {} bash -c \'{} \'".format(
+            launcher_command = "{} -v {}:{} -w {} -e PYTHONPATH={}:{} {} bash -c {}".format(
                 docker_command_prefix, ROOT_DIR,
-                DOCKER_ROOT, tao_core_path, DOCKER_ROOT,
-                docker_image, launcher_command)
+                DOCKER_ROOT, DOCKER_ROOT, tao_core_path, DOCKER_ROOT,
+                docker_image, shlex.quote(launcher_command))
         print(launcher_command)
         subprocess.check_call(launcher_command, stdout=sys.stdout, stderr=sys.stdout, shell=True)
     except subprocess.CalledProcessError as e:
