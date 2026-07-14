@@ -246,6 +246,34 @@ def dinov3_vitl16(pretrained_backbone_path: Optional[str] = None, **kwargs):
 
 
 @BACKBONE_REGISTRY.register()
+def dinov3_vits16(pretrained_backbone_path: Optional[str] = None, **kwargs):
+    """Load the DINOv3 model with S parameters.
+
+    Args:
+        pretrained_backbone_path (str, optional): Local DINOv3 checkpoint path.
+            When ``None``, weights are downloaded from the timm/HF hub.
+        **kwargs: Forwarded to :class:`DINOV3Wrapper`.
+    """
+    model = _load_dino_v3("vit_small_patch16_dinov3.lvd1689m", pretrained_backbone_path=pretrained_backbone_path)
+    model = DINOV3Wrapper(model, **kwargs)
+    return model
+
+
+@BACKBONE_REGISTRY.register()
+def dinov3_vits16plus(pretrained_backbone_path: Optional[str] = None, **kwargs):
+    """Load the DINOv3 model with S+ parameters (SwiGLU FFN).
+
+    Args:
+        pretrained_backbone_path (str, optional): Local DINOv3 checkpoint path.
+            When ``None``, weights are downloaded from the timm/HF hub.
+        **kwargs: Forwarded to :class:`DINOV3Wrapper`.
+    """
+    model = _load_dino_v3("vit_small_plus_patch16_dinov3.lvd1689m", pretrained_backbone_path=pretrained_backbone_path)
+    model = DINOV3Wrapper(model, **kwargs)
+    return model
+
+
+@BACKBONE_REGISTRY.register()
 def dinov3_vitb16(pretrained_backbone_path: Optional[str] = None, **kwargs):
     """Load the DINOv3 model with B parameters.
 

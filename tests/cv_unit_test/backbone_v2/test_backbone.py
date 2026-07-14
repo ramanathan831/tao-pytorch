@@ -66,6 +66,8 @@ TEST_TOPOLOGIES = [
         ),
         id="dinov3_vitb16",
     ),
+    pytest.param((dino_v3.dinov3_vits16, None, None, None), id="dinov3_vits16"),
+    pytest.param((dino_v3.dinov3_vits16plus, None, None, None), id="dinov3_vits16plus"),
     # EfficientViT.
     pytest.param((efficientvit.efficientvit_b0, None, None, None), id="efficientvit_b0"),
     pytest.param((efficientvit.efficientvit_l0, None, None, None), id="efficientvit_l0"),
