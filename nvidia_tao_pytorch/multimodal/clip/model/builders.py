@@ -12,6 +12,8 @@ Functions:
     build_openclip_model: Build OpenCLIP/NV-CLIP model
 """
 
+import os
+
 from open_clip.transform import image_transform
 from transformers import AutoProcessor
 
@@ -281,10 +283,14 @@ def build_siglip2_model(
         )
     backbone_version = model_version
 
-    backbone_model = get_siglip2_model(backbone_version)
+    local_model_path = os.environ.get("TAO_CLIP_SIGLIP2_MODEL_PATH") or None
+    backbone_model = get_siglip2_model(
+        backbone_version,
+        pretrained_backbone_path=local_model_path,
+    )
 
     # Get processor for image transforms
-    hf_model_name = model_config['hf_model']
+    hf_model_name = local_model_path or model_config['hf_model']
     processor = AutoProcessor.from_pretrained(
         hf_model_name, trust_remote_code=True
     )

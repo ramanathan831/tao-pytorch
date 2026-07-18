@@ -5,6 +5,8 @@
 
 import os
 import tempfile
+from datetime import timedelta
+from unittest.mock import MagicMock, patch
 
 import h5py
 import numpy as np
@@ -29,6 +31,75 @@ from nvidia_tao_pytorch.multimodal.clip.scripts.export import (
     ExportFriendlyMHA,
     VALID_ENCODER_TYPES,
 )
+from nvidia_tao_pytorch.multimodal.clip.scripts.train import (
+    _RankLocalDDPStrategy,
+    _bind_rank_local_cuda_device,
+)
+
+
+@pytest.mark.multimodal_unit
+class TestRankLocalDDPSetup:
+    """Test rank-local CUDA and NCCL initialization."""
+
+    def test_cuda_binding_noops_without_local_rank(self, monkeypatch):
+        """The parent process should not create an early CUDA context."""
+        monkeypatch.delenv("LOCAL_RANK", raising=False)
+        with patch(
+            "nvidia_tao_pytorch.multimodal.clip.scripts.train.ctypes.CDLL"
+        ) as load_cudart:
+            _bind_rank_local_cuda_device()
+
+        load_cudart.assert_not_called()
+
+    def test_cuda_binding_uses_rank_mapped_tao_device(self, monkeypatch):
+        """A Lightning child should bind before CUDA-aware imports run."""
+        monkeypatch.setenv("LOCAL_RANK", "1")
+        monkeypatch.setenv("TAO_VISIBLE_DEVICES", "2,5")
+        cudart = MagicMock()
+        cudart.cudaSetDevice.return_value = 0
+
+        with patch(
+            "nvidia_tao_pytorch.multimodal.clip.scripts.train.ctypes.CDLL",
+            return_value=cudart,
+        ) as load_cudart:
+            _bind_rank_local_cuda_device()
+
+        cuda_major = torch.version.cuda.split('.', maxsplit=1)[0]
+        load_cudart.assert_called_once_with(f"libcudart.so.{cuda_major}")
+        cudart.cudaSetDevice.assert_called_once_with(5)
+
+    def test_ddp_process_group_omits_eager_device_id(self):
+        """NCCL setup should stay lazy after the raw rank-local binding."""
+        timeout = timedelta(seconds=30)
+        cluster_environment = MagicMock()
+        strategy = _RankLocalDDPStrategy(
+            cluster_environment=cluster_environment,
+            timeout=timeout,
+        )
+
+        with (
+            patch.object(strategy, "set_world_ranks"),
+            patch.object(
+                strategy,
+                "_get_process_group_backend",
+                return_value="nccl",
+            ),
+            patch(
+                "nvidia_tao_pytorch.multimodal.clip.scripts.train.reset_seed"
+            ),
+            patch(
+                "nvidia_tao_pytorch.multimodal.clip.scripts.train."
+                "_init_dist_connection"
+            ) as init_dist,
+        ):
+            strategy.setup_distributed()
+
+        init_dist.assert_called_once_with(
+            cluster_environment,
+            "nccl",
+            timeout=timeout,
+        )
+        assert "device_id" not in init_dist.call_args.kwargs
 
 
 @pytest.mark.multimodal_unit

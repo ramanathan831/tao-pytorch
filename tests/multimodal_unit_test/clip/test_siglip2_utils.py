@@ -153,6 +153,50 @@ class TestBuildSigLIP2ModelValidation:
         for model_name in siglip2_model_configs.keys():
             assert model_name in str(exc_info.value)
 
+    def test_local_model_path_override_is_used_for_model_and_processor(
+        self, monkeypatch
+    ):
+        """Local override keeps SigLIP2 construction independent of HF APIs."""
+        from nvidia_tao_pytorch.multimodal.clip.model import builders
+
+        local_path = "/models/siglip2-so400m-patch16-256"
+        seen = {}
+
+        class DummyBackbone:
+            is_dynamic = False
+
+        class DummyAdapter:
+            def __init__(self, *_args, **_kwargs):
+                self.tokenizer = object()
+
+        monkeypatch.setenv("TAO_CLIP_SIGLIP2_MODEL_PATH", local_path)
+        monkeypatch.setattr(
+            builders,
+            "get_siglip2_model",
+            lambda version, pretrained_backbone_path=None: seen.update(
+                version=version,
+                backbone_source=pretrained_backbone_path,
+            ) or DummyBackbone(),
+        )
+        monkeypatch.setattr(
+            builders.AutoProcessor,
+            "from_pretrained",
+            lambda source, trust_remote_code: seen.update(
+                processor_source=source,
+                trust_remote_code=trust_remote_code,
+            ) or object(),
+        )
+        monkeypatch.setattr(builders, "SigLIP2", DummyAdapter)
+
+        builders.build_siglip2_model("siglip2-so400m-patch16-256")
+
+        assert seen == {
+            "version": "siglip2-so400m-patch16-256",
+            "backbone_source": local_path,
+            "processor_source": local_path,
+            "trust_remote_code": True,
+        }
+
 
 @pytest.mark.multimodal_unit
 class TestBatchHardTripletLoss:
