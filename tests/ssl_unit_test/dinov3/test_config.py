@@ -127,3 +127,14 @@ def test_param_map_vit_7b():
     assert map_params["mlp_layer"]["vit_7b"] == "swiglu"
     assert map_params["mlp_ratio"]["vit_7b"] == 2.0
     assert (map_params["embed_dim"]["vit_7b"] // map_params["num_heads"]["vit_7b"]) % 4 == 0
+
+
+@pytest.mark.config
+@pytest.mark.ssl_unit
+def test_export_trace_shape_matches_backbone():
+    """Export ONNX trace defaults match the patch-16 backbone (256, not nvdinov2's 518)."""
+    cfg = OmegaConf.structured(ExperimentConfig())
+    assert cfg.export.input_width == 256
+    assert cfg.export.input_height == 256
+    assert cfg.export.input_width % cfg.model.backbone.patch_size == 0
+    assert cfg.export.input_height % cfg.model.backbone.patch_size == 0
