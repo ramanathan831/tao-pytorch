@@ -30,17 +30,26 @@ class CuDNNConfig:
 class CheckpointerConfig:
     """Config for monitoring a metric and saving the best checkpoint(s).
 
-    This is additive to the periodic checkpointing: when ``enable_topk`` is set,
-    a separate monitored ``ModelCheckpoint`` is appended that ranks checkpoints by
-    a metric. The periodic checkpoint, the ``*_latest`` symlink, and the exception
-    checkpoint are untouched.
+    By default this is additive to periodic checkpointing: when ``enable_topk`` is
+    set, a separate monitored ``ModelCheckpoint`` ranks checkpoints by a metric.
+    Set ``replace_periodic`` to keep only the single metric-best checkpoint instead;
+    that checkpoint then owns the existing ``*_latest`` symlink. Exception
+    checkpointing remains independent in either mode.
     """
 
     enable_topk: bool = BOOL_FIELD(
         value=False, default_value=False,
         display_name="Enable best-checkpoint saving",
-        description="Save the top-K checkpoints ranked by a monitored metric, "
-                    "in addition to the periodic checkpoints.",
+        description="Save checkpoint(s) ranked by a monitored metric. This is "
+                    "additive to periodic checkpoints unless replace_periodic is enabled.",
+    )
+    replace_periodic: bool = BOOL_FIELD(
+        value=False, default_value=False,
+        display_name="Replace periodic checkpoints",
+        description="When best-checkpoint saving is enabled, replace the unbounded "
+                    "periodic checkpoint callback with one metric-best checkpoint and "
+                    "make it own the existing *_latest symlink. This mode always keeps "
+                    "exactly one best checkpoint, regardless of save_top_k.",
     )
     monitor: Optional[str] = STR_FIELD(
         value=None,

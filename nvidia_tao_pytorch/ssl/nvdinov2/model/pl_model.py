@@ -1014,7 +1014,8 @@ class DinoV2PlModel(TAOLightningModule):
         exception_checkpoint_callback = TAOExceptionCheckpoint(dirpath=results_dir)
 
         callbacks = [status_logger_callback, checkpoint_callback, exception_checkpoint_callback]
-        # Additive best-checkpoint saving (only when train.checkpointer.enable_topk).
+        # Best-checkpoint saving (additive by default, or replacing the periodic
+        # callback when train.checkpointer.replace_periodic is enabled).
         # NVDINOv2 is SSL pretraining with no validation loop / no logged val metric, so the
         # best callback is inert unless a validation metric is added (or an explicit
         # train.checkpointer.monitor is supplied). Wired for consistency with other trainers.

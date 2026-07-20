@@ -107,11 +107,14 @@ class TAOLightningModule(pl.LightningModule):
     def _configure_best_checkpoint(self, callbacks, results_dir):
         """Append a monitored best-checkpoint callback (and its metric guard).
 
-        Additive to the periodic checkpoint: only acts when
-        ``train.checkpointer.enable_topk`` is set. Does not touch the periodic
-        ``ModelCheckpoint``, the ``*_latest`` symlink, or ``TAOExceptionCheckpoint``.
-        The monitored metric/mode resolve with precedence
-        user config > network default > base fallback.
+        Only acts when ``train.checkpointer.enable_topk`` is set. The default mode
+        is additive and leaves periodic checkpointing unchanged. When
+        ``train.checkpointer.replace_periodic`` is also set, the unbounded periodic
+        callback is omitted and this callback keeps exactly one metric-best
+        checkpoint while owning the existing ``*_latest`` symlink.
+
+        The monitored metric/mode resolve with precedence user config > network
+        default > base fallback. ``TAOExceptionCheckpoint`` remains independent.
 
         Args:
             callbacks (list): The callback list to append to (mutated in place).
@@ -124,6 +127,22 @@ class TAOLightningModule(pl.LightningModule):
         checkpointer_cfg = self.experiment_spec["train"].get("checkpointer", None)
         if not (checkpointer_cfg and checkpointer_cfg.get("enable_topk", False)):
             return callbacks
+
+        replace_periodic = checkpointer_cfg.get("replace_periodic", False)
+        if replace_periodic:
+            # Models that fully override configure_callbacks() also call this
+            # helper. Remove their unbounded, unmonitored periodic callback here
+            # so replacement semantics remain consistent across both paths.
+            callbacks[:] = [
+                callback for callback in callbacks
+                if not (
+                    isinstance(callback, ModelCheckpoint) and
+                    callback.monitor is None and
+                    callback.save_top_k == -1
+                )
+            ]
+            ModelCheckpoint.CHECKPOINT_NAME_LAST = f"{self.checkpoint_filename}_latest"
+
         monitor = checkpointer_cfg.get("monitor") or self.monitor_metric
         mode = checkpointer_cfg.get("mode") or self.monitor_mode
         best_ckpt = ModelCheckpoint(
@@ -131,9 +150,9 @@ class TAOLightningModule(pl.LightningModule):
             filename=checkpointer_cfg.get("filename", "model_best_{epoch:03d}"),
             monitor=monitor,
             mode=mode,
-            save_top_k=checkpointer_cfg.get("save_top_k", 1),
+            save_top_k=1 if replace_periodic else checkpointer_cfg.get("save_top_k", 1),
             save_on_train_epoch_end=False,   # rank at validation end, when the metric exists
-            save_last=False,                 # periodic callback owns *_latest
+            save_last="link" if replace_periodic else False,
             auto_insert_metric_name=checkpointer_cfg.get("auto_insert_metric_name", False),
             enable_version_counter=False,
         )
@@ -195,7 +214,8 @@ class TAOLightningModule(pl.LightningModule):
 
         callbacks = [status_logger_callback, checkpoint_callback, exception_checkpoint_callback]
 
-        # Best-checkpoint saving (only appended when train.checkpointer.enable_topk is set).
+        # Best-checkpoint saving. It is additive by default; replace_periodic mode
+        # removes the unbounded periodic callback assembled above.
         # Network-aware: monitor/mode resolve user config > network default > base fallback.
         callbacks = self._configure_best_checkpoint(callbacks, results_dir)
 
