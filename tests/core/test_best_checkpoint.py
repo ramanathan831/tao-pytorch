@@ -32,6 +32,14 @@ def _best_callbacks(callbacks):
     return [c for c in callbacks if isinstance(c, ModelCheckpoint) and c.monitor is not None]
 
 
+def _periodic_callbacks(callbacks):
+    """Unbounded, unmonitored periodic ModelCheckpoints."""
+    return [
+        c for c in callbacks
+        if isinstance(c, ModelCheckpoint) and c.monitor is None and c.save_top_k == -1
+    ]
+
+
 def test_base_defaults_present():
     m = TAOLightningModule.__new__(TAOLightningModule)  # no model build
     TAOLightningModule.__init__(m, _spec("/tmp"))
@@ -44,11 +52,21 @@ def test_no_checkpointer_block_is_backward_compatible(tmp_path):
     m = _DummyModule(_spec(tmp_path))
     cbs = m.configure_callbacks()
     assert _best_callbacks(cbs) == []
+    assert len(_periodic_callbacks(cbs)) == 1
 
 
 def test_disabled_topk_appends_nothing(tmp_path):
     m = _DummyModule(_spec(tmp_path, checkpointer={"enable_topk": False}))
-    assert _best_callbacks(m.configure_callbacks()) == []
+    callbacks = m.configure_callbacks()
+    assert _best_callbacks(callbacks) == []
+    assert len(_periodic_callbacks(callbacks)) == 1
+
+
+def test_replace_periodic_requires_topk_to_be_enabled(tmp_path):
+    cfg = {"enable_topk": False, "replace_periodic": True}
+    callbacks = _DummyModule(_spec(tmp_path, checkpointer=cfg)).configure_callbacks()
+    assert _best_callbacks(callbacks) == []
+    assert len(_periodic_callbacks(callbacks)) == 1
 
 
 def test_enabled_uses_network_default_metric(tmp_path):
@@ -64,6 +82,28 @@ def test_enabled_uses_network_default_metric(tmp_path):
     assert cb.save_last is False
     assert cb._save_on_train_epoch_end is False
     assert str(cb.dirpath) == str(tmp_path)   # defaults to results_dir
+    assert len(_periodic_callbacks(m.configure_callbacks())) == 1
+
+
+def test_replace_periodic_keeps_one_best_and_owns_latest_symlink(tmp_path):
+    cfg = {
+        "enable_topk": True,
+        "replace_periodic": True,
+        "save_top_k": 3,
+    }
+    callbacks = _DummyModule(
+        _spec(tmp_path, checkpointer=cfg), monitor="val_acc", mode="max"
+    ).configure_callbacks()
+
+    best = _best_callbacks(callbacks)
+    assert len(best) == 1
+    assert _periodic_callbacks(callbacks) == []
+    assert best[0].monitor == "val_acc"
+    assert best[0].mode == "max"
+    assert best[0].save_top_k == 1
+    assert best[0].save_last == "link"
+    assert best[0].CHECKPOINT_NAME_LAST == "dummy_model_latest"
+    assert best[0]._save_on_train_epoch_end is False
 
 
 def test_config_overrides_network_default(tmp_path):
@@ -104,6 +144,25 @@ def test_helper_returns_list_when_enabled(tmp_path):
     assert len(best) == 1 and best[0].monitor == "val_mAP" and best[0].mode == "max"
 
 
+def test_helper_removes_override_periodic_callback_in_replace_mode(tmp_path):
+    cfg = {"enable_topk": True, "replace_periodic": True}
+    m = _DummyModule(_spec(tmp_path, checkpointer=cfg))
+    periodic = ModelCheckpoint(
+        dirpath=tmp_path,
+        monitor=None,
+        save_top_k=-1,
+        every_n_epochs=1,
+    )
+    callbacks = [periodic]
+
+    out = m._configure_best_checkpoint(callbacks, str(tmp_path))
+
+    assert out is callbacks
+    assert periodic not in out
+    assert _periodic_callbacks(out) == []
+    assert len(_best_callbacks(out)) == 1
+
+
 def test_runtime_guard_raises_on_unlogged_metric():
     with pytest.raises(ValueError, match="is not logged"):
         validate_monitor_metric("val_miou", {"val_loss", "val_acc"})
@@ -118,5 +177,6 @@ def test_config_schema_default_disabled():
     from nvidia_tao_pytorch.config.common.common_config import TrainConfig
     schema = OmegaConf.structured(TrainConfig)
     assert schema.checkpointer.enable_topk is False
+    assert schema.checkpointer.replace_periodic is False
     assert schema.checkpointer.monitor is None
     assert schema.checkpointer.mode is None

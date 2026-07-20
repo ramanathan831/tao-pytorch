@@ -102,7 +102,8 @@ class RTDETRPlModel(TAOLightningModule):
                                         filename='model_{epoch:03d}',
                                         enable_version_counter=False)
         callbacks.append(checkpoint_callback)
-        # Additive best-checkpoint saving (only when train.checkpointer.enable_topk).
+        # Best-checkpoint saving (additive by default, or replacing the periodic
+        # callback when train.checkpointer.replace_periodic is enabled).
         # This module overrides configure_callbacks without super(), so call the shared helper.
         callbacks = self._configure_best_checkpoint(callbacks, results_dir)
         return callbacks
