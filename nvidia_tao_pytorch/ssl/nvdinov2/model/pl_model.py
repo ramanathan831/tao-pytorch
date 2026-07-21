@@ -848,25 +848,87 @@ class DinoV2PlModel(TAOLightningModule):
             self.feat = torch.cat((self.feat, teacher_global_cls_token), 0)
         self.input_path.extend(input_path)
 
-    def on_predict_epoch_end(self):
-        """Predict epoch end"""
-        # Gather results from all GPUs
-        gathered_results = self.all_gather(self.feat)
-        gathered_paths = self.all_gather(self.input_path)
+    @staticmethod
+    def _collate_predictions(gathered_feat, gathered_paths, distributed):
+        """Assemble deduped ``(input_path, features)`` rows for the inference CSV.
 
-        # Single GPU case
-        if len(gathered_results.shape) == 1:
-            gathered_results = gathered_results.unsqueeze(dim=0)
+        Args:
+            gathered_feat: In the distributed case the ``all_gather`` output shaped
+                ``[world, N_local, D]``; in the single-device case the local features ``[N, D]``.
+            gathered_paths: In the distributed case a list-of-lists (one path list per rank,
+                from ``all_gather_object``); in the single-device case the local path list.
+            distributed (bool): Whether ``gathered_*`` carry the extra per-rank leading axis.
+
+        Returns:
+            list[dict]: One ``{"input_path", "features"}`` row per unique image.
+
+        The multi-GPU path previously (a) never flattened the ``[world, N_local, D]`` feature
+        tensor -- so iterating it yielded one row *per rank* instead of per image -- and (b)
+        called ``all_gather`` on a ``list[str]``, which is a silent no-op (only tensors are
+        gathered), leaving paths rank-local. The mismatched column lengths then raised on rank 0
+        inside this DDP hook, which manifested as a hang (one GPU pinned) with no CSV written.
+        See bug 6469109.
+        """
+        if distributed:
+            gathered_feat = gathered_feat.reshape(-1, gathered_feat.shape[-1])
+            gathered_paths = [path for rank_paths in gathered_paths for path in rank_paths]
+        if gathered_feat.dim() == 1:
+            gathered_feat = gathered_feat.unsqueeze(dim=0)
+
+        features = [str(row.cpu().numpy().tolist()) for row in gathered_feat]
+
+        # The predict DistributedSampler pads an uneven split by repeating whole samples; drop
+        # those duplicates so there is exactly one row per input image. Precondition: input paths
+        # are unique -- the dataset enumerates each file once (rglob), so a repeated path can only
+        # come from the sampler's padding, making the path a safe dedup key.
+        seen = set()
+        rows = []
+        for path, feature in zip(gathered_paths, features):
+            if path in seen:
+                continue
+            seen.add(path)
+            rows.append({"input_path": path, "features": feature})
+        return rows
+
+    @staticmethod
+    def _all_gather_predictions(feat, input_path, world_size):
+        """All-gather per-rank features (tensor) and paths (list[str]) across the default PG.
+
+        Kept ``torch.distributed``-based (rather than Lightning's ``self.all_gather``) so the exact
+        collective sequence that fixes the multi-GPU hang is unit-testable with a gloo process
+        group. Every rank must call this -- the collectives are the sync point, and a rank-0-only
+        path here is what deadlocked inference.
+
+        Returns:
+            tuple: ``(gathered_feat [world, N_local, D], paths_per_rank list[list[str]])``.
+
+        See bug 6469109.
+        """
+        gathered_feat = [torch.empty_like(feat) for _ in range(world_size)]
+        dist.all_gather(gathered_feat, feat)
+        gathered_feat = torch.stack(gathered_feat, dim=0)
+        paths_per_rank = [None] * world_size
+        dist.all_gather_object(paths_per_rank, input_path)
+        return gathered_feat, paths_per_rank
+
+    def on_predict_epoch_end(self):
+        """Predict epoch end: gather per-rank features/paths and write inference.csv on rank 0."""
+        # Every rank must invoke the collectives symmetrically (a rank-0-only path here is what
+        # deadlocked multi-GPU inference). all_gather handles the equal-shape feature tensors;
+        # string paths are not tensors, so use the object collective for them.
+        if self.trainer.world_size > 1:
+            gathered_feat, gathered_paths = self._all_gather_predictions(
+                self.feat, self.input_path, self.trainer.world_size
+            )
+            distributed = True
+        else:
+            gathered_feat = self.feat
+            gathered_paths = self.input_path
+            distributed = False
 
         if self.trainer.is_global_zero:
-            # Combine input paths and features into a DataFrame
-            gathered_results = [str(tensor.cpu().numpy().tolist()) for tensor in gathered_results]
-
-            data = {
-                "input_path": gathered_paths,
-                "features": gathered_results
-            }
-            df = pd.DataFrame(data)
+            rows = self._collate_predictions(gathered_feat, gathered_paths, distributed)
+            df = pd.DataFrame(rows, columns=["input_path", "features"])
             df.to_csv(
                 os.path.join(self.experiment_spec.results_dir, "inference.csv"),
                 header=True,
