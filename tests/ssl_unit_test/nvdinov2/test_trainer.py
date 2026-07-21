@@ -74,3 +74,49 @@ def test_trainer_fit(_test_dir_obj, _test_exp_spec):
     trainer.fit(model, dm, ckpt_path=None)
 
     _test_dir_obj.cleanup()
+
+
+@pytest.mark.ssl_unit
+@pytest.mark.parametrize("bad_value", [float("nan"), float("inf")])
+def test_nvdinov2_nonfinite_train_loss_raises(bad_value):
+    """A non-finite epoch train loss must raise so @monitor_status records FAILURE.
+
+    Regression for the silent-PASS bug (6460915): train_loss is the sole in-loop AutoML KPI,
+    written to status.json but previously never validated, so a NaN loss was reported as PASS.
+    The guard lives on the shared base, so every SSL model (nvdinov2, dinov3, ...) inherits it.
+    """
+    from types import SimpleNamespace
+    fake = SimpleNamespace(
+        trainer=SimpleNamespace(logged_metrics={"train_loss_epoch": torch.tensor(bad_value)})
+    )
+    with pytest.raises(ValueError, match="non-finite"):
+        DinoV2PlModel._assert_train_loss_finite(fake)
+
+
+@pytest.mark.ssl_unit
+def test_nvdinov2_finite_train_loss_passes():
+    """A finite epoch train loss must not raise."""
+    from types import SimpleNamespace
+    fake = SimpleNamespace(
+        trainer=SimpleNamespace(logged_metrics={"train_loss_epoch": torch.tensor(10.5)})
+    )
+    DinoV2PlModel._assert_train_loss_finite(fake)  # should not raise
+
+
+@pytest.mark.ssl_unit
+def test_nvdinov2_unsupported_backbone_type_raises():
+    """The shared backbone-name validator raises a clear ValueError on an unsupported arch.
+
+    Regression for bug 6460904: lives on the base so every SSL family inherits it. Uses the
+    subclass's own param_map (its keys are the supported archs) as the single source of truth.
+    """
+    from nvidia_tao_pytorch.config.nvdinov2.default_config import map_params
+    good = sorted(map_params["depth"].keys())[0]
+    with pytest.raises(ValueError, match="Unsupported model.backbone"):
+        DinoV2PlModel._validate_backbone_types(
+            {"teacher_type": good, "student_type": "not_a_real_arch"}, map_params
+        )
+    # A fully-supported pair must not raise.
+    DinoV2PlModel._validate_backbone_types(
+        {"teacher_type": good, "student_type": good}, map_params
+    )

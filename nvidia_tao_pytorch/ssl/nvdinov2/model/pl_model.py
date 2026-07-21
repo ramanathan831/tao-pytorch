@@ -120,6 +120,24 @@ class DinoV2PlModel(TAOLightningModule):
     # Backbone hyper-parameter table (embed_dim/depth/num_heads/...) keyed by backbone type.
     param_map = model_params.map_params
 
+    @staticmethod
+    def _validate_backbone_types(backbone_config, param_map):
+        """Validate the teacher/student backbone names against the supported architectures.
+
+        ``param_map`` is the subclass's arch table (its keys are the supported architectures),
+        so this stays correct for every SSL family (nvdinov2, dinov3, ...) without a second
+        source of truth. Raises a clear ValueError listing the allowed values instead of the
+        bare KeyError the arch lookups would otherwise raise. See bug 6460904.
+        """
+        supported = sorted(param_map["depth"].keys())
+        for role in ("teacher_type", "student_type"):
+            name = backbone_config[role]
+            if name not in param_map["depth"]:
+                raise ValueError(
+                    f"Unsupported model.backbone.{role}: '{name}'. Supported architectures are: "
+                    f"{', '.join(supported)}."
+                )
+
     def __init__(self, experiment_spec):
         """Initializes the DinoV2PlModel with the specified experiment configuration.
 
@@ -132,6 +150,12 @@ class DinoV2PlModel(TAOLightningModule):
         self.dataset_config = experiment_spec.dataset
         self.train_config = experiment_spec.train
         self.model_config = experiment_spec.model
+
+        # Fail up front on an unsupported backbone name. The packaged JSON-schema enum
+        # (STR_FIELD valid_options) is documentation only -- backbone type is an unconstrained
+        # str at runtime, so a typo/unsupported arch otherwise dies later with a bare KeyError
+        # deep in model init. See bug 6460904.
+        self._validate_backbone_types(self.model_config.backbone, self.param_map)
 
         # Dataset configs
         self.batch_size = self.dataset_config["batch_size"]
@@ -772,8 +796,30 @@ class DinoV2PlModel(TAOLightningModule):
 
         return loss
 
+    @staticmethod
+    def _assert_train_loss_finite(model):
+        """Raise if the epoch train loss is non-finite.
+
+        ``train_loss`` is the sole in-loop AutoML monitoring KPI (minimize), so a NaN/Inf loss
+        must abort the run rather than be silently reported as PASS -- otherwise HPO and
+        loss-based milestone selection are poisoned. Kept as a static helper (taking the model
+        explicitly) so it is unit-testable without a full Lightning trainer. A common cause is
+        fp16 (16-mixed) attention overflow on the Blackwell fallback path; use bf16-mixed or a
+        build with the fp32 fallback-attention fix. See bug 6460915.
+        """
+        train_loss = model.trainer.logged_metrics.get("train_loss_epoch")
+        if train_loss is not None and not torch.isfinite(train_loss).all():
+            raise ValueError(
+                f"Training loss is non-finite (train_loss_epoch={train_loss}); aborting. A "
+                "NaN/Inf loss must not be reported as a successful run."
+            )
+
     def on_train_epoch_end(self):
-        """Log Training metrics to status.json"""
+        """Log Training metrics to status.json (and fail loudly on a non-finite loss)."""
+        # Check finiteness first so a NaN/Inf run raises before we emit a RUNNING/nan status
+        # line -- the last status the run writes should be the FAILURE, not RUNNING. See 6460915.
+        self._assert_train_loss_finite(self)
+
         average_train_loss = self.trainer.logged_metrics["train_loss_epoch"].item()
 
         self.status_logging_dict = {}
