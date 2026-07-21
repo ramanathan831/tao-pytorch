@@ -54,17 +54,11 @@ class RoPEMemoryEfficientAttention(MemoryEfficientAttention):
                     p=self.attn_drop.p,
                 )
         else:
-            # q, k, v are [B, N, num_heads, head_dim] (xformers layout). Move the head axis
-            # forward to [B, num_heads, N, head_dim] so the score matmul runs over the sequence
-            # (head x seq x seq), not head x head. This non-xformers path is exercised e.g. on
-            # Blackwell GPUs, where use_custom_attention is forced off.
-            q = q.transpose(1, 2)
-            k = k.transpose(1, 2)
-            v = v.transpose(1, 2)
-            attn = (q * self.scale) @ k.transpose(-2, -1)
-            attn = attn.softmax(dim=-1)
-            attn = self.attn_drop(attn)
-            x = (attn @ v).transpose(1, 2)
+            # Non-xformers path (e.g. Blackwell, where use_custom_attention is forced off). Uses
+            # the shared SDPA-based fallback (base MemoryEfficientAttention._fallback_attention) so
+            # both SSL families get the same numerically-safe, fused compute; RoPE has already been
+            # applied to q/k above. See bug 6460915.
+            x = self._fallback_attention(q, k, v)
 
         x = x.reshape(B, N, C)
         x = self.proj(x)

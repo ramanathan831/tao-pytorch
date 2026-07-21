@@ -161,3 +161,29 @@ def test_dinov3_model_forward(_test_batch):
             teacher_ibot_centered=teacher_ibot_centered,
         )
     assert isinstance(loss, torch.Tensor) and loss.ndim == 0
+
+
+@pytest.mark.ssl_unit
+@pytest.mark.parametrize("role", ["teacher_type", "student_type"])
+def test_dinov3_unsupported_backbone_type_raises(role):
+    """An unsupported backbone name must raise a clear ValueError up front, not a KeyError.
+
+    Regression for bug 6460904: the JSON-schema enum (STR_FIELD valid_options) is doc-only, so
+    'vit_h' (not a real TAO DINOv3 arch -- only vit_h_plus exists) passed config validation and
+    died with a bare KeyError deep in model init. Validation now happens before any heavy/CUDA
+    work, so this raises without building the model.
+    """
+    cfg = OmegaConf.structured(ExperimentConfig())
+    setattr(cfg.model.backbone, role, "vit_h")
+    with pytest.raises(ValueError, match="Unsupported model.backbone"):
+        DinoV3PlModel(cfg)
+
+
+@pytest.mark.ssl_unit
+def test_dinov3_validate_backbone_types_accepts_supported():
+    """Every advertised architecture passes the up-front backbone validation."""
+    from nvidia_tao_pytorch.config.dinov3.default_config import map_params, SUPPORTED_BACKBONES
+    for name in SUPPORTED_BACKBONES:
+        DinoV3PlModel._validate_backbone_types(
+            {"teacher_type": name, "student_type": name}, map_params
+        )
