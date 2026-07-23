@@ -3,7 +3,6 @@
 
 """CLIP scripts unit tests."""
 
-import importlib
 import os
 import tempfile
 from datetime import timedelta
@@ -35,47 +34,11 @@ from nvidia_tao_pytorch.multimodal.clip.scripts.export import (
 from nvidia_tao_pytorch.multimodal.clip.scripts.train import (
     _RankLocalDDPStrategy,
 )
-from nvidia_tao_pytorch.multimodal.clip.utils.cuda_device import (
-    bind_rank_local_cuda_device,
-)
 
 
 @pytest.mark.multimodal_unit
 class TestRankLocalDDPSetup:
     """Test rank-local CUDA and NCCL initialization."""
-
-    def test_cuda_binding_maps_original_rank_zero_to_first_tao_device(
-        self, monkeypatch
-    ):
-        """Import-time binding should map the original process to rank zero."""
-        from nvidia_tao_pytorch.multimodal.clip.utils import cuda_device
-
-        monkeypatch.delenv("LOCAL_RANK", raising=False)
-        monkeypatch.setenv("TAO_VISIBLE_DEVICES", "2,5")
-        cudart = MagicMock()
-        cudart.cudaSetDevice.return_value = 0
-
-        with patch.object(cuda_device.ctypes, "CDLL", return_value=cudart):
-            importlib.reload(cuda_device)
-
-        cudart.cudaSetDevice.assert_called_once_with(2)
-
-    def test_cuda_binding_uses_rank_mapped_tao_device(self, monkeypatch):
-        """A Lightning child should bind to its rank-mapped TAO device."""
-        monkeypatch.setenv("LOCAL_RANK", "1")
-        monkeypatch.setenv("TAO_VISIBLE_DEVICES", "2,5")
-        cudart = MagicMock()
-        cudart.cudaSetDevice.return_value = 0
-
-        with patch(
-            "nvidia_tao_pytorch.multimodal.clip.utils.cuda_device.ctypes.CDLL",
-            return_value=cudart,
-        ) as load_cudart:
-            bind_rank_local_cuda_device()
-
-        cuda_major = torch.version.cuda.split('.', maxsplit=1)[0]
-        load_cudart.assert_called_once_with(f"libcudart.so.{cuda_major}")
-        cudart.cudaSetDevice.assert_called_once_with(5)
 
     def test_ddp_process_group_omits_eager_device_id(self):
         """NCCL setup should stay lazy after the raw rank-local binding."""

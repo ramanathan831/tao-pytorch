@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Early rank-local CUDA device binding for CLIP training."""
+"""Early rank-local CUDA device binding for TAO training."""
 
 import ctypes
 import os
@@ -45,7 +45,7 @@ def bind_rank_local_cuda_device():
 
 
 def _bind_configured_rank_on_import():
-    """Bind when launched through TAO or as a Lightning child process."""
+    """Bind when launched through TAO or as a distributed child process."""
     if "TAO_VISIBLE_DEVICES" in os.environ or "LOCAL_RANK" in os.environ:
         bind_rank_local_cuda_device()
 

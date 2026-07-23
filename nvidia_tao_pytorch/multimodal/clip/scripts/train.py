@@ -9,7 +9,9 @@ from datetime import timedelta
 # This first import binds rank 0 and relaunched child ranks before any
 # CUDA-aware dependencies can create a context. Keep it ahead of those imports.
 # isort: off
-from nvidia_tao_pytorch.multimodal.clip.utils import cuda_device as _cuda_device  # noqa: F401
+from nvidia_tao_pytorch.core.utils import (  # noqa: F401
+    cuda_device as _cuda_device,
+)
 # isort: on
 
 from lightning_fabric.utilities.distributed import _init_dist_connection
