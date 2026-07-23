@@ -3,47 +3,14 @@
 
 """Train CLIP model."""
 
-import ctypes
 import os
 from datetime import timedelta
 
-import torch
-
-
-def _bind_rank_local_cuda_device():
-    """Select the child rank's CUDA device before CUDA-aware imports run."""
-    local_rank_value = os.environ.get("LOCAL_RANK")
-    if local_rank_value is None:
-        return
-
-    local_rank = int(local_rank_value)
-    configured_devices = [
-        int(device.strip())
-        for device in os.environ.get("TAO_VISIBLE_DEVICES", "").split(",")
-        if device.strip()
-    ]
-    if configured_devices:
-        if not 0 <= local_rank < len(configured_devices):
-            raise RuntimeError(
-                f"LOCAL_RANK={local_rank} is outside TAO_VISIBLE_DEVICES="
-                f"{configured_devices}."
-            )
-        device = configured_devices[local_rank]
-    else:
-        device = local_rank
-
-    cuda_version = torch.version.cuda
-    if not cuda_version:
-        raise RuntimeError("Rank-local CUDA binding requires a CUDA-enabled PyTorch build.")
-    cudart = ctypes.CDLL(f"libcudart.so.{cuda_version.split('.', maxsplit=1)[0]}")
-    cudart.cudaSetDevice.argtypes = [ctypes.c_int]
-    cudart.cudaSetDevice.restype = ctypes.c_int
-    error = cudart.cudaSetDevice(device)
-    if error:
-        raise RuntimeError(f"cudaSetDevice({device}) failed with CUDA error {error}.")
-
-
-_bind_rank_local_cuda_device()
+# This first import binds rank 0 and relaunched child ranks before any
+# CUDA-aware dependencies can create a context. Keep it ahead of those imports.
+# isort: off
+from nvidia_tao_pytorch.multimodal.clip.utils import cuda_device as _cuda_device  # noqa: F401
+# isort: on
 
 from lightning_fabric.utilities.distributed import _init_dist_connection
 from lightning_fabric.utilities.seed import reset_seed
@@ -79,7 +46,7 @@ class _RankLocalDDPStrategy(DDPStrategy):
     """Initialize NCCL lazily after the process is bound to its local GPU."""
 
     def setup_distributed(self) -> None:
-        """Set ranks and initialize the process group without eager device binding."""
+        """Initialize ranks and NCCL without eager CUDA device binding."""
         reset_seed()
         self.set_world_ranks()
         self._process_group_backend = self._get_process_group_backend()
