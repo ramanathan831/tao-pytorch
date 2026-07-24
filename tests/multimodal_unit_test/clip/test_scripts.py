@@ -5,6 +5,8 @@
 
 import os
 import tempfile
+from datetime import timedelta
+from unittest.mock import MagicMock, patch
 
 import h5py
 import numpy as np
@@ -29,6 +31,47 @@ from nvidia_tao_pytorch.multimodal.clip.scripts.export import (
     ExportFriendlyMHA,
     VALID_ENCODER_TYPES,
 )
+from nvidia_tao_pytorch.multimodal.clip.scripts.train import (
+    _RankLocalDDPStrategy,
+)
+
+
+@pytest.mark.multimodal_unit
+class TestRankLocalDDPSetup:
+    """Test rank-local CUDA and NCCL initialization."""
+
+    def test_ddp_process_group_omits_eager_device_id(self):
+        """NCCL setup should stay lazy after the raw rank-local binding."""
+        timeout = timedelta(seconds=30)
+        cluster_environment = MagicMock()
+        strategy = _RankLocalDDPStrategy(
+            cluster_environment=cluster_environment,
+            timeout=timeout,
+        )
+
+        with (
+            patch.object(strategy, "set_world_ranks"),
+            patch.object(
+                strategy,
+                "_get_process_group_backend",
+                return_value="nccl",
+            ),
+            patch(
+                "nvidia_tao_pytorch.multimodal.clip.scripts.train.reset_seed"
+            ),
+            patch(
+                "nvidia_tao_pytorch.multimodal.clip.scripts.train."
+                "_init_dist_connection"
+            ) as init_dist,
+        ):
+            strategy.setup_distributed()
+
+        init_dist.assert_called_once_with(
+            cluster_environment,
+            "nccl",
+            timeout=timeout,
+        )
+        assert "device_id" not in init_dist.call_args.kwargs
 
 
 @pytest.mark.multimodal_unit
