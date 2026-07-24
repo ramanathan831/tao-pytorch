@@ -29,6 +29,7 @@ DINOV3_DOWNSTREAM_BACKBONES = [
 
 
 def _type_options(backbone_config_cls):
+    """Return the backbone ``type`` field's raw valid_options string."""
     (type_field,) = [f for f in fields(backbone_config_cls) if f.name == "type"]
     return type_field.metadata["valid_options"]
 
