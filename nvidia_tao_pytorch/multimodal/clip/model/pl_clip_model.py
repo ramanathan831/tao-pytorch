@@ -20,6 +20,9 @@ from nvidia_tao_pytorch.core.loggers import (  # noqa: E402
     api_logging as status_logging,
 )
 from nvidia_tao_pytorch.multimodal.clip.model.clip import build_model  # noqa: E402
+from nvidia_tao_pytorch.multimodal.clip.loss.masked_siglip_loss import (  # noqa: E402
+    MetadataMaskedSigLipLoss,
+)
 from nvidia_tao_pytorch.multimodal.clip.utils.utils import (  # noqa: E402
     build_optimizer,
     compute_lr,
@@ -56,6 +59,30 @@ def _batch_hard_image_text_triplet_loss(
     return 0.5 * (_row_loss(similarity) + _row_loss(similarity.mT))
 
 
+def _get_attribute_metadata_from_batch(
+    batch,
+    context="siglip_loss_mask_mode='attribute_match_ignore'",
+    require_accessories=False,
+):
+    """Get attribute metadata from a training batch."""
+    if batch is None or len(batch) < 3 or not isinstance(batch[2], dict):
+        raise ValueError(
+            f"{context} requires batch metadata with image_attr_values and "
+            "text_attr_values."
+        )
+    metadata = batch[2]
+    required_keys = ["image_attr_values", "text_attr_values"]
+    if require_accessories:
+        required_keys.extend(["image_accessory_ids", "text_accessory_ids"])
+    missing_keys = [key for key in required_keys if key not in metadata]
+    if missing_keys:
+        raise ValueError(
+            f"{context} requires batch metadata keys {required_keys}; "
+            f"missing {missing_keys}."
+        )
+    return metadata
+
+
 class CLIPPlModel(TAOLightningModule):
     """PTL module for CLIP Model with retrieval-based validation."""
 
@@ -83,6 +110,9 @@ class CLIPPlModel(TAOLightningModule):
         self.siglip_loss_dist_impl = getattr(
             self.experiment_spec.train, "siglip_loss_dist_impl", "gather"
         )
+        self.siglip_loss_mask_mode = getattr(
+            self.experiment_spec.train, "siglip_loss_mask_mode", "none"
+        )
         self.triplet_loss_weight = getattr(
             self.experiment_spec.train, "triplet_loss_weight", 0.0
         )
@@ -107,17 +137,89 @@ class CLIPPlModel(TAOLightningModule):
     def _build_criterion(self):
         """Build the loss function."""
         if self.loss_type == 'siglip':
+            siglip_mask_mode = getattr(
+                self, "siglip_loss_mask_mode", "none"
+            )
+            if siglip_mask_mode in (
+                "attribute_match_ignore",
+                "attribute_plus_accessory_match_ignore",
+            ):
+                train_data_cfg = self.experiment_spec.dataset.train
+                if not getattr(
+                    train_data_cfg, "include_attribute_metadata", False
+                ):
+                    raise ValueError(
+                        f"siglip_loss_mask_mode={siglip_mask_mode!r} requires "
+                        "dataset.train.include_attribute_metadata=True."
+                    )
+                train_data_type = getattr(train_data_cfg, "type", None)
+                if train_data_type != "custom":
+                    raise ValueError(
+                        f"siglip_loss_mask_mode={siglip_mask_mode!r} requires "
+                        "dataset.train.type='custom', got "
+                        f"{train_data_type!r}."
+                    )
+                if self.siglip_loss_dist_impl not in ("local", "gather"):
+                    raise NotImplementedError(
+                        "Metadata-masked SigLIP loss currently supports "
+                        "siglip_loss_dist_impl='local' or 'gather'; got "
+                        f"{self.siglip_loss_dist_impl!r}."
+                    )
+                siglip_loss_world_size = self.trainer.world_size
+                siglip_loss_rank = self.global_rank
+                if self.siglip_loss_dist_impl == "local":
+                    siglip_loss_world_size = 1
+                    siglip_loss_rank = 0
+                if self.global_rank == 0:
+                    logging.info(
+                        "Using metadata-masked SigLIP loss with mode=%s, "
+                        "dist_impl=%s, trainer_world_size=%s, "
+                        "loss_world_size=%s",
+                        siglip_mask_mode,
+                        self.siglip_loss_dist_impl,
+                        self.trainer.world_size,
+                        siglip_loss_world_size,
+                    )
+                self.loss = MetadataMaskedSigLipLoss(
+                    dist_impl=self.siglip_loss_dist_impl,
+                    world_size=siglip_loss_world_size,
+                    rank=siglip_loss_rank,
+                    accessory_aware=(
+                        siglip_mask_mode
+                        == "attribute_plus_accessory_match_ignore"
+                    ),
+                )
+                self.criterion = self.loss
+                return
+            if siglip_mask_mode != "none":
+                raise ValueError(
+                    "Unsupported siglip_loss_mask_mode "
+                    f"{siglip_mask_mode!r}."
+                )
+
+            siglip_loss_world_size = self.trainer.world_size
+            siglip_loss_rank = self.global_rank
+            siglip_dist_impl = self.siglip_loss_dist_impl
+            open_clip_dist_impl = siglip_dist_impl
+            if siglip_dist_impl == "local":
+                siglip_loss_world_size = 1
+                siglip_loss_rank = 0
+                open_clip_dist_impl = "gather"
+
             if self.global_rank == 0:
                 logging.info(
-                    "Using SigLIP loss with dist_impl=%s, world_size=%s",
-                    self.siglip_loss_dist_impl,
+                    "Using SigLIP loss with dist_impl=%s, trainer_world_size=%s, "
+                    "loss_world_size=%s",
+                    siglip_dist_impl,
                     self.trainer.world_size,
+                    siglip_loss_world_size,
                 )
             self.loss = SigLipLoss(
-                rank=self.global_rank,
-                world_size=self.trainer.world_size,
-                dist_impl=self.siglip_loss_dist_impl,
+                rank=siglip_loss_rank,
+                world_size=siglip_loss_world_size,
+                dist_impl=open_clip_dist_impl,
             )
+            self.loss.dist_impl = siglip_dist_impl
         elif self.loss_type == 'clip':
             self.loss = ClipLoss(
                 rank=self.global_rank,
@@ -168,13 +270,36 @@ class CLIPPlModel(TAOLightningModule):
         image, text = batch[0], batch[1]
         return self.model(image=image, text=text)
 
-    def _backward(self, outputs):
+    def _backward(self, outputs, batch=None):
         """Compute loss from model outputs."""
         if len(outputs) == 3:
             image_features, text_features, logit_scale = outputs
-            clip_loss = self.loss(image_features, text_features, logit_scale)
+            logit_bias = None
         else:
             image_features, text_features, logit_scale, logit_bias = outputs
+
+        if isinstance(self.loss, MetadataMaskedSigLipLoss):
+            metadata = _get_attribute_metadata_from_batch(
+                batch,
+                context=(
+                    "siglip_loss_mask_mode="
+                    f"{getattr(self, 'siglip_loss_mask_mode', 'attribute_match_ignore')!r}"
+                ),
+                require_accessories=self.loss.accessory_aware,
+            )
+            clip_loss = self.loss(
+                image_features,
+                text_features,
+                logit_scale,
+                logit_bias,
+                image_attr_values=metadata["image_attr_values"],
+                text_attr_values=metadata["text_attr_values"],
+                image_accessory_ids=metadata.get("image_accessory_ids"),
+                text_accessory_ids=metadata.get("text_accessory_ids"),
+            )
+        elif len(outputs) == 3:
+            clip_loss = self.loss(image_features, text_features, logit_scale)
+        else:
             clip_loss = self.loss(
                 image_features, text_features, logit_scale, logit_bias
             )
@@ -190,7 +315,7 @@ class CLIPPlModel(TAOLightningModule):
         )
         outputs = self._forward_pass(batch)
         loss, logit_scale, image_features, text_features = self._backward(
-            outputs
+            outputs, batch
         )
 
         # Update per-tower learning rates

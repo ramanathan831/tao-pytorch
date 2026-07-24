@@ -362,8 +362,6 @@ class CLIPDataLoaderConfig:
         description="Number of data loading worker processes.",
         display_name="Number of Workers",
     )
-
-
 @dataclass
 class CLIPTrainDataConfig(CLIPDataLoaderConfig):
     """Training data configuration with additional options for dataset type."""
@@ -402,6 +400,15 @@ class CLIPTrainDataConfig(CLIPDataLoaderConfig):
             "expensive unique-caption batch construction."
         ),
         display_name="Unique Caption per Batch",
+    )
+    include_attribute_metadata: bool = BOOL_FIELD(
+        value=False,
+        default_value=False,
+        description=(
+            "Include image/text attribute tensors in custom training batches. "
+            "Required when siglip_loss_mask_mode is enabled."
+        ),
+        display_name="Include Attribute Metadata",
     )
 
 
@@ -530,10 +537,30 @@ class CLIPTrainConfig(TrainConfig):
     siglip_loss_dist_impl: str = STR_FIELD(
         value="gather",
         default_value="gather",
-        valid_options="bidir,shift,reduce,gather",
+        valid_options="bidir,shift,reduce,gather,local",
         description="Distributed implementation for SigLIP loss negative exchange. "
+                    "Use 'local' to disable cross-rank negative exchange. "
                     "Only used when loss_type is 'siglip'.",
         display_name="SigLIP Loss Distributed Implementation",
+    )
+    siglip_loss_mask_mode: str = STR_FIELD(
+        value="none",
+        default_value="none",
+        valid_options=(
+            "none,attribute_match_ignore,"
+            "attribute_plus_accessory_match_ignore"
+        ),
+        description=(
+            "Optional metadata-based masking mode for SigLIP loss. "
+            "'none' keeps existing behavior; 'attribute_match_ignore' ignores "
+            "off-diagonal negatives whose attributes match the text query; "
+            "'attribute_plus_accessory_match_ignore' additionally requires "
+            "all query accessories to be present in the image. "
+            "Metadata masking supports siglip_loss_dist_impl='local' or "
+            "'gather' and requires "
+            "include_attribute_metadata=True on the custom training dataset."
+        ),
+        display_name="SigLIP Loss Mask Mode",
     )
     triplet_loss_weight: float = FLOAT_FIELD(
         value=0.0,

@@ -6,11 +6,17 @@
 import json
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import torch
 from PIL import Image
 
+import nvidia_tao_pytorch.multimodal.clip.dataloader.custom_loader as custom_loader
+import nvidia_tao_pytorch.multimodal.clip.dataloader.pl_clip_data_module as clip_data_module
+from nvidia_tao_pytorch.multimodal.clip.dataloader.pl_clip_data_module import (
+    CLIPDataModule,
+)
 from nvidia_tao_pytorch.multimodal.clip.dataloader.custom_loader import (
     ImageTextDataset,
     get_custom_dataloader,
@@ -53,6 +59,96 @@ def temp_dataset():
             'image_dir_path': image_dir,
             'caption_dir_path': label_dir,
         }
+
+
+def _make_attribute_pair(idx, width=7, query_type="easy"):
+    """Build one split-pairs metadata row with scalar attribute vectors."""
+    return {
+        "query_type": query_type,
+        "caption": f"Caption for image {idx}",
+        "image_attr_values": list(range(idx, idx + width)),
+        "text_attr_values": [idx] + [-1] + list(range(idx + 2, idx + width)),
+    }
+
+
+def _write_attribute_pairs(path, count, width=7):
+    """Write count aligned metadata rows to a pairs JSON file."""
+    rows = [
+        _make_attribute_pair(
+            idx=i,
+            width=width,
+            query_type="easy" if i % 2 == 0 else "medium",
+        )
+        for i in range(count)
+    ]
+    path.write_text(json.dumps(rows))
+    return rows
+
+
+def _write_accessory_vocab(path):
+    """Write a small accessory vocabulary with zero reserved for padding."""
+    path.write_text(json.dumps({
+        "unknown_id": 0,
+        "value_to_id": {
+            "__unknown__": 0,
+            "black backpack": 11,
+            "red hat": 12,
+        },
+    }))
+
+
+def _write_attribute_vocab(
+    path,
+    attributes,
+    value_to_id,
+    indent=None,
+):
+    """Write an ordered scalar-attribute vocabulary."""
+    path.write_text(json.dumps(
+        {
+            "attributes": attributes,
+            "value_to_id": value_to_id,
+        },
+        indent=indent,
+    ))
+
+
+def _attribute_dataset_config(temp_dataset, pairs_file):
+    """Build one custom dataset config with scalar metadata."""
+    return {
+        'image_dir': temp_dataset['image_dir'],
+        'caption_dir': temp_dataset['caption_dir'],
+        'image_list_file': temp_dataset['image_list_file'],
+        'caption_file_suffix': '.txt',
+        'train_pairs_file': str(pairs_file),
+    }
+
+
+def _write_attribute_source(
+    tmp_path,
+    name,
+    attributes,
+    value_to_id,
+    write_vocab=True,
+    indent=None,
+):
+    """Write one pairs/vocabulary source for multi-dataset tests."""
+    source_dir = tmp_path / name
+    source_dir.mkdir()
+    pairs_file = source_dir / "train_pairs.json"
+    _write_attribute_pairs(
+        pairs_file,
+        count=5,
+        width=len(attributes),
+    )
+    if write_vocab:
+        _write_attribute_vocab(
+            source_dir / "attribute_vocab.json",
+            attributes,
+            value_to_id,
+            indent=indent,
+        )
+    return pairs_file
 
 
 @pytest.mark.multimodal_unit
@@ -248,6 +344,408 @@ class TestImageTextDataset:
         dataset = ImageTextDataset(datasets=dataset_config, mode='train')
 
         assert len(dataset) == 5
+
+    def test_attribute_metadata_returns_third_item(self, temp_dataset):
+        """Test optional attribute metadata is returned with a sample."""
+        pairs_file = temp_dataset['tmpdir'] / "train_pairs.json"
+        rows = _write_attribute_pairs(pairs_file, count=5, width=7)
+        dataset_config = [{
+            'image_dir': temp_dataset['image_dir'],
+            'caption_dir': temp_dataset['caption_dir'],
+            'image_list_file': temp_dataset['image_list_file'],
+            'caption_file_suffix': '.txt',
+            'train_pairs_file': str(pairs_file),
+        }]
+
+        dataset = ImageTextDataset(
+            datasets=dataset_config,
+            mode='train',
+            include_attribute_metadata=True,
+        )
+
+        image, text, metadata = dataset[0]
+
+        assert isinstance(image, Image.Image)
+        assert "Caption for image" in text
+        assert set(metadata) == {"image_attr_values", "text_attr_values"}
+        assert metadata["image_attr_values"].dtype == torch.long
+        assert metadata["text_attr_values"].dtype == torch.long
+        assert metadata["image_attr_values"].shape == (7,)
+        assert metadata["text_attr_values"].shape == (7,)
+        assert metadata["text_attr_values"].tolist() == rows[0]["text_attr_values"]
+        assert metadata["text_attr_values"][1].item() == -1
+
+    def test_attribute_metadata_warns_without_vocab(
+        self, temp_dataset, monkeypatch
+    ):
+        """Test missing normalization vocabulary is surfaced to users."""
+        warnings = []
+        monkeypatch.setattr(
+            custom_loader.logging,
+            "warning",
+            lambda *args: warnings.append(args),
+        )
+        pairs_file = temp_dataset['tmpdir'] / "train_pairs.json"
+        _write_attribute_pairs(pairs_file, count=5, width=7)
+
+        ImageTextDataset(
+            datasets=[_attribute_dataset_config(temp_dataset, pairs_file)],
+            mode='train',
+            include_attribute_metadata=True,
+        )
+
+        assert len(warnings) == 1
+        message, warned_pairs_file, warned_vocab_path = warnings[0]
+        assert "not visible" in message
+        assert warned_pairs_file == pairs_file
+        assert warned_vocab_path == (
+            temp_dataset['tmpdir'] / "attribute_vocab.json"
+        )
+
+    def test_attribute_metadata_includes_padded_accessory_ids(self, temp_dataset):
+        """Test accessory lists are padded and returned with scalars."""
+        pairs_file = temp_dataset['tmpdir'] / "train_pairs.json"
+        rows = _write_attribute_pairs(pairs_file, count=5, width=7)
+        image_accessories = [[11, 12], [11], [], [12], [11, 12]]
+        text_accessories = [[11], [], [], [12], [11, 12]]
+        for row, image_ids, text_ids in zip(
+            rows, image_accessories, text_accessories
+        ):
+            row["image_accessory_ids"] = image_ids
+            row["text_accessory_ids"] = text_ids
+        pairs_file.write_text(json.dumps(rows))
+        _write_accessory_vocab(temp_dataset['tmpdir'] / "accessory_vocab.json")
+        dataset_config = [{
+            'image_dir': temp_dataset['image_dir'],
+            'caption_dir': temp_dataset['caption_dir'],
+            'image_list_file': temp_dataset['image_list_file'],
+            'caption_file_suffix': '.txt',
+            'train_pairs_file': str(pairs_file),
+        }]
+
+        dataset = ImageTextDataset(
+            datasets=dataset_config,
+            mode='train',
+            include_attribute_metadata=True,
+        )
+
+        _, _, first = dataset[0]
+        _, _, second = dataset[1]
+        assert set(first) == {
+            "image_attr_values",
+            "text_attr_values",
+            "image_accessory_ids",
+            "text_accessory_ids",
+        }
+        assert first["image_accessory_ids"].tolist() == [11, 12]
+        assert first["text_accessory_ids"].tolist() == [11, 0]
+        assert second["image_accessory_ids"].tolist() == [11, 0]
+
+    def test_accessory_metadata_requires_paired_subset(self, temp_dataset):
+        """Test a query cannot require an accessory absent from its image."""
+        pairs_file = temp_dataset['tmpdir'] / "train_pairs.json"
+        rows = _write_attribute_pairs(pairs_file, count=5, width=7)
+        for row in rows:
+            row["image_accessory_ids"] = [11]
+            row["text_accessory_ids"] = [11]
+        rows[0]["text_accessory_ids"] = [12]
+        pairs_file.write_text(json.dumps(rows))
+        _write_accessory_vocab(temp_dataset['tmpdir'] / "accessory_vocab.json")
+        dataset_config = [{
+            'image_dir': temp_dataset['image_dir'],
+            'caption_dir': temp_dataset['caption_dir'],
+            'image_list_file': temp_dataset['image_list_file'],
+            'caption_file_suffix': '.txt',
+            'train_pairs_file': str(pairs_file),
+        }]
+
+        with pytest.raises(ValueError, match="not contained"):
+            ImageTextDataset(
+                datasets=dataset_config,
+                mode='train',
+                include_attribute_metadata=True,
+            )
+
+    def test_attribute_metadata_treats_not_visible_as_missing(self, temp_dataset):
+        """Test not-visible vocab IDs are normalized to wildcard values."""
+        pairs_file = temp_dataset['tmpdir'] / "train_pairs.json"
+        rows = _write_attribute_pairs(pairs_file, count=5, width=2)
+        rows[0]["image_attr_values"] = [8, 5]
+        rows[0]["text_attr_values"] = [8, 5]
+        pairs_file.write_text(json.dumps(rows))
+        vocab = {
+            "attributes": ["top outer color", "top outer type"],
+            "value_to_id": {
+                "top outer color": {
+                    "__missing__": 0,
+                    "black": 2,
+                    "not visible": 8,
+                },
+                "top outer type": {
+                    "__missing__": 0,
+                    "not visible": 5,
+                    "t shirt": 9,
+                },
+            },
+        }
+        (temp_dataset['tmpdir'] / "attribute_vocab.json").write_text(
+            json.dumps(vocab)
+        )
+        dataset_config = [{
+            'image_dir': temp_dataset['image_dir'],
+            'caption_dir': temp_dataset['caption_dir'],
+            'image_list_file': temp_dataset['image_list_file'],
+            'caption_file_suffix': '.txt',
+            'train_pairs_file': str(pairs_file),
+        }]
+
+        dataset = ImageTextDataset(
+            datasets=dataset_config,
+            mode='train',
+            include_attribute_metadata=True,
+        )
+
+        _, _, metadata = dataset[0]
+        assert metadata["image_attr_values"].tolist() == [-1, -1]
+        assert metadata["text_attr_values"].tolist() == [-1, -1]
+
+    def test_attribute_metadata_missing_field_raises(self, temp_dataset):
+        """Test missing attribute metadata fields fail clearly."""
+        pairs_file = temp_dataset['tmpdir'] / "train_pairs.json"
+        rows = [_make_attribute_pair(i) for i in range(5)]
+        rows[0].pop("text_attr_values")
+        pairs_file.write_text(json.dumps(rows))
+        dataset_config = [{
+            'image_dir': temp_dataset['image_dir'],
+            'caption_dir': temp_dataset['caption_dir'],
+            'image_list_file': temp_dataset['image_list_file'],
+            'caption_file_suffix': '.txt',
+            'train_pairs_file': str(pairs_file),
+        }]
+
+        with pytest.raises(ValueError, match="missing 'text_attr_values'"):
+            ImageTextDataset(
+                datasets=dataset_config,
+                mode='train',
+                include_attribute_metadata=True,
+            )
+
+    def test_attribute_metadata_mismatched_length_raises(self, temp_dataset):
+        """Test pairs/list length mismatch fails when metadata is requested."""
+        pairs_file = temp_dataset['tmpdir'] / "train_pairs.json"
+        _write_attribute_pairs(pairs_file, count=4, width=7)
+        dataset_config = [{
+            'image_dir': temp_dataset['image_dir'],
+            'caption_dir': temp_dataset['caption_dir'],
+            'image_list_file': temp_dataset['image_list_file'],
+            'caption_file_suffix': '.txt',
+            'train_pairs_file': str(pairs_file),
+        }]
+
+        with pytest.raises(ValueError, match="has 4 items but image list has 5"):
+            ImageTextDataset(
+                datasets=dataset_config,
+                mode='train',
+                include_attribute_metadata=True,
+            )
+
+    def test_attribute_metadata_rejects_validation_mode(self, temp_dataset):
+        """Test attribute metadata is not exposed on unused validation batches."""
+        dataset_config = [{
+            'image_dir': temp_dataset['image_dir'],
+            'caption_dir': temp_dataset['caption_dir'],
+            'image_list_file': temp_dataset['image_list_file'],
+            'caption_file_suffix': '.txt',
+        }]
+
+        with pytest.raises(ValueError, match="only for training"):
+            ImageTextDataset(
+                datasets=dataset_config,
+                mode='val',
+                include_attribute_metadata=True,
+            )
+
+    def test_attribute_metadata_inconsistent_width_raises(self, temp_dataset):
+        """Test inconsistent attribute vector widths fail clearly."""
+        pairs_file = temp_dataset['tmpdir'] / "train_pairs.json"
+        rows = [_make_attribute_pair(i, width=7) for i in range(5)]
+        rows[1]["text_attr_values"].append(99)
+        pairs_file.write_text(json.dumps(rows))
+        dataset_config = [{
+            'image_dir': temp_dataset['image_dir'],
+            'caption_dir': temp_dataset['caption_dir'],
+            'image_list_file': temp_dataset['image_list_file'],
+            'caption_file_suffix': '.txt',
+            'train_pairs_file': str(pairs_file),
+        }]
+
+        with pytest.raises(ValueError, match="expected 7"):
+            ImageTextDataset(
+                datasets=dataset_config,
+                mode='train',
+                include_attribute_metadata=True,
+            )
+
+    @pytest.mark.parametrize("invalid_id", [1.9, "2", True])
+    def test_attribute_metadata_rejects_non_integer_ids(
+        self, temp_dataset, invalid_id
+    ):
+        """Test scalar attribute IDs are not silently coerced to integers."""
+        pairs_file = temp_dataset['tmpdir'] / "train_pairs.json"
+        rows = [_make_attribute_pair(i, width=2) for i in range(5)]
+        rows[0]["image_attr_values"][0] = invalid_id
+        pairs_file.write_text(json.dumps(rows))
+
+        with pytest.raises(ValueError, match="must contain integers"):
+            ImageTextDataset(
+                datasets=[
+                    _attribute_dataset_config(temp_dataset, pairs_file)
+                ],
+                mode='train',
+                include_attribute_metadata=True,
+            )
+
+    def test_multi_dataset_attribute_metadata_accepts_matching_vocabularies(
+        self, temp_dataset, tmp_path
+    ):
+        """Test equivalent ordered vocabularies can share one training set."""
+        attributes = ["upper color", "lower color"]
+        value_to_id = {
+            "upper color": {"__missing__": 0, "black": 1},
+            "lower color": {"__missing__": 0, "blue": 2},
+        }
+        first_pairs = _write_attribute_source(
+            tmp_path,
+            "first",
+            attributes,
+            value_to_id,
+        )
+        second_pairs = _write_attribute_source(
+            tmp_path,
+            "second",
+            attributes,
+            dict(reversed(list(value_to_id.items()))),
+            indent=2,
+        )
+
+        dataset = ImageTextDataset(
+            datasets=[
+                _attribute_dataset_config(temp_dataset, first_pairs),
+                _attribute_dataset_config(temp_dataset, second_pairs),
+            ],
+            mode='train',
+            include_attribute_metadata=True,
+        )
+
+        assert len(dataset) == 10
+
+    def test_multi_dataset_attribute_metadata_requires_each_vocab(
+        self, temp_dataset, tmp_path
+    ):
+        """Test every scalar metadata source provides its vocabulary."""
+        attributes = ["upper color", "lower color"]
+        value_to_id = {
+            "upper color": {"__missing__": 0, "black": 1},
+            "lower color": {"__missing__": 0, "blue": 2},
+        }
+        first_pairs = _write_attribute_source(
+            tmp_path,
+            "first",
+            attributes,
+            value_to_id,
+        )
+        second_pairs = _write_attribute_source(
+            tmp_path,
+            "second",
+            attributes,
+            value_to_id,
+            write_vocab=False,
+        )
+
+        with pytest.raises(
+            ValueError,
+            match="Multi-dataset attribute metadata requires",
+        ):
+            ImageTextDataset(
+                datasets=[
+                    _attribute_dataset_config(temp_dataset, first_pairs),
+                    _attribute_dataset_config(temp_dataset, second_pairs),
+                ],
+                mode='train',
+                include_attribute_metadata=True,
+            )
+
+    def test_multi_dataset_attribute_metadata_rejects_reordered_vocab(
+        self, temp_dataset, tmp_path
+    ):
+        """Test equal-width sources cannot change attribute column order."""
+        attributes = ["upper color", "lower color"]
+        value_to_id = {
+            "upper color": {"__missing__": 0, "black": 1},
+            "lower color": {"__missing__": 0, "blue": 2},
+        }
+        first_pairs = _write_attribute_source(
+            tmp_path,
+            "first",
+            attributes,
+            value_to_id,
+        )
+        second_pairs = _write_attribute_source(
+            tmp_path,
+            "second",
+            list(reversed(attributes)),
+            value_to_id,
+        )
+
+        with pytest.raises(
+            ValueError,
+            match="same ordered attribute vocabulary",
+        ):
+            ImageTextDataset(
+                datasets=[
+                    _attribute_dataset_config(temp_dataset, first_pairs),
+                    _attribute_dataset_config(temp_dataset, second_pairs),
+                ],
+                mode='train',
+                include_attribute_metadata=True,
+            )
+
+    def test_multi_dataset_attribute_metadata_rejects_different_ids(
+        self, temp_dataset, tmp_path
+    ):
+        """Test equal attribute order cannot use different value IDs."""
+        attributes = ["upper color", "lower color"]
+        first_pairs = _write_attribute_source(
+            tmp_path,
+            "first",
+            attributes,
+            {
+                "upper color": {"__missing__": 0, "black": 1},
+                "lower color": {"__missing__": 0, "blue": 2},
+            },
+        )
+        second_pairs = _write_attribute_source(
+            tmp_path,
+            "second",
+            attributes,
+            {
+                "upper color": {"__missing__": 0, "black": 3},
+                "lower color": {"__missing__": 0, "blue": 2},
+            },
+        )
+
+        with pytest.raises(
+            ValueError,
+            match="same ordered attribute vocabulary",
+        ):
+            ImageTextDataset(
+                datasets=[
+                    _attribute_dataset_config(temp_dataset, first_pairs),
+                    _attribute_dataset_config(temp_dataset, second_pairs),
+                ],
+                mode='train',
+                include_attribute_metadata=True,
+            )
 
 
 @pytest.mark.multimodal_unit
@@ -497,3 +995,116 @@ class TestGetCustomDataloader:
         assert isinstance(sampler, BalancedByQueryTypeSampler)
         assert sampler.num_samples == 7
         assert len(sampler.query_type_per_index) == 7
+
+    def test_attribute_metadata_collates_to_batch_tensors(self, temp_dataset):
+        """Test DataLoader collates optional attribute metadata to [B, A]."""
+        pairs_file = temp_dataset['tmpdir'] / "train_pairs.json"
+        _write_attribute_pairs(pairs_file, count=5, width=7)
+        dataset_configs = [{
+            'image_dir': temp_dataset['image_dir'],
+            'caption_dir': temp_dataset['caption_dir'],
+            'image_list_file': temp_dataset['image_list_file'],
+            'caption_file_suffix': '.txt',
+            'train_pairs_file': str(pairs_file),
+        }]
+
+        def dummy_transform(img):
+            return torch.zeros(3, 32, 32)
+
+        dataloader = get_custom_dataloader(
+            datasets=dataset_configs,
+            batch_size=2,
+            transform=dummy_transform,
+            num_workers=0,
+            mode='train',
+            include_attribute_metadata=True,
+        )
+
+        images, texts, metadata = next(iter(dataloader))
+
+        assert images.shape == (2, 3, 32, 32)
+        assert len(texts) == 2
+        assert metadata["image_attr_values"].shape == (2, 7)
+        assert metadata["text_attr_values"].shape == (2, 7)
+        assert metadata["image_attr_values"].dtype == torch.long
+        assert metadata["text_attr_values"].dtype == torch.long
+        assert (metadata["text_attr_values"][:, 1] == -1).all()
+
+    def test_balanced_sampler_works_with_attribute_metadata(
+        self, temp_dataset
+    ):
+        """Test query-type balancing still works when metadata batches are enabled."""
+        pairs_file = temp_dataset['tmpdir'] / "train_pairs.json"
+        _write_attribute_pairs(pairs_file, count=5, width=7)
+        dataset_configs = [{
+            'image_dir': temp_dataset['image_dir'],
+            'caption_dir': temp_dataset['caption_dir'],
+            'image_list_file': temp_dataset['image_list_file'],
+            'caption_file_suffix': '.txt',
+            'train_pairs_file': str(pairs_file),
+        }]
+
+        def dummy_transform(img):
+            return torch.zeros(3, 32, 32)
+
+        dataloader = get_custom_dataloader(
+            datasets=dataset_configs,
+            batch_size=2,
+            transform=dummy_transform,
+            num_workers=0,
+            mode='train',
+            balance_query_types=True,
+            unique_caption_per_batch=False,
+            include_attribute_metadata=True,
+        )
+
+        sampler = dataloader.batch_sampler.sampler
+        images, _, metadata = next(iter(dataloader))
+
+        assert isinstance(sampler, BalancedByQueryTypeSampler)
+        assert images.shape == (2, 3, 32, 32)
+        assert metadata["image_attr_values"].shape == (2, 7)
+
+
+@pytest.mark.multimodal_unit
+class TestCLIPDataModule:
+    """Test CLIPDataModule custom dataloader wiring."""
+
+    def test_train_forwards_include_attribute_metadata(self, monkeypatch):
+        """Test train dataloader forwards attribute metadata config."""
+        captured = {}
+
+        def fake_get_custom_dataloader(**kwargs):
+            captured.update(kwargs)
+            return "train_loader"
+
+        monkeypatch.setattr(
+            clip_data_module, "get_custom_dataloader", fake_get_custom_dataloader
+        )
+        dataset_config = SimpleNamespace(
+            seed=42,
+            pin_memory=True,
+            train=SimpleNamespace(
+                type="custom",
+                datasets=[{"image_dir": "/tmp/images"}],
+                batch_size=4,
+                num_workers=0,
+                balance_query_types=False,
+                unique_caption_per_batch=False,
+                include_attribute_metadata=True,
+            ),
+            val=SimpleNamespace(datasets=[]),
+        )
+        dm = CLIPDataModule(
+            dataset_config=dataset_config,
+            tokenizer=lambda text: [text],
+            resume_step=0,
+            preprocess=(lambda image: image, lambda image: image),
+            world_size=1,
+        )
+
+        dm._setup_train_dataloader(is_distributed=False)
+
+        assert dm.train_dataset == "train_loader"
+        assert captured["mode"] == "train"
+        assert captured["include_attribute_metadata"] is True

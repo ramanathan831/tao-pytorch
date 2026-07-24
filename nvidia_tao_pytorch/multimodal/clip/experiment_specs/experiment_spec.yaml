@@ -9,6 +9,9 @@ train:
   precision: fp16
   pretrained_model_path: null
   loss_type: siglip  # siglip or clip
+  siglip_loss_dist_impl: gather  # metadata masking supports local or gather
+  # none, attribute_match_ignore, or attribute_plus_accessory_match_ignore
+  siglip_loss_mask_mode: none
   triplet_loss_weight: 0.0  # set > 0 to enable triplet loss
   triplet_margin: 0.2
   optim:
@@ -28,6 +31,8 @@ dataset:
     type: custom  # custom or wds
     balance_query_types: false  # true + per-dataset train_pairs.json balances query types
     unique_caption_per_batch: true  # enforce unique captions when balance_query_types is true
+    # Required when siglip_loss_mask_mode is enabled.
+    include_attribute_metadata: false
     datasets:
     - image_dir: ???
       caption_dir: ???

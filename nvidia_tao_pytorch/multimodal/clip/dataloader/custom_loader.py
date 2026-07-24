@@ -19,6 +19,7 @@ query-type frequency balancing. Otherwise the loader falls back to
 inverse-frequency query-type weighting only.
 """
 
+import hashlib
 import json
 import random
 from pathlib import Path
@@ -41,6 +42,14 @@ from nvidia_tao_pytorch.multimodal.clip.dataloader.sampler import (
     query_types_order_from_pairs,
     query_types_order_from_types,
 )
+from nvidia_tao_pytorch.multimodal.clip.utils.attribute_metadata import (
+    load_missing_match_value_ids,
+    normalize_missing_match_values,
+)
+
+
+_ATTRIBUTE_METADATA_FIELDS = ("image_attr_values", "text_attr_values")
+_ACCESSORY_METADATA_FIELDS = ("image_accessory_ids", "text_accessory_ids")
 
 
 # New dataloader that takes a list of dataset sources
@@ -49,7 +58,7 @@ class ImageTextDataset(Dataset):
 
     def __init__(self, datasets: List[dict], transform: Callable = None,
                  tokenizer: Callable = None, zero_shot_eval=False, mapping=None,
-                 mode='train'):
+                 mode='train', include_attribute_metadata: bool = False):
         """
         Initializes the ImageTextDataset.
 
@@ -60,14 +69,27 @@ class ImageTextDataset(Dataset):
             zero_shot_eval (bool): Flag for zero-shot evaluation.
             mapping (Optional[dict]): Mapping for text transformations.
             mode (str): Dataset mode ('train' or 'val').
+            include_attribute_metadata (bool): If True, return image/text
+                attribute vectors from split-aligned pairs metadata.
         """
         self.transform = transform
         self.tokenizer = tokenizer
         self.zero_shot_eval = zero_shot_eval
         self.mapping = mapping
         self.mode = mode
+        self.attribute_metadata = None
+
+        if include_attribute_metadata and mode != 'train':
+            raise ValueError(
+                "include_attribute_metadata is supported only for training."
+            )
 
         self.image_text_pairs = []
+        attribute_metadata_rows = []
+        attribute_width = None
+        attribute_vocab_digest = None
+        accessory_metadata_present = None
+        accessory_vocab_digest = None
         if len(datasets) > 1 and self.zero_shot_eval:
             raise NotImplementedError(
                 "Validation currently only supports a single dataset as input")
@@ -87,6 +109,48 @@ class ImageTextDataset(Dataset):
                     image_list = [
                         line.strip() for line in file if line.strip()
                     ]
+                if include_attribute_metadata:
+                    (
+                        metadata_rows,
+                        attribute_width,
+                        source_attribute_vocab_digest,
+                        source_accessory_vocab_digest,
+                    ) = _load_attribute_metadata(
+                        dataset=dataset,
+                        image_list=image_list,
+                        expected_width=attribute_width,
+                        require_attribute_vocab=len(datasets) > 1,
+                    )
+                    if attribute_vocab_digest is None:
+                        attribute_vocab_digest = source_attribute_vocab_digest
+                    elif attribute_vocab_digest != (
+                        source_attribute_vocab_digest
+                    ):
+                        raise ValueError(
+                            "All datasets with attribute metadata must use "
+                            "the same ordered attribute vocabulary."
+                        )
+                    source_has_accessories = (
+                        source_accessory_vocab_digest is not None
+                    )
+                    if accessory_metadata_present is None:
+                        accessory_metadata_present = source_has_accessories
+                        accessory_vocab_digest = source_accessory_vocab_digest
+                    elif accessory_metadata_present != source_has_accessories:
+                        raise ValueError(
+                            "All datasets must consistently provide accessory "
+                            "metadata when include_attribute_metadata is enabled."
+                        )
+                    elif (
+                        source_has_accessories
+                        and accessory_vocab_digest
+                        != source_accessory_vocab_digest
+                    ):
+                        raise ValueError(
+                            "All datasets with accessory metadata must use the "
+                            "same accessory vocabulary."
+                        )
+                    attribute_metadata_rows.extend(metadata_rows)
                 # Trust the image list file - skip existence checks for speed
                 for image_name in image_list:
                     image_path = image_dir / image_name
@@ -94,6 +158,11 @@ class ImageTextDataset(Dataset):
                         Path(image_name).with_suffix(caption_file_suffix)
                     self.image_text_pairs.append((image_path, text_path))
             else:
+                if include_attribute_metadata:
+                    raise ValueError(
+                        "include_attribute_metadata requires image_list_file "
+                        "for every custom dataset."
+                    )
                 # No image list - glob for files and verify existence
                 logging.info(
                     f"image_list_file not provided. Using all images with "
@@ -111,6 +180,40 @@ class ImageTextDataset(Dataset):
             f"Loaded {len(self.image_text_pairs)} image-text pairs ({self.mode})")
         if not self.image_text_pairs:
             raise ValueError("No valid image-text pairs found across datasets")
+        if include_attribute_metadata:
+            if len(attribute_metadata_rows) != len(self.image_text_pairs):
+                raise ValueError(
+                    "Attribute metadata has "
+                    f"{len(attribute_metadata_rows)} items but dataset has "
+                    f"{len(self.image_text_pairs)}."
+                )
+            self.attribute_metadata = {
+                field: torch.tensor(
+                    [row[field] for row in attribute_metadata_rows],
+                    dtype=torch.long,
+                )
+                for field in _ATTRIBUTE_METADATA_FIELDS
+            }
+            if accessory_metadata_present:
+                for field in _ACCESSORY_METADATA_FIELDS:
+                    padded_width = max(
+                        1,
+                        max(len(row[field]) for row in attribute_metadata_rows),
+                    )
+                    self.attribute_metadata[field] = torch.tensor(
+                        [
+                            row[field]
+                            + [0] * (padded_width - len(row[field]))
+                            for row in attribute_metadata_rows
+                        ],
+                        dtype=torch.long,
+                    )
+            logging.info(
+                "Loaded attribute metadata for "
+                f"{len(self.image_text_pairs)} samples ({self.mode}), "
+                f"width={attribute_width}, "
+                f"accessories={bool(accessory_metadata_present)}."
+            )
 
     def __len__(self):
         """Returns the number of image-text pairs in the dataset."""
@@ -141,6 +244,12 @@ class ImageTextDataset(Dataset):
         elif self.tokenizer:
             text = self.tokenizer(text)[0]
 
+        if self.attribute_metadata is not None:
+            metadata = {
+                field: values[idx]
+                for field, values in self.attribute_metadata.items()
+            }
+            return image, text, metadata
         return image, text
 
 
@@ -148,6 +257,275 @@ def _read_image_list(image_list_file: str) -> List[str]:
     """Read image basenames from an image_list_file, matching ImageTextDataset order."""
     with open(image_list_file, 'r') as f:
         return [line.strip() for line in f if line.strip()]
+
+
+def _resolve_attribute_pairs_file(dataset: dict) -> Path:
+    """Resolve training pairs metadata used for attribute tensors."""
+    pairs_file = dataset.get('train_pairs_file')
+    if not pairs_file:
+        raise ValueError(
+            "include_attribute_metadata requires train_pairs_file for every "
+            "training dataset."
+        )
+    return Path(pairs_file)
+
+
+def _validate_attribute_vector(
+    value,
+    field: str,
+    row_idx: int,
+    pairs_file: Path,
+    expected_width: Optional[int],
+    missing_ids_by_attr=None,
+) -> Tuple[List[int], int]:
+    """Validate one attribute vector and return integer values plus width."""
+    if not isinstance(value, list):
+        raise ValueError(
+            f"{pairs_file} row {row_idx} field '{field}' must be a list."
+        )
+    if not value:
+        raise ValueError(
+            f"{pairs_file} row {row_idx} field '{field}' must not be empty."
+        )
+    if expected_width is not None and len(value) != expected_width:
+        raise ValueError(
+            f"{pairs_file} row {row_idx} field '{field}' has length "
+            f"{len(value)}, expected {expected_width}."
+        )
+    if any(type(attribute_id) is not int for attribute_id in value):
+        raise ValueError(
+            f"{pairs_file} row {row_idx} field '{field}' must contain integers."
+        )
+    values = normalize_missing_match_values(value, missing_ids_by_attr)
+    return values, len(values)
+
+
+def _load_attribute_vocab_contract(
+    pairs_file: Path,
+    required: bool,
+) -> Tuple[Optional[str], Optional[int]]:
+    """Load the ordered scalar-attribute vocabulary identity."""
+    vocab_path = pairs_file.with_name("attribute_vocab.json")
+    if not vocab_path.is_file():
+        if required:
+            raise ValueError(
+                "Multi-dataset attribute metadata requires "
+                f"{vocab_path}."
+            )
+        return None, None
+
+    with open(vocab_path, 'r', encoding='utf-8') as f:
+        vocab = json.load(f)
+    if not isinstance(vocab, dict):
+        raise ValueError(f"{vocab_path} must contain a JSON object.")
+
+    attributes = vocab.get("attributes")
+    if (
+        not isinstance(attributes, list)
+        or not attributes
+        or any(
+            not isinstance(attribute, str) or not attribute.strip()
+            for attribute in attributes
+        )
+        or len(attributes) != len(set(attributes))
+    ):
+        raise ValueError(
+            f"{vocab_path} must contain a non-empty ordered list of unique "
+            "attribute names."
+        )
+
+    canonical = json.dumps(
+        vocab,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest(), len(attributes)
+
+
+def _load_accessory_vocab(pairs_file: Path) -> Tuple[set, str]:
+    """Load the accessory vocabulary used to validate and compare ID lists."""
+    vocab_path = pairs_file.with_name("accessory_vocab.json")
+    if not vocab_path.is_file():
+        raise ValueError(
+            f"Accessory metadata in {pairs_file} requires {vocab_path}."
+        )
+    with open(vocab_path, 'r', encoding='utf-8') as f:
+        vocab = json.load(f)
+    if not isinstance(vocab, dict) or vocab.get("unknown_id") != 0:
+        raise ValueError(
+            f"{vocab_path} must be an object with unknown_id set to 0."
+        )
+    value_to_id = vocab.get("value_to_id")
+    if not isinstance(value_to_id, dict):
+        raise ValueError(f"{vocab_path} must contain a value_to_id mapping.")
+
+    valid_ids = set()
+    for value, accessory_id in value_to_id.items():
+        if (
+            isinstance(accessory_id, bool)
+            or not isinstance(accessory_id, int)
+            or accessory_id < 0
+        ):
+            raise ValueError(
+                f"{vocab_path} maps {value!r} to invalid ID {accessory_id!r}."
+            )
+        if accessory_id > 0:
+            valid_ids.add(accessory_id)
+    canonical = json.dumps(
+        {"unknown_id": 0, "value_to_id": value_to_id},
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return valid_ids, hashlib.sha256(canonical).hexdigest()
+
+
+def _validate_accessory_ids(
+    value,
+    field: str,
+    row_idx: int,
+    pairs_file: Path,
+    valid_ids: set,
+) -> List[int]:
+    """Validate one unpadded accessory-ID list."""
+    if not isinstance(value, list):
+        raise ValueError(
+            f"{pairs_file} row {row_idx} field '{field}' must be a list."
+        )
+    if any(
+        isinstance(accessory_id, bool)
+        or not isinstance(accessory_id, int)
+        or accessory_id <= 0
+        for accessory_id in value
+    ):
+        raise ValueError(
+            f"{pairs_file} row {row_idx} field '{field}' must contain "
+            "positive integer IDs."
+        )
+    if len(value) != len(set(value)):
+        raise ValueError(
+            f"{pairs_file} row {row_idx} field '{field}' contains duplicate IDs."
+        )
+    unknown_ids = sorted(set(value) - valid_ids)
+    if unknown_ids:
+        raise ValueError(
+            f"{pairs_file} row {row_idx} field '{field}' contains IDs absent "
+            f"from accessory_vocab.json: {unknown_ids}."
+        )
+    return list(value)
+
+
+def _load_attribute_metadata(
+    dataset: dict,
+    image_list: List[str],
+    expected_width: Optional[int] = None,
+    require_attribute_vocab: bool = False,
+) -> Tuple[List[Dict[str, List[int]]], int, Optional[str], Optional[str]]:
+    """Load image/text attribute vectors aligned with one image list."""
+    pairs_file = _resolve_attribute_pairs_file(dataset)
+    if not pairs_file.is_file():
+        raise ValueError(
+            "include_attribute_metadata requires a valid pairs metadata file, "
+            f"got {pairs_file}."
+        )
+
+    with open(pairs_file, 'r') as f:
+        pairs = json.load(f)
+    if len(pairs) != len(image_list):
+        raise ValueError(
+            f"{pairs_file} has {len(pairs)} items but image list has "
+            f"{len(image_list)}."
+        )
+
+    attribute_vocab_digest, attribute_vocab_width = (
+        _load_attribute_vocab_contract(
+            pairs_file,
+            required=require_attribute_vocab,
+        )
+    )
+    if attribute_vocab_digest is None:
+        vocab_path = pairs_file.with_name("attribute_vocab.json")
+        logging.warning(
+            "Attribute metadata is enabled for %s, but %s is missing. "
+            "Values such as 'not visible' cannot be normalized and will be "
+            "treated as literal attribute IDs.",
+            pairs_file,
+            vocab_path,
+        )
+    metadata_rows = []
+    width = expected_width
+    missing_ids_by_attr = load_missing_match_value_ids(pairs_file)
+    accessory_metadata_present = None
+    valid_accessory_ids = set()
+    accessory_vocab_digest = None
+    for row_idx, pair in enumerate(pairs):
+        accessory_fields_present = [
+            field in pair for field in _ACCESSORY_METADATA_FIELDS
+        ]
+        if any(accessory_fields_present) and not all(accessory_fields_present):
+            raise ValueError(
+                f"{pairs_file} row {row_idx} must provide both "
+                "image_accessory_ids and text_accessory_ids."
+            )
+        row_has_accessories = all(accessory_fields_present)
+        if accessory_metadata_present is None:
+            accessory_metadata_present = row_has_accessories
+            if row_has_accessories:
+                valid_accessory_ids, accessory_vocab_digest = (
+                    _load_accessory_vocab(pairs_file)
+                )
+        elif accessory_metadata_present != row_has_accessories:
+            raise ValueError(
+                f"{pairs_file} has inconsistent accessory metadata fields."
+            )
+        row = {}
+        for field in _ATTRIBUTE_METADATA_FIELDS:
+            if field not in pair:
+                raise ValueError(
+                    f"{pairs_file} row {row_idx} missing '{field}'."
+                )
+            values, field_width = _validate_attribute_vector(
+                pair[field],
+                field,
+                row_idx,
+                pairs_file,
+                width,
+                missing_ids_by_attr,
+            )
+            if width is None:
+                width = field_width
+            if attribute_vocab_width is not None and (
+                field_width != attribute_vocab_width
+            ):
+                raise ValueError(
+                    f"{pairs_file} field '{field}' has width {field_width}, "
+                    "but attribute_vocab.json defines "
+                    f"{attribute_vocab_width} attributes."
+                )
+            row[field] = values
+        if accessory_metadata_present:
+            for field in _ACCESSORY_METADATA_FIELDS:
+                row[field] = _validate_accessory_ids(
+                    pair[field],
+                    field,
+                    row_idx,
+                    pairs_file,
+                    valid_accessory_ids,
+                )
+            if not set(row["text_accessory_ids"]).issubset(
+                row["image_accessory_ids"]
+            ):
+                raise ValueError(
+                    f"{pairs_file} row {row_idx} text accessories are not "
+                    "contained in the paired image accessories."
+                )
+        metadata_rows.append(row)
+
+    return (
+        metadata_rows,
+        width,
+        attribute_vocab_digest,
+        accessory_vocab_digest,
+    )
 
 
 def _load_train_pairs_metadata(
@@ -280,6 +658,7 @@ def get_custom_dataloader(
     train_pairs_file: Optional[str] = None,
     balance_query_types: bool = False,
     unique_caption_per_batch: bool = True,
+    include_attribute_metadata: bool = False,
 ):
     """
     Creates a DataLoader for custom filesystem-based image-text datasets.
@@ -300,6 +679,8 @@ def get_custom_dataloader(
         train_pairs_file (Optional[str]): Legacy single-dataset fallback path to train_pairs.json.
         balance_query_types (bool): If True and train_pairs_file metadata is set, use balanced sampling over query types.
         unique_caption_per_batch (bool): If True, balanced batches keep each caption string unique.
+        include_attribute_metadata (bool): If True, include image/text attribute
+            tensors from pairs metadata as a third batch item.
 
     Returns:
         DataLoader: A DataLoader for the specified datasets.
@@ -315,7 +696,8 @@ def get_custom_dataloader(
         tokenizer=tokenizer,
         zero_shot_eval=zero_shot_eval,
         mapping=mapping,
-        mode=mode
+        mode=mode,
+        include_attribute_metadata=include_attribute_metadata,
     )
     dataloader_kwargs = {}
 
@@ -353,6 +735,9 @@ def get_custom_dataloader(
             )
 
     if mode == 'train':
+        # MetadataMaskedSigLipLoss gather mode requires the same local batch
+        # shape on every rank, so every custom training path emits only full
+        # batches.
         train_batch_sampler_set = False
         if (
             use_balanced
