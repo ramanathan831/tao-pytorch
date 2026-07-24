@@ -67,6 +67,9 @@ class CLIPDataModule(pl.LightningDataModule):
             unique_caption_per_batch = getattr(
                 self.dataset_config.train, 'unique_caption_per_batch', True
             )
+            include_attribute_metadata = getattr(
+                self.dataset_config.train, 'include_attribute_metadata', False
+            )
             self.train_dataset = get_custom_dataloader(
                 datasets=train_datasets,
                 transform=self.preprocess_train,
@@ -80,6 +83,7 @@ class CLIPDataModule(pl.LightningDataModule):
                 mode='train',
                 balance_query_types=balance_query_types,
                 unique_caption_per_batch=unique_caption_per_batch,
+                include_attribute_metadata=include_attribute_metadata,
             )
         elif train_type == 'wds':
             self.train_dataset = get_train_dataloader(
