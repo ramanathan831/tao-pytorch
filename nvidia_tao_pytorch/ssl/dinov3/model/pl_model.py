@@ -47,6 +47,13 @@ _MLP_LAYERS = {
 class DinoV3PlModel(DinoV2PlModel):
     """PyTorch Lightning module for DINOv3 (inherits nvdinov2)."""
 
+    _PRETRAINED_DIR_FILENAMES = (
+        "model.safetensors",
+        "pytorch_model.bin",
+        "model.pth",
+    )
+    _PRETRAINED_FILE_EXTENSIONS = (".safetensors", ".pth", ".bin", ".tlt")
+
     # Use the DINOv3 (patch-16) param map for the dim attributes the inherited
     # DinoV2PlModel.__init__ reads (depth/num_heads/embed_dim/...).
     param_map = v3_params.map_params
@@ -319,8 +326,20 @@ class DinoV3PlModel(DinoV2PlModel):
         if "gram_last_refresh_step" in checkpoint:
             self._gram_last_refresh_step = checkpoint["gram_last_refresh_step"]
 
-    @staticmethod
-    def _load_pretrained_state_dict(path):
+    @classmethod
+    def _invalid_pretrained_checkpoint(cls, path, reason):
+        """Build the actionable error shared by DINOv3 checkpoint validation failures."""
+        filenames = ", ".join(cls._PRETRAINED_DIR_FILENAMES)
+        extensions = ", ".join(cls._PRETRAINED_FILE_EXTENSIONS)
+        return ValueError(
+            f"Invalid DINOv3 pretrained_model_path '{path}': {reason}. "
+            f"Expected a directory containing {filenames}, or a direct {extensions} "
+            "DINOv3 checkpoint matching the configured backbone. "
+            "DINOv2/NVDINOv2 checkpoints are not supported."
+        )
+
+    @classmethod
+    def _load_pretrained_state_dict(cls, path):
         """Load a DINOv3 checkpoint into a flat ``{key: tensor}`` state dict.
 
         Accepts either a directory holding timm-format weights (``model.safetensors`` or
@@ -332,27 +351,69 @@ class DinoV3PlModel(DinoV2PlModel):
 
         Returns:
             dict: Flat parameter-name -> tensor mapping.
+
+        Raises:
+            ValueError: If the path or checkpoint payload is invalid.
         """
+        original_path = os.fspath(path) if path else str(path)
+        if not path or not os.path.exists(path):
+            raise cls._invalid_pretrained_checkpoint(original_path, "path does not exist")
+
         if os.path.isdir(path):
-            candidates = ["model.safetensors", "pytorch_model.bin", "model.pth"]
             resolved = next(
-                (os.path.join(path, c) for c in candidates if os.path.exists(os.path.join(path, c))),
+                (
+                    os.path.join(path, candidate)
+                    for candidate in cls._PRETRAINED_DIR_FILENAMES
+                    if os.path.isfile(os.path.join(path, candidate))
+                ),
                 None,
             )
-            assert resolved is not None, (
-                f"No DINOv3 weights ({candidates}) found in directory {path}"
-            )
+            if resolved is None:
+                raise cls._invalid_pretrained_checkpoint(
+                    original_path,
+                    "directory does not contain a supported checkpoint file",
+                )
             path = resolved
+        elif not os.path.isfile(path):
+            raise cls._invalid_pretrained_checkpoint(
+                original_path,
+                "path is not a regular file",
+            )
 
-        if path.endswith(".safetensors"):
-            from safetensors.torch import load_file
-            return load_file(path)
+        extension = os.path.splitext(path)[1].lower()
+        if extension not in cls._PRETRAINED_FILE_EXTENSIONS:
+            raise cls._invalid_pretrained_checkpoint(
+                original_path,
+                f"unsupported checkpoint extension '{extension or '<none>'}'",
+            )
 
-        state_dict = torch.load(path, map_location="cpu")
+        try:
+            if extension == ".safetensors":
+                from safetensors.torch import load_file
+                state_dict = load_file(path)
+            else:
+                state_dict = torch.load(path, map_location="cpu")
+        except Exception:
+            raise cls._invalid_pretrained_checkpoint(
+                original_path,
+                "checkpoint file could not be loaded",
+            ) from None
+
         for container_key in ("state_dict", "model"):
             if isinstance(state_dict, dict) and container_key in state_dict:
                 state_dict = state_dict[container_key]
                 break
+
+        if (
+            not isinstance(state_dict, dict) or
+            not state_dict or
+            not all(isinstance(key, str) and torch.is_tensor(value)
+                    for key, value in state_dict.items())
+        ):
+            raise cls._invalid_pretrained_checkpoint(
+                original_path,
+                "checkpoint does not contain a non-empty tensor state dictionary",
+            )
         return state_dict
 
     @staticmethod
@@ -389,6 +450,43 @@ class DinoV3PlModel(DinoV2PlModel):
                 unmapped.append(key)
         return remapped, unmapped
 
+    @classmethod
+    def _validate_and_remap_pretrained_state_dict(
+        cls,
+        state_dict,
+        reference_state_dict,
+        path,
+    ):
+        """Validate DINOv3 identity and backbone compatibility before loading any tensors."""
+        if any(key == "pos_embed" or key.endswith(".pos_embed") for key in state_dict):
+            raise cls._invalid_pretrained_checkpoint(
+                path,
+                "checkpoint contains an absolute positional embedding and appears to be DINOv2",
+            )
+
+        try:
+            remapped, unmapped = cls._remap_dinov3_state_dict(
+                state_dict,
+                reference_state_dict,
+            )
+        except Exception:
+            raise cls._invalid_pretrained_checkpoint(
+                path,
+                "checkpoint tensors could not be remapped to the configured DINOv3 backbone",
+            ) from None
+        required_keys = set(reference_state_dict) - {"mask_token"}
+        missing_keys = sorted(required_keys - set(remapped))
+        if missing_keys:
+            preview = ", ".join(missing_keys[:5])
+            if len(missing_keys) > 5:
+                preview += ", ..."
+            raise cls._invalid_pretrained_checkpoint(
+                path,
+                "checkpoint does not match the configured DINOv3 backbone; "
+                f"missing or shape-incompatible tensors: {preview}",
+            )
+        return remapped, unmapped
+
     def restore_pretrained_weights(self):
         """Load timm/Meta DINOv3 weights via the v3 key remapper, sync teacher + Gram teacher.
 
@@ -400,7 +498,11 @@ class DinoV3PlModel(DinoV2PlModel):
         """
         reference_state_dict = self.student.backbone.state_dict()
         timm_state_dict = self._load_pretrained_state_dict(self.pretrained_weights)
-        remapped, unmapped = self._remap_dinov3_state_dict(timm_state_dict, reference_state_dict)
+        remapped, unmapped = self._validate_and_remap_pretrained_state_dict(
+            timm_state_dict,
+            reference_state_dict,
+            self.pretrained_weights,
+        )
 
         missing_keys, unexpected_keys = self.student.backbone.load_state_dict(remapped, strict=False)
 

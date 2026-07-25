@@ -27,6 +27,14 @@ TEACHER_TEMPERATURE = 0.995
 requires_cuda = pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA GPU")
 
 
+def _assert_actionable_checkpoint_error(error, path):
+    """Every invalid-checkpoint failure should identify the field, path, and accepted family."""
+    message = str(error.value)
+    assert "DINOv3 pretrained_model_path" in message
+    assert str(path) in message
+    assert "DINOv2/NVDINOv2 checkpoints are not supported" in message
+
+
 @pytest.fixture
 def _test_batch():
     torch.manual_seed(47)
@@ -187,3 +195,141 @@ def test_dinov3_validate_backbone_types_accepts_supported():
         DinoV3PlModel._validate_backbone_types(
             {"teacher_type": name, "student_type": name}, map_params
         )
+
+
+@pytest.mark.ssl_unit
+@pytest.mark.parametrize("path_kind", ["missing", "empty_directory"])
+def test_dinov3_pretrained_path_error_is_actionable(tmp_path, path_kind):
+    """Missing paths and empty directories should fail before a low-level loader traceback."""
+    path = tmp_path / path_kind
+    if path_kind == "empty_directory":
+        path.mkdir()
+
+    with pytest.raises(ValueError) as error:
+        DinoV3PlModel._load_pretrained_state_dict(path)
+    _assert_actionable_checkpoint_error(error, path)
+
+
+@pytest.mark.ssl_unit
+def test_dinov3_corrupt_pretrained_file_error_is_actionable(tmp_path):
+    """A corrupt checkpoint should report the configured path and accepted DINOv3 formats."""
+    path = tmp_path / "bad.safetensors"
+    path.write_bytes(b"not a safetensors checkpoint")
+
+    with pytest.raises(ValueError) as error:
+        DinoV3PlModel._load_pretrained_state_dict(path)
+    _assert_actionable_checkpoint_error(error, path)
+
+
+@pytest.mark.ssl_unit
+def test_dinov3_pretrained_payload_must_be_tensor_state_dict(tmp_path):
+    """A loadable file with the wrong payload type is still not a valid checkpoint."""
+    path = tmp_path / "not-a-state-dict.pth"
+    torch.save(["not", "a", "state", "dict"], path)
+
+    with pytest.raises(ValueError) as error:
+        DinoV3PlModel._load_pretrained_state_dict(path)
+    _assert_actionable_checkpoint_error(error, path)
+
+
+@pytest.mark.ssl_unit
+def test_dinov3_pretrained_loader_accepts_tensor_state_dict(tmp_path):
+    """A supported file containing a tensor state dict should load unchanged."""
+    path = tmp_path / "model.pth"
+    expected = {"cls_token": torch.randn(1, 1, 4)}
+    torch.save(expected, path)
+
+    loaded = DinoV3PlModel._load_pretrained_state_dict(path)
+    assert set(loaded) == set(expected)
+    assert torch.equal(loaded["cls_token"], expected["cls_token"])
+
+
+@pytest.mark.ssl_unit
+def test_dinov3_pretrained_loader_preserves_tlt_support(tmp_path):
+    """Inference advertises torch-serialized .tlt checkpoints, so the shared loader accepts them."""
+    path = tmp_path / "model.tlt"
+    expected = {"cls_token": torch.randn(1, 1, 4)}
+    torch.save(expected, path)
+
+    loaded = DinoV3PlModel._load_pretrained_state_dict(path)
+    assert torch.equal(loaded["cls_token"], expected["cls_token"])
+
+
+@pytest.mark.ssl_unit
+def test_dinov3_pretrained_validation_rejects_wrong_family(tmp_path):
+    """Absolute positional embeddings identify an unsupported DINOv2-style checkpoint."""
+    path = tmp_path / "dinov2.pth"
+    state_dict = {
+        "cls_token": torch.randn(1, 1, 4),
+        "pos_embed": torch.randn(1, 5, 4),
+    }
+    reference = {"cls_token": torch.zeros(1, 1, 4)}
+
+    with pytest.raises(ValueError) as error:
+        DinoV3PlModel._validate_and_remap_pretrained_state_dict(
+            state_dict,
+            reference,
+            path,
+        )
+    _assert_actionable_checkpoint_error(error, path)
+
+
+@pytest.mark.ssl_unit
+def test_dinov3_pretrained_validation_wraps_remap_errors(tmp_path):
+    """Malformed SwiGLU pairs should not expose a low-level torch concatenation error."""
+    path = tmp_path / "malformed-swiglu.pth"
+    state_dict = {
+        "blocks.0.mlp.fc1_g.weight": torch.randn(4, 3),
+        "blocks.0.mlp.fc1_x.weight": torch.randn(4, 5),
+    }
+
+    with pytest.raises(ValueError) as error:
+        DinoV3PlModel._validate_and_remap_pretrained_state_dict(
+            state_dict,
+            {},
+            path,
+        )
+    _assert_actionable_checkpoint_error(error, path)
+
+
+@pytest.mark.ssl_unit
+def test_dinov3_pretrained_validation_requires_backbone_coverage(tmp_path):
+    """Partial or shape-incompatible checkpoints must not silently initialize the rest."""
+    path = tmp_path / "partial.pth"
+    state_dict = {"cls_token": torch.randn(1, 1, 4)}
+    reference = {
+        "cls_token": torch.zeros(1, 1, 4),
+        "patch_embed.proj.weight": torch.zeros(4, 3, 2, 2),
+        "mask_token": torch.zeros(1, 4),
+    }
+
+    with pytest.raises(ValueError) as error:
+        DinoV3PlModel._validate_and_remap_pretrained_state_dict(
+            state_dict,
+            reference,
+            path,
+        )
+    _assert_actionable_checkpoint_error(error, path)
+
+
+@pytest.mark.ssl_unit
+def test_dinov3_pretrained_validation_accepts_matching_timm_keys(tmp_path):
+    """A matching timm state dict may omit only the locally initialized iBOT mask token."""
+    path = tmp_path / "dinov3.pth"
+    state_dict = {
+        "cls_token": torch.randn(1, 1, 4),
+        "reg_token": torch.randn(1, 2, 4),
+    }
+    reference = {
+        "cls_token": torch.zeros(1, 1, 4),
+        "register_tokens": torch.zeros(1, 2, 4),
+        "mask_token": torch.zeros(1, 4),
+    }
+
+    remapped, unmapped = DinoV3PlModel._validate_and_remap_pretrained_state_dict(
+        state_dict,
+        reference,
+        path,
+    )
+    assert set(remapped) == {"cls_token", "register_tokens"}
+    assert not unmapped
