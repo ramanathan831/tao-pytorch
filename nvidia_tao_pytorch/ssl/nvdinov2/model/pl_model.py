@@ -167,12 +167,23 @@ class DinoV2PlModel(TAOLightningModule):
         self.clip_grad_norm = self.train_config["clip_grad_norm"]
         self.num_prototypes = self.train_config["num_prototypes"]
         self.num_gpus = max(self.train_config["num_gpus"], len(self.train_config["gpu_ids"]))
-        if self._test_if_after_or_equal_to_blackwell_gpu():
-            self.use_custom_attention = False
-            logging.info("Disabling flash attention since current GPU is after or equal to the Blackwell series, which is currently not supported for FA3")
-        else:
+        if self._custom_attention_supported():
             self.use_custom_attention = self.train_config["use_custom_attention"]
             logging.info("Using flash attention if set by user")
+        else:
+            self.use_custom_attention = False
+            props = torch.cuda.get_device_properties(0)
+            if (props.major, props.minor) >= (10, 0):
+                logging.info(
+                    "Disabling xformers custom attention on Blackwell (SM%d%d): FA3 is not yet "
+                    "supported; using the SDPA fallback attention.", props.major, props.minor
+                )
+            else:
+                logging.info(
+                    "Disabling xformers custom attention on Hopper (SM%d%d): memory_efficient_attention "
+                    "fails to launch with this xformers build (bug 6459926); using the SDPA fallback "
+                    "attention.", props.major, props.minor
+                )
         # Teacher Backbone
         self.teacher_backbone_type = self.model_config.backbone['teacher_type']
         self.teacher_depth = self.param_map['depth'][self.teacher_backbone_type]
@@ -288,19 +299,23 @@ class DinoV2PlModel(TAOLightningModule):
         self.checkpoint_filename = 'nvdinov2_model'
         self.dm = []
 
-    def _test_if_after_or_equal_to_blackwell_gpu(self):
-        """Test if the GPU is after or equal to the Blackwell GPU"""
-        # Get the major/minor compute capability of the current device
-        major = torch.cuda.get_device_properties(0).major
-        minor = torch.cuda.get_device_properties(0).minor
+    def _custom_attention_supported(self):
+        """Whether the xformers custom-attention path is usable on the current GPU.
 
-        if (major, minor) >= (10, 0):
-            logging.debug("Running on GPU after or equal to the Blackwell series")
-            # Use native torch attention
+        The xformers ``memory_efficient_attention`` kernel fails to launch on Hopper (SM90A,
+        compute capability ``(9, x)``) with ``cudaErrorLaunchFailure`` (bug 6459926), and FA3
+        is not yet supported on Blackwell (``>= (10, 0)``). So the custom path is enabled only
+        on pre-Hopper GPUs (Ampere and older, ``< (9, 0)``); Hopper and newer fall back to the
+        shared SDPA path (``MemoryEfficientAttention._fallback_attention``), which is
+        numerically stable and launches on those archs. This is deliberately an
+        xformers-build-scoped arch hardcode - the true gate is whether this xformers build
+        launches ``memory_efficient_attention`` on the arch - and is the pragmatic P0 unblock.
+        """
+        if not torch.cuda.is_available():
+            # No device to probe (e.g. CPU-only construction); honor the configured flag.
             return True
-
-        logging.debug("Running on GPU before to the Blackwell series")
-        return False
+        props = torch.cuda.get_device_properties(0)
+        return (props.major, props.minor) < (9, 0)
 
     def _build_model(self):
         """Build Teacher and Student"""
