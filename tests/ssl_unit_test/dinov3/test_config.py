@@ -6,6 +6,7 @@ import pytest
 from omegaconf import OmegaConf
 
 from nvidia_tao_pytorch.config.dinov3.default_config import (
+    DINOv3TransformConfig,
     ExperimentConfig,
     map_params,
     SUPPORTED_BACKBONES,
@@ -48,11 +49,13 @@ def test_gram_and_lora_present():
 
 @pytest.mark.config
 @pytest.mark.ssl_unit
-def test_single_res_256_transform_defaults():
-    """v1 is single-resolution 256 with patch-16-friendly local crops."""
+def test_dinov3_256_transform_defaults():
+    """DINOv3 defaults to 256 global crops with patch-16-friendly local crops."""
     cfg = OmegaConf.structured(ExperimentConfig())
     assert cfg.dataset.transform.global_crops_size == 256
     assert cfg.dataset.transform.local_crops_size % 16 == 0
+    field = DINOv3TransformConfig.__dataclass_fields__["global_crops_size"]
+    assert field.metadata["description"] == "Size of global crops for DINOv3 training."
 
 
 @pytest.mark.config

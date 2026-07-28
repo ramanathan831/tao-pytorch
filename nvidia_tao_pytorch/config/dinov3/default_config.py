@@ -331,14 +331,14 @@ class DINOv3ModelConfig:
 
 @dataclass
 class DINOv3TransformConfig(NVDINOv2TransformConfig):
-    """DINOv3 transform config (single-res 256, patch-16-friendly crop sizes)."""
+    """DINOv3 transform config with a 256 default and patch-16-friendly crop sizes."""
 
     global_crops_size: int = INT_FIELD(
         value=256,
         default_value=256,
         valid_min=1,
         valid_max="inf",
-        description="Size of global crops (single-res 256 in v1)",
+        description="Size of global crops for DINOv3 training.",
         display_name="Global Crops Size",
         popular="yes"
     )
@@ -394,8 +394,8 @@ class DINOv3ExportExpConfig(NVDINOv2ExportExpConfig):
     """DINOv3 export config (patch-16 trace shape).
 
     Overrides the nvdinov2 default ONNX trace shape (518, a patch-14 multiple):
-    DINOv3 is patch-16 and single-res 256 in v1, so the default trace matches the
-    backbone ``img_size`` and stays divisible by the patch size.
+    DINOv3 is patch-16 and defaults to 256, so the default trace matches the backbone
+    ``img_size`` and stays divisible by the patch size.
     """
 
     input_width: int = INT_FIELD(
