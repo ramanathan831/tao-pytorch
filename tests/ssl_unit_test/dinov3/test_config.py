@@ -9,6 +9,7 @@ from nvidia_tao_pytorch.config.dinov3.default_config import (
     ExperimentConfig,
     map_params,
     SUPPORTED_BACKBONES,
+    SUPPORTED_IMAGE_SIZES,
 )
 
 
@@ -31,6 +32,7 @@ def test_backbone_patch16_rope_defaults():
     assert bb.teacher_type == "vit_b"
     assert bb.student_type == "vit_b"
     assert bb.img_size == 256
+    assert SUPPORTED_IMAGE_SIZES == (256, 512, 768)
     assert bb.rope_theta == 100.0
 
 

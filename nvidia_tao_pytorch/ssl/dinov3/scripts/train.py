@@ -48,6 +48,10 @@ def _resolve_strategy(experiment_config):
 
 def run_experiment(experiment_config, key):
     """Start the training."""
+    # Fail before logger/trainer/data-module initialization. Hydra validates the field type,
+    # but the INT_FIELD ``valid_options`` enum is schema metadata rather than a runtime guard.
+    DinoV3PlModel._validate_img_size(experiment_config.model.backbone)
+
     resume_ckpt, trainer_kwargs = initialize_train_experiment(experiment_config, key)
 
     num_nodes = experiment_config.train.num_nodes

@@ -44,6 +44,7 @@ from nvidia_tao_pytorch.config.common.common_config import CommonExperimentConfi
 SUPPORTED_BACKBONES = [
     *["vit_s", "vit_s_plus", "vit_b", "vit_l", "vit_h_plus", "vit_7b"]
 ]
+SUPPORTED_IMAGE_SIZES = (256, 512, 768)
 
 # DINOv3 ViT param map (patch-16). Distinct from the nvdinov2 (patch-14) map.
 # FFN note: DINOv3 ViT-S/B/L use a standard MLP; ViT-S+/H+/7B use SwiGLU. The
@@ -173,9 +174,9 @@ class DINOv3BackboneConfig(BackboneConfig):
     img_size: int = INT_FIELD(
         value=256,
         default_value=256,
-        description="Size of images for the backbone (single-res 256 in v1)",
+        description="Backbone image size. Supported values are 256, 512, and 768.",
         display_name="image size",
-        valid_options="256,512,768",
+        valid_options=",".join(str(size) for size in SUPPORTED_IMAGE_SIZES),
         popular="yes"
     )
     rope_theta: float = FLOAT_FIELD(
