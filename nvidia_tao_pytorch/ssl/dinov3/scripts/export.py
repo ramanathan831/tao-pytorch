@@ -14,10 +14,56 @@ import torch
 from nvidia_tao_pytorch.core.cookbooks.tlt_pytorch_cookbook import TLTPyTorchCookbook
 from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
+from nvidia_tao_pytorch.core.tlt_logging import logging
 from nvidia_tao_pytorch.config.dinov3.default_config import ExperimentConfig
 from nvidia_tao_pytorch.ssl.dinov3.model.pl_model import DinoV3PlModel
+from nvidia_tao_pytorch.ssl.dinov3.utils.checkpoint_remap import extract_backbone_state_dict
 
 spec_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _restore_export_checkpoint(model, model_path):
+    """Restore a DINOv3 export checkpoint while preserving the stripped-checkpoint path.
+
+    A full Lightning checkpoint contains both student and teacher branches, so export selects
+    and loads only ``teacher.backbone``. For all other supported checkpoint shapes, call the
+    existing restore flow unchanged.
+
+    Args:
+        model (DinoV3PlModel): Constructed DINOv3 Lightning model.
+        model_path (str): Export checkpoint path.
+    """
+    state_dict = model._load_pretrained_state_dict(model_path)
+    is_full_lightning = any(".backbone." in key for key in state_dict)
+    if not is_full_lightning:
+        model.restore_pretrained_weights(preloaded_state_dict=state_dict)
+        return
+
+    teacher_state_dict = extract_backbone_state_dict(state_dict, source="teacher")
+    teacher_backbone = model.teacher.backbone
+    reference_state_dict = teacher_backbone.state_dict()
+    remapped, unmapped = model._validate_and_remap_pretrained_state_dict(
+        teacher_state_dict,
+        reference_state_dict,
+        model_path,
+    )
+    missing_keys, unexpected_keys = teacher_backbone.load_state_dict(remapped, strict=False)
+
+    logging.info(
+        "DINOv3 export: selected 'teacher.backbone' from full Lightning checkpoint "
+        f"'{model_path}'."
+    )
+    logging.info(
+        f"DINOv3 export remap: loaded {len(remapped)}/{len(remapped) + len(unmapped)} "
+        "checkpoint tensors into the teacher ViT backbone."
+    )
+    residual_missing = [key for key in missing_keys if key != "mask_token"]
+    if residual_missing:
+        logging.info(f"DINOv3 export remap missing keys (kept as initialized): {residual_missing}")
+    if unexpected_keys:
+        logging.info(f"DINOv3 export remap unexpected keys: {unexpected_keys}")
+    if unmapped:
+        logging.info(f"DINOv3 export checkpoint keys with no matching backbone param: {unmapped}")
 
 
 # Load experiment specification, additially using schema for validation/retrieving the default values.
@@ -90,7 +136,7 @@ def run_export(experiment_config):
     model = DinoV3PlModel(experiment_config)
 
     model.pretrained_weights = model_path
-    model.restore_pretrained_weights()
+    _restore_export_checkpoint(model, model_path)
     model = model.teacher.backbone
 
     input_names = ['input']

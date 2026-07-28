@@ -381,6 +381,9 @@ dinov3 convert   -e experiment_specs/train_dinov3_vitb.yaml convert.checkpoint=<
 ```
 
 `pretrained_model_path` may be a directory (the remapper finds `model.safetensors`) or a file.
+`export.checkpoint` accepts either a stripped teacher-backbone checkpoint or a full Lightning
+training checkpoint; for a full checkpoint, export explicitly selects and logs
+`teacher.backbone`.
 
 ---
 

@@ -487,7 +487,7 @@ class DinoV3PlModel(DinoV2PlModel):
             )
         return remapped, unmapped
 
-    def restore_pretrained_weights(self):
+    def restore_pretrained_weights(self, preloaded_state_dict=None):
         """Load timm/Meta DINOv3 weights via the v3 key remapper, sync teacher + Gram teacher.
 
         Replaces the inherited loader (which ``torch.load``s a single ``.pth`` of already-
@@ -495,9 +495,18 @@ class DinoV3PlModel(DinoV2PlModel):
         so this resolves the checkpoint, remaps the keys, loads them into the student backbone
         (non-strict, reporting residual missing/unexpected), mirrors the student into the
         teacher (non-distill), and re-anchors the frozen Gram teacher to the loaded weights.
+
+        Args:
+            preloaded_state_dict (dict, optional): An already-loaded checkpoint state dict.
+                When omitted, load ``self.pretrained_weights`` as before. This avoids reading
+                the checkpoint twice when export first inspects its shape.
         """
         reference_state_dict = self.student.backbone.state_dict()
-        timm_state_dict = self._load_pretrained_state_dict(self.pretrained_weights)
+        timm_state_dict = (
+            preloaded_state_dict
+            if preloaded_state_dict is not None
+            else self._load_pretrained_state_dict(self.pretrained_weights)
+        )
         remapped, unmapped = self._validate_and_remap_pretrained_state_dict(
             timm_state_dict,
             reference_state_dict,
