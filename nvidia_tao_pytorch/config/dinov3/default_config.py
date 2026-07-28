@@ -377,6 +377,7 @@ class DINOv3TrainExpConfig(NVDINOv2TrainExpConfig):
 
     pretrained_model_path: Optional[str] = STR_FIELD(
         value=None,
+        default_value=None,
         default_type=None,
         description=(
             "Path to DINOv3 pretrained weights matching the configured backbone. "

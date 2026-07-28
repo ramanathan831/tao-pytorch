@@ -33,6 +33,7 @@ def test_pretrained_model_path_description_is_dinov3_specific():
     """DINOv3 metadata must not inherit the NVDINOv2 checkpoint contract."""
     field = DINOv3TrainExpConfig.__dataclass_fields__["pretrained_model_path"]
     assert field.metadata["description"] == EXPECTED_PRETRAINED_DESCRIPTION
+    assert field.metadata["default_value"] is None
 
 
 @pytest.mark.config
