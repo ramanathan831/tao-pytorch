@@ -6,6 +6,7 @@ import pytest
 from omegaconf import OmegaConf
 
 from nvidia_tao_pytorch.config.dinov3.default_config import (
+    DINOv3CuDNNConfig,
     ExperimentConfig,
     map_params,
     SUPPORTED_BACKBONES,
@@ -18,6 +19,23 @@ def test_default_model_name_is_dinov3():
     """The DINOv3 experiment config defaults its model name to 'dinov3'."""
     cfg = OmegaConf.structured(ExperimentConfig())
     assert cfg.model_name == "dinov3"
+
+
+@pytest.mark.config
+@pytest.mark.ssl_unit
+def test_cudnn_defaults_support_custom_attention():
+    """DINOv3 must not inherit deterministic CuDNN from the common train config."""
+    cfg = OmegaConf.structured(ExperimentConfig())
+    assert cfg.train.cudnn.benchmark is True
+    assert cfg.train.cudnn.deterministic is False
+
+    fields = DINOv3CuDNNConfig.__dataclass_fields__
+    assert fields["benchmark"].metadata["description"]
+    assert fields["benchmark"].metadata["display_name"] == "CuDNN benchmark"
+    assert fields["benchmark"].metadata["popular"] == "no"
+    assert fields["deterministic"].metadata["description"]
+    assert fields["deterministic"].metadata["display_name"] == "CuDNN deterministic"
+    assert fields["deterministic"].metadata["popular"] == "no"
 
 
 @pytest.mark.config
