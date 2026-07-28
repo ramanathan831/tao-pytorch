@@ -11,6 +11,7 @@ from nvidia_tao_pytorch.config.dinov3.default_config import (
     map_params,
     SUPPORTED_BACKBONES,
     SUPPORTED_IMAGE_SIZES,
+    validate_img_size,
 )
 
 
@@ -35,6 +36,22 @@ def test_backbone_patch16_rope_defaults():
     assert bb.img_size == 256
     assert SUPPORTED_IMAGE_SIZES == (256, 512, 768)
     assert bb.rope_theta == 100.0
+
+
+@pytest.mark.config
+@pytest.mark.ssl_unit
+def test_validate_img_size_is_public_config_contract():
+    """The shared validator accepts mappings/dataclasses and rejects unsupported values."""
+    for img_size in SUPPORTED_IMAGE_SIZES:
+        validate_img_size({"img_size": img_size})
+
+    backbone_config = ExperimentConfig().model.backbone
+    backbone_config.img_size = 300
+    with pytest.raises(
+        ValueError,
+        match=r"model\.backbone\.img_size: 300.*\[256, 512, 768\]",
+    ):
+        validate_img_size(backbone_config)
 
 
 @pytest.mark.config

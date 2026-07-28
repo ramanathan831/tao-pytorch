@@ -58,16 +58,6 @@ class DinoV3PlModel(DinoV2PlModel):
     # DinoV2PlModel.__init__ reads (depth/num_heads/embed_dim/...).
     param_map = v3_params.map_params
 
-    @staticmethod
-    def _validate_img_size(backbone_config):
-        """Reject image sizes outside the DINOv3 schema enum."""
-        img_size = backbone_config["img_size"]
-        if img_size not in v3_params.SUPPORTED_IMAGE_SIZES:
-            raise ValueError(
-                f"Invalid value for model.backbone.img_size: {img_size}. "
-                f"Allowed values are: {list(v3_params.SUPPORTED_IMAGE_SIZES)}."
-            )
-
     def __init__(self, experiment_spec):
         """Initialize the DINOv3 Lightning module.
 
@@ -76,7 +66,7 @@ class DinoV3PlModel(DinoV2PlModel):
         """
         # ``valid_options`` generates the packaged schema enum but Hydra does not enforce
         # that metadata at runtime. Validate before the parent initializes CUDA/model state.
-        self._validate_img_size(experiment_spec.model.backbone)
+        v3_params.validate_img_size(experiment_spec.model.backbone)
         super().__init__(experiment_spec)
         self.checkpoint_filename = 'dinov3_model'
 

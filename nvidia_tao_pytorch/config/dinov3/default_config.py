@@ -46,6 +46,27 @@ SUPPORTED_BACKBONES = [
 ]
 SUPPORTED_IMAGE_SIZES = (256, 512, 768)
 
+
+def validate_img_size(backbone_config):
+    """Reject image sizes outside the DINOv3 schema enum.
+
+    Args:
+        backbone_config: Mapping- or attribute-style DINOv3 backbone configuration.
+
+    Raises:
+        ValueError: If ``img_size`` is not one of :data:`SUPPORTED_IMAGE_SIZES`.
+    """
+    try:
+        img_size = backbone_config["img_size"]
+    except TypeError:
+        img_size = backbone_config.img_size
+    if img_size not in SUPPORTED_IMAGE_SIZES:
+        raise ValueError(
+            f"Invalid value for model.backbone.img_size: {img_size}. "
+            f"Allowed values are: {list(SUPPORTED_IMAGE_SIZES)}."
+        )
+
+
 # DINOv3 ViT param map (patch-16). Distinct from the nvdinov2 (patch-14) map.
 # FFN note: DINOv3 ViT-S/B/L use a standard MLP; ViT-S+/H+/7B use SwiGLU. The
 # ``DinoV2VisionTransformer.__init__`` already accepts ``mlp_layer``, so the v3 build
