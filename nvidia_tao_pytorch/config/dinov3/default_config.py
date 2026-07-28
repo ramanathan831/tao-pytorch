@@ -367,13 +367,23 @@ class DINOv3DatasetConfig(NVDINOv2DatasetConfig):
 class DINOv3TrainExpConfig(NVDINOv2TrainExpConfig):
     """DINOv3 train config.
 
-    Subclasses the nvdinov2 train config and adds a ``distributed_strategy`` selector.
-    The nvdinov2 default (Lightning ``'auto'`` -> single-device / DDP) is unchanged; FSDP
-    (FULL_SHARD) is opt-in and is what enables high-resolution and the larger ViT-L / ViT-H+
-    backbones, where DDP's full per-GPU replication does not fit. The ``DINOV3_STRATEGY`` env
-    var, kept for the de-risking smokes, overrides this field when set.
+    Subclasses the nvdinov2 train config, corrects the inherited pretrained-weight
+    contract, and adds a ``distributed_strategy`` selector. The nvdinov2 default
+    (Lightning ``'auto'`` -> single-device / DDP) is unchanged; FSDP (FULL_SHARD) is
+    opt-in and is what enables high-resolution and the larger ViT-L / ViT-H+ backbones,
+    where DDP's full per-GPU replication does not fit. The ``DINOV3_STRATEGY`` env var,
+    kept for the de-risking smokes, overrides this field when set.
     """
 
+    pretrained_model_path: Optional[str] = STR_FIELD(
+        value=None,
+        default_type=None,
+        description=(
+            "Path to DINOv3 pretrained weights matching the configured backbone. "
+            "Accepts a timm-format directory or file, or a stripped TAO DINOv3 "
+            "backbone checkpoint. DINOv2/NVDINOv2 checkpoints are not supported."
+        )
+    )
     distributed_strategy: str = STR_FIELD(
         value="auto",
         default_value="auto",

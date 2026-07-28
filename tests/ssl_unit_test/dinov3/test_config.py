@@ -6,9 +6,16 @@ import pytest
 from omegaconf import OmegaConf
 
 from nvidia_tao_pytorch.config.dinov3.default_config import (
+    DINOv3TrainExpConfig,
     ExperimentConfig,
     map_params,
     SUPPORTED_BACKBONES,
+)
+
+EXPECTED_PRETRAINED_DESCRIPTION = (
+    "Path to DINOv3 pretrained weights matching the configured backbone. "
+    "Accepts a timm-format directory or file, or a stripped TAO DINOv3 "
+    "backbone checkpoint. DINOv2/NVDINOv2 checkpoints are not supported."
 )
 
 
@@ -18,6 +25,14 @@ def test_default_model_name_is_dinov3():
     """The DINOv3 experiment config defaults its model name to 'dinov3'."""
     cfg = OmegaConf.structured(ExperimentConfig())
     assert cfg.model_name == "dinov3"
+
+
+@pytest.mark.config
+@pytest.mark.ssl_unit
+def test_pretrained_model_path_description_is_dinov3_specific():
+    """DINOv3 metadata must not inherit the NVDINOv2 checkpoint contract."""
+    field = DINOv3TrainExpConfig.__dataclass_fields__["pretrained_model_path"]
+    assert field.metadata["description"] == EXPECTED_PRETRAINED_DESCRIPTION
 
 
 @pytest.mark.config
