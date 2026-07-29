@@ -256,6 +256,69 @@ def test_dinov3_pretrained_loader_preserves_tlt_support(tmp_path):
 
 
 @pytest.mark.ssl_unit
+@pytest.mark.parametrize("checkpoint_kind", ["full", "stripped"])
+def test_dinov3_export_restores_teacher_checkpoint(monkeypatch, checkpoint_kind):
+    """Export selects full-checkpoint teacher weights and preserves the stripped path."""
+    from nvidia_tao_pytorch.ssl.dinov3.scripts.export import _restore_export_checkpoint
+
+    student_cls_token = torch.zeros(1, 1, 4)
+    teacher_cls_token = torch.ones(1, 1, 4)
+    if checkpoint_kind == "full":
+        checkpoint = {
+            "student.backbone.cls_token": student_cls_token,
+            "teacher.backbone.cls_token": teacher_cls_token,
+        }
+    else:
+        checkpoint = {"cls_token": teacher_cls_token}
+
+    model = object.__new__(DinoV3PlModel)
+    torch.nn.Module.__init__(model)
+    model.pretrained_weights = "model_epoch_001.pth"
+    model.student = torch.nn.ModuleDict({
+        "backbone": torch.nn.Module(),
+    })
+    model.student.backbone.register_parameter(
+        "cls_token",
+        torch.nn.Parameter(torch.full((1, 1, 4), -1.0)),
+    )
+    model.teacher = torch.nn.ModuleDict({
+        "backbone": torch.nn.Module(),
+    })
+    model.teacher.backbone.register_parameter(
+        "cls_token",
+        torch.nn.Parameter(torch.full((1, 1, 4), -2.0)),
+    )
+    model.model_config = OmegaConf.create({"distill": {"enable": False}})
+
+    loaded_paths = []
+
+    def _load_checkpoint(path):
+        loaded_paths.append(path)
+        return checkpoint
+
+    monkeypatch.setattr(model, "_load_pretrained_state_dict", _load_checkpoint)
+    log_messages = []
+    monkeypatch.setattr(
+        "nvidia_tao_pytorch.ssl.dinov3.model.pl_model.logging.info",
+        log_messages.append,
+    )
+
+    _restore_export_checkpoint(model, model.pretrained_weights)
+
+    assert loaded_paths == [model.pretrained_weights]
+    assert torch.equal(model.teacher.backbone.cls_token, teacher_cls_token)
+    expected_student = (
+        torch.full((1, 1, 4), -1.0)
+        if checkpoint_kind == "full"
+        else teacher_cls_token
+    )
+    assert torch.equal(model.student.backbone.cls_token, expected_student)
+    assert not torch.equal(model.teacher.backbone.cls_token, student_cls_token)
+    if checkpoint_kind == "full":
+        assert any("selected 'teacher.backbone'" in message for message in log_messages)
+
+
+@pytest.mark.ssl_unit
 def test_dinov3_pretrained_validation_rejects_wrong_family(tmp_path):
     """Absolute positional embeddings identify an unsupported DINOv2-style checkpoint."""
     path = tmp_path / "dinov2.pth"
