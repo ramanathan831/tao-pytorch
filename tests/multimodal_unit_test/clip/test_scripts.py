@@ -6,6 +6,7 @@
 import os
 import tempfile
 from datetime import timedelta
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import h5py
@@ -14,6 +15,7 @@ import pytest
 import torch
 from PIL import Image
 
+import nvidia_tao_pytorch.multimodal.clip.scripts.evaluate as evaluate_script
 from nvidia_tao_pytorch.multimodal.clip.scripts.inference import (
     get_image_files,
     load_and_preprocess_batch,
@@ -72,6 +74,136 @@ class TestRankLocalDDPSetup:
             timeout=timeout,
         )
         assert "device_id" not in init_dist.call_args.kwargs
+
+
+@pytest.mark.multimodal_unit
+class TestEvaluateRouting:
+    """Test explicit routing between generic retrieval and direct PAS."""
+
+    @staticmethod
+    def _config(val_datasets, evaluate_datasets):
+        return SimpleNamespace(
+            encryption_key="",
+            model=SimpleNamespace(type="test-model"),
+            dataset=SimpleNamespace(
+                val=SimpleNamespace(datasets=val_datasets),
+            ),
+            evaluate=SimpleNamespace(datasets=evaluate_datasets),
+        )
+
+    def test_validation_pairs_sidecar_stays_on_trainer_test(self, tmp_path):
+        """A validation sidecar must not implicitly select direct PAS."""
+        image_list = tmp_path / "val_list.txt"
+        image_list.write_text("image.jpg\n")
+        (tmp_path / "val_pairs.json").write_text("[]")
+        config = self._config(
+            [
+                SimpleNamespace(
+                    image_dir=str(tmp_path),
+                    caption_dir=str(tmp_path),
+                    image_list_file=str(image_list),
+                )
+            ],
+            [],
+        )
+        model = MagicMock()
+        datamodule = MagicMock()
+        trainer = MagicMock()
+
+        with (
+            patch.object(
+                evaluate_script,
+                "initialize_evaluation_experiment",
+                return_value=(None, {}),
+            ),
+            patch.object(
+                evaluate_script,
+                "CLIPPlModel",
+                return_value=model,
+            ),
+            patch.object(
+                evaluate_script,
+                "CLIPDataModule",
+                return_value=datamodule,
+            ),
+            patch.object(
+                evaluate_script,
+                "Trainer",
+                return_value=trainer,
+            ),
+            patch.object(
+                evaluate_script,
+                "run_pas_evaluation",
+            ) as run_pas,
+        ):
+            evaluate_script.run_experiment(config, key="")
+
+        trainer.test.assert_called_once_with(model, datamodule=datamodule)
+        run_pas.assert_not_called()
+
+    def test_evaluate_datasets_explicitly_selects_direct_pas(self, tmp_path):
+        """An evaluate dataset with a pairs sidecar selects direct PAS."""
+        image_list = tmp_path / "test_list.txt"
+        image_list.write_text("image.jpg\n")
+        pairs_file = tmp_path / "test_pairs.json"
+        pairs_file.write_text("[]")
+        config = self._config(
+            [],
+            [SimpleNamespace(image_list_file=str(image_list))],
+        )
+        model = MagicMock()
+        pairs = [MagicMock()]
+
+        with (
+            patch.object(
+                evaluate_script,
+                "initialize_evaluation_experiment",
+                return_value=(None, {}),
+            ),
+            patch.object(
+                evaluate_script,
+                "CLIPPlModel",
+                return_value=model,
+            ),
+            patch.object(
+                evaluate_script,
+                "resolve_pas_eval_data",
+                return_value=(pairs, pairs_file),
+            ) as resolve_pas,
+            patch.object(
+                evaluate_script,
+                "run_pas_evaluation",
+            ) as run_pas,
+            patch.object(evaluate_script, "Trainer") as trainer_class,
+        ):
+            evaluate_script.run_experiment(config, key="")
+
+        resolve_pas.assert_called_once_with(config, pairs_file)
+        run_pas.assert_called_once_with(config, model, pairs)
+        trainer_class.assert_not_called()
+
+    def test_evaluate_datasets_requires_a_valid_pairs_file(self, tmp_path):
+        """Explicit direct PAS configuration fails instead of falling back."""
+        image_list = tmp_path / "test_list.txt"
+        image_list.write_text("image.jpg\n")
+        config = self._config(
+            [SimpleNamespace(image_list_file=str(image_list))],
+            [SimpleNamespace(image_list_file=str(image_list))],
+        )
+
+        with (
+            patch.object(
+                evaluate_script,
+                "initialize_evaluation_experiment",
+            ) as initialize,
+            pytest.raises(
+                ValueError,
+                match="Direct PAS evaluation was requested",
+            ),
+        ):
+            evaluate_script.run_experiment(config, key="")
+
+        initialize.assert_not_called()
 
 
 @pytest.mark.multimodal_unit
