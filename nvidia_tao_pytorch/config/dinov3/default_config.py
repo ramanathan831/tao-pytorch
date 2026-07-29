@@ -20,6 +20,8 @@ DINOv3 is Meta IP implemented inside TAO; the family/endpoint is named ``dinov3`
 from dataclasses import dataclass
 from typing import Optional
 
+from omegaconf import MISSING
+
 from nvidia_tao_pytorch.config.utils.types import (
     STR_FIELD,
     INT_FIELD,
@@ -408,6 +410,15 @@ class DINOv3ExportExpConfig(NVDINOv2ExportExpConfig):
     backbone ``img_size`` and stays divisible by the patch size.
     """
 
+    checkpoint: str = STR_FIELD(
+        value=MISSING,
+        default_value="",
+        description=(
+            "Path to a stripped DINOv3 teacher checkpoint or a full Lightning training "
+            "checkpoint. Export always selects the EMA teacher backbone."
+        ),
+        display_name="Path to checkpoint file"
+    )
     input_width: int = INT_FIELD(
         value=256,
         default_value=256,

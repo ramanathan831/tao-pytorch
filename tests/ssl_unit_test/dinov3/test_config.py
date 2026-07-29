@@ -6,6 +6,7 @@ import pytest
 from omegaconf import OmegaConf
 
 from nvidia_tao_pytorch.config.dinov3.default_config import (
+    DINOv3ExportExpConfig,
     DINOv3TrainExpConfig,
     ExperimentConfig,
     map_params,
@@ -154,3 +155,12 @@ def test_export_trace_shape_matches_backbone():
     assert cfg.export.input_height == 256
     assert cfg.export.input_width % cfg.model.backbone.patch_size == 0
     assert cfg.export.input_height % cfg.model.backbone.patch_size == 0
+
+
+@pytest.mark.config
+@pytest.mark.ssl_unit
+def test_export_checkpoint_contract_selects_teacher():
+    """The generated schema must document deterministic teacher selection for full checkpoints."""
+    field = DINOv3ExportExpConfig.__dataclass_fields__["checkpoint"]
+    assert "full Lightning training checkpoint" in field.metadata["description"]
+    assert "always selects the EMA teacher backbone" in field.metadata["description"]

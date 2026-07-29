@@ -6,7 +6,9 @@ import pytest
 import torch
 
 from nvidia_tao_pytorch.ssl.dinov3.utils.checkpoint_remap import (
+    extract_backbone_state_dict,
     fuse_timm_swiglu_fc1,
+    is_full_checkpoint,
     split_fused_swiglu_fc1,
 )
 
@@ -24,6 +26,35 @@ def _swiglu_split_state_dict(in_dim=8, hidden=6, n_blocks=2):
         sd[p + "fc2.bias"] = torch.randn(in_dim)
         sd[f"blocks.{b}.norm1.weight"] = torch.randn(in_dim)  # non-MLP passthrough
     return sd
+
+
+@pytest.mark.ssl_unit
+@pytest.mark.parametrize("wrapped", [False, True])
+def test_full_checkpoint_detection_and_teacher_extraction(wrapped):
+    """Full-checkpoint detection and extraction share the same wrapped-state handling."""
+    teacher_weight = torch.ones(1)
+    state_dict = {
+        "student.backbone.cls_token": torch.zeros(1),
+        "teacher.backbone.cls_token": teacher_weight,
+        "teacher.dino_head.weight": torch.randn(1),
+    }
+    checkpoint = {"state_dict": state_dict} if wrapped else state_dict
+
+    assert is_full_checkpoint(checkpoint)
+    extracted = extract_backbone_state_dict(checkpoint, source="teacher")
+    assert set(extracted) == {"cls_token"}
+    assert torch.equal(extracted["cls_token"], teacher_weight)
+
+
+@pytest.mark.ssl_unit
+def test_stripped_checkpoint_is_not_full():
+    """A stripped backbone checkpoint stays on the existing restore path."""
+    checkpoint = {"cls_token": torch.ones(1), "mask_token": torch.zeros(1)}
+
+    assert not is_full_checkpoint(checkpoint)
+    extracted = extract_backbone_state_dict(checkpoint)
+    assert set(extracted) == set(checkpoint)
+    assert all(torch.equal(extracted[key], checkpoint[key]) for key in checkpoint)
 
 
 @pytest.mark.ssl_unit

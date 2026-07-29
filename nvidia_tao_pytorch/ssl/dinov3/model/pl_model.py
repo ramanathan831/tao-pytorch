@@ -33,7 +33,11 @@ from nvidia_tao_pytorch.ssl.nvdinov2.model.loss import DinoV2Loss
 from nvidia_tao_pytorch.ssl.nvdinov2.model.pl_model import DinoV2PlModel
 from nvidia_tao_pytorch.ssl.dinov3.model.vit import DinoV3VisionTransformer, SwiGLUFusedFull
 from nvidia_tao_pytorch.ssl.dinov3.model.loss import GramLoss
-from nvidia_tao_pytorch.ssl.dinov3.utils.checkpoint_remap import timm_to_tao, fuse_timm_swiglu_fc1
+from nvidia_tao_pytorch.ssl.dinov3.utils.checkpoint_remap import (
+    TAO_ONLY_KEYS,
+    fuse_timm_swiglu_fc1,
+    timm_to_tao,
+)
 
 # Resolve the param-map FFN name to a layer class without importing torch in the config.
 # DINOv3 ViT-H+/7B use SwiGLUFusedFull (full inner width matching the public DINOv3 SwiGLU
@@ -474,7 +478,7 @@ class DinoV3PlModel(DinoV2PlModel):
                 path,
                 "checkpoint tensors could not be remapped to the configured DINOv3 backbone",
             ) from None
-        required_keys = set(reference_state_dict) - {"mask_token"}
+        required_keys = set(reference_state_dict) - set(TAO_ONLY_KEYS)
         missing_keys = sorted(required_keys - set(remapped))
         if missing_keys:
             preview = ", ".join(missing_keys[:5])
@@ -487,7 +491,7 @@ class DinoV3PlModel(DinoV2PlModel):
             )
         return remapped, unmapped
 
-    def restore_pretrained_weights(self):
+    def restore_pretrained_weights(self, preloaded_state_dict=None):
         """Load timm/Meta DINOv3 weights via the v3 key remapper, sync teacher + Gram teacher.
 
         Replaces the inherited loader (which ``torch.load``s a single ``.pth`` of already-
@@ -495,9 +499,18 @@ class DinoV3PlModel(DinoV2PlModel):
         so this resolves the checkpoint, remaps the keys, loads them into the student backbone
         (non-strict, reporting residual missing/unexpected), mirrors the student into the
         teacher (non-distill), and re-anchors the frozen Gram teacher to the loaded weights.
+
+        Args:
+            preloaded_state_dict (dict, optional): An already-loaded checkpoint state dict.
+                When omitted, load ``self.pretrained_weights`` as before. This avoids reading
+                the checkpoint twice when export first inspects its shape.
         """
         reference_state_dict = self.student.backbone.state_dict()
-        timm_state_dict = self._load_pretrained_state_dict(self.pretrained_weights)
+        timm_state_dict = (
+            preloaded_state_dict
+            if preloaded_state_dict is not None
+            else self._load_pretrained_state_dict(self.pretrained_weights)
+        )
         remapped, unmapped = self._validate_and_remap_pretrained_state_dict(
             timm_state_dict,
             reference_state_dict,
@@ -515,7 +528,7 @@ class DinoV3PlModel(DinoV2PlModel):
             )
             # ``mask_token`` is an iBOT parameter absent from the (inference) DINOv3 checkpoint;
             # it is initialized by the constructor, so flag the rest as the meaningful residual.
-            residual_missing = [k for k in missing_keys if k != "mask_token"]
+            residual_missing = [k for k in missing_keys if k not in TAO_ONLY_KEYS]
             if residual_missing:
                 logging.info(f"DINOv3 remap missing keys (kept as initialized): {residual_missing}")
             if unexpected_keys:

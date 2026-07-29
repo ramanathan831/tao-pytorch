@@ -193,6 +193,19 @@ def save_state_dict(state_dict, path):
         torch.save(state_dict, path)
 
 
+def is_full_checkpoint(raw):
+    """Return whether a checkpoint contains named backbone branches.
+
+    Args:
+        raw (dict): Loaded checkpoint, optionally wrapped in a ``state_dict`` container.
+
+    Returns:
+        bool: True for full SSL checkpoints containing ``<source>.backbone.*`` keys.
+    """
+    state_dict = raw["state_dict"] if isinstance(raw, dict) and "state_dict" in raw else raw
+    return any(".backbone." in key for key in state_dict)
+
+
 def extract_backbone_state_dict(raw, source="teacher"):
     """Normalize any DINOv3 SSL checkpoint into a backbone-level state dict (TAO naming).
 
@@ -213,7 +226,7 @@ def extract_backbone_state_dict(raw, source="teacher"):
     """
     state_dict = raw["state_dict"] if isinstance(raw, dict) and "state_dict" in raw else raw
 
-    if any(".backbone." in k for k in state_dict):
+    if is_full_checkpoint(state_dict):
         prefix = f"{source}.backbone."
         extracted = {k[len(prefix):]: v for k, v in state_dict.items() if k.startswith(prefix)}
         if not extracted:
