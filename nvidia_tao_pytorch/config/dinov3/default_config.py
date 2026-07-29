@@ -46,6 +46,28 @@ from nvidia_tao_pytorch.config.common.common_config import CommonExperimentConfi
 SUPPORTED_BACKBONES = [
     *["vit_s", "vit_s_plus", "vit_b", "vit_l", "vit_h_plus", "vit_7b"]
 ]
+SUPPORTED_IMAGE_SIZES = (256, 512, 768)
+
+
+def validate_img_size(backbone_config):
+    """Reject image sizes outside the DINOv3 schema enum.
+
+    Args:
+        backbone_config: Mapping- or attribute-style DINOv3 backbone configuration.
+
+    Raises:
+        ValueError: If ``img_size`` is not one of :data:`SUPPORTED_IMAGE_SIZES`.
+    """
+    try:
+        img_size = backbone_config["img_size"]
+    except TypeError:
+        img_size = backbone_config.img_size
+    if img_size not in SUPPORTED_IMAGE_SIZES:
+        raise ValueError(
+            f"Invalid value for model.backbone.img_size: {img_size}. "
+            f"Allowed values are: {list(SUPPORTED_IMAGE_SIZES)}."
+        )
+
 
 # DINOv3 ViT param map (patch-16). Distinct from the nvdinov2 (patch-14) map.
 # FFN note: DINOv3 ViT-S/B/L use a standard MLP; ViT-S+/H+/7B use SwiGLU. The
@@ -175,9 +197,9 @@ class DINOv3BackboneConfig(BackboneConfig):
     img_size: int = INT_FIELD(
         value=256,
         default_value=256,
-        description="Size of images for the backbone (single-res 256 in v1)",
+        description="Backbone image size. Supported values are 256, 512, and 768.",
         display_name="image size",
-        valid_options="256,512,768",
+        valid_options=",".join(str(size) for size in SUPPORTED_IMAGE_SIZES),
         popular="yes"
     )
     rope_theta: float = FLOAT_FIELD(
@@ -332,14 +354,14 @@ class DINOv3ModelConfig:
 
 @dataclass
 class DINOv3TransformConfig(NVDINOv2TransformConfig):
-    """DINOv3 transform config (single-res 256, patch-16-friendly crop sizes)."""
+    """DINOv3 transform config with a 256 default and patch-16-friendly crop sizes."""
 
     global_crops_size: int = INT_FIELD(
         value=256,
         default_value=256,
         valid_min=1,
         valid_max="inf",
-        description="Size of global crops (single-res 256 in v1)",
+        description="Size of global crops for DINOv3 training.",
         display_name="Global Crops Size",
         popular="yes"
     )
@@ -406,8 +428,8 @@ class DINOv3ExportExpConfig(NVDINOv2ExportExpConfig):
     """DINOv3 export config (patch-16 trace shape).
 
     Overrides the nvdinov2 default ONNX trace shape (518, a patch-14 multiple):
-    DINOv3 is patch-16 and single-res 256 in v1, so the default trace matches the
-    backbone ``img_size`` and stays divisible by the patch size.
+    DINOv3 is patch-16 and defaults to 256, so the default trace matches the backbone
+    ``img_size`` and stays divisible by the patch size.
     """
 
     checkpoint: str = STR_FIELD(

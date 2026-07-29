@@ -10,7 +10,11 @@ import pytest
 from omegaconf import OmegaConf
 import torch
 
-from nvidia_tao_pytorch.config.dinov3.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.dinov3.default_config import (
+    ExperimentConfig,
+    SUPPORTED_IMAGE_SIZES,
+    validate_img_size,
+)
 from nvidia_tao_pytorch.ssl.dinov3.model.pl_model import DinoV3PlModel
 from nvidia_tao_pytorch.ssl.dinov3.model.vit import DinoV3VisionTransformer
 from nvidia_tao_pytorch.ssl.dinov3.model.layers.attention import RoPEMemoryEfficientAttention
@@ -195,6 +199,26 @@ def test_dinov3_validate_backbone_types_accepts_supported():
         DinoV3PlModel._validate_backbone_types(
             {"teacher_type": name, "student_type": name}, map_params
         )
+
+
+@pytest.mark.ssl_unit
+def test_dinov3_unsupported_img_size_raises_before_model_build():
+    """An out-of-enum image size must fail before model or CUDA initialization."""
+    cfg = OmegaConf.structured(ExperimentConfig())
+    cfg.model.backbone.img_size = 300
+
+    with pytest.raises(
+        ValueError,
+        match=r"model\.backbone\.img_size: 300.*\[256, 512, 768\]",
+    ):
+        DinoV3PlModel(cfg)
+
+
+@pytest.mark.ssl_unit
+@pytest.mark.parametrize("img_size", SUPPORTED_IMAGE_SIZES)
+def test_dinov3_validate_img_size_accepts_supported(img_size):
+    """Every image size advertised by the schema passes runtime validation."""
+    validate_img_size({"img_size": img_size})
 
 
 @pytest.mark.ssl_unit

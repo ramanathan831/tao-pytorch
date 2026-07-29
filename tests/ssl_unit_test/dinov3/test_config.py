@@ -8,9 +8,12 @@ from omegaconf import OmegaConf
 from nvidia_tao_pytorch.config.dinov3.default_config import (
     DINOv3ExportExpConfig,
     DINOv3TrainExpConfig,
+    DINOv3TransformConfig,
     ExperimentConfig,
     map_params,
     SUPPORTED_BACKBONES,
+    SUPPORTED_IMAGE_SIZES,
+    validate_img_size,
 )
 
 EXPECTED_PRETRAINED_DESCRIPTION = (
@@ -48,7 +51,24 @@ def test_backbone_patch16_rope_defaults():
     assert bb.teacher_type == "vit_b"
     assert bb.student_type == "vit_b"
     assert bb.img_size == 256
+    assert SUPPORTED_IMAGE_SIZES == (256, 512, 768)
     assert bb.rope_theta == 100.0
+
+
+@pytest.mark.config
+@pytest.mark.ssl_unit
+def test_validate_img_size_is_public_config_contract():
+    """The shared validator accepts mappings/dataclasses and rejects unsupported values."""
+    for img_size in SUPPORTED_IMAGE_SIZES:
+        validate_img_size({"img_size": img_size})
+
+    backbone_config = ExperimentConfig().model.backbone
+    backbone_config.img_size = 300
+    with pytest.raises(
+        ValueError,
+        match=r"model\.backbone\.img_size: 300.*\[256, 512, 768\]",
+    ):
+        validate_img_size(backbone_config)
 
 
 @pytest.mark.config
@@ -63,11 +83,13 @@ def test_gram_and_lora_present():
 
 @pytest.mark.config
 @pytest.mark.ssl_unit
-def test_single_res_256_transform_defaults():
-    """v1 is single-resolution 256 with patch-16-friendly local crops."""
+def test_dinov3_256_transform_defaults():
+    """DINOv3 defaults to 256 global crops with patch-16-friendly local crops."""
     cfg = OmegaConf.structured(ExperimentConfig())
     assert cfg.dataset.transform.global_crops_size == 256
     assert cfg.dataset.transform.local_crops_size % 16 == 0
+    field = DINOv3TransformConfig.__dataclass_fields__["global_crops_size"]
+    assert field.metadata["description"] == "Size of global crops for DINOv3 training."
 
 
 @pytest.mark.config
