@@ -6,10 +6,22 @@ import pytest
 from omegaconf import OmegaConf
 
 from nvidia_tao_pytorch.config.dinov3.default_config import (
+    DINOv3BackboneConfig,
+    DINOv3CuDNNConfig,
     DINOv3ExportExpConfig,
+    DINOv3TrainExpConfig,
+    DINOv3TransformConfig,
     ExperimentConfig,
     map_params,
     SUPPORTED_BACKBONES,
+    SUPPORTED_IMAGE_SIZES,
+    validate_img_size,
+)
+
+EXPECTED_PRETRAINED_DESCRIPTION = (
+    "Path to DINOv3 pretrained weights matching the configured backbone. "
+    "Accepts a timm-format directory or file, or a stripped TAO DINOv3 "
+    "backbone checkpoint. DINOv2/NVDINOv2 checkpoints are not supported."
 )
 
 
@@ -23,6 +35,32 @@ def test_default_model_name_is_dinov3():
 
 @pytest.mark.config
 @pytest.mark.ssl_unit
+def test_pretrained_model_path_description_is_dinov3_specific():
+    """DINOv3 metadata must not inherit the NVDINOv2 checkpoint contract."""
+    field = DINOv3TrainExpConfig.__dataclass_fields__["pretrained_model_path"]
+    assert field.metadata["description"] == EXPECTED_PRETRAINED_DESCRIPTION
+    assert field.metadata["default_value"] is None
+
+
+@pytest.mark.config
+@pytest.mark.ssl_unit
+def test_cudnn_defaults_support_custom_attention():
+    """DINOv3 must not inherit deterministic CuDNN from the common train config."""
+    cfg = OmegaConf.structured(ExperimentConfig())
+    assert cfg.train.cudnn.benchmark is True
+    assert cfg.train.cudnn.deterministic is False
+
+    fields = DINOv3CuDNNConfig.__dataclass_fields__
+    assert fields["benchmark"].metadata["description"]
+    assert fields["benchmark"].metadata["display_name"] == "CuDNN benchmark"
+    assert fields["benchmark"].metadata["popular"] == "no"
+    assert fields["deterministic"].metadata["description"]
+    assert fields["deterministic"].metadata["display_name"] == "CuDNN deterministic"
+    assert fields["deterministic"].metadata["popular"] == "no"
+
+
+@pytest.mark.config
+@pytest.mark.ssl_unit
 def test_backbone_patch16_rope_defaults():
     """DINOv3 backbone defaults: patch-16, 4 register tokens, ViT-B, RoPE theta present."""
     cfg = OmegaConf.structured(ExperimentConfig())
@@ -32,7 +70,24 @@ def test_backbone_patch16_rope_defaults():
     assert bb.teacher_type == "vit_b"
     assert bb.student_type == "vit_b"
     assert bb.img_size == 256
+    assert SUPPORTED_IMAGE_SIZES == (256, 512, 768)
     assert bb.rope_theta == 100.0
+
+
+@pytest.mark.config
+@pytest.mark.ssl_unit
+def test_validate_img_size_is_public_config_contract():
+    """The shared validator accepts mappings/dataclasses and rejects unsupported values."""
+    for img_size in SUPPORTED_IMAGE_SIZES:
+        validate_img_size({"img_size": img_size})
+
+    backbone_config = DINOv3BackboneConfig(img_size=300)
+    with pytest.raises(
+        ValueError,
+        match=r"model\.backbone\.img_size: 300.*\[256, 512, 768\]",
+    ):
+        validate_img_size(backbone_config)
+    assert ExperimentConfig().model.backbone.img_size == 256
 
 
 @pytest.mark.config
@@ -47,11 +102,13 @@ def test_gram_and_lora_present():
 
 @pytest.mark.config
 @pytest.mark.ssl_unit
-def test_single_res_256_transform_defaults():
-    """v1 is single-resolution 256 with patch-16-friendly local crops."""
+def test_dinov3_256_transform_defaults():
+    """DINOv3 defaults to 256 global crops with patch-16-friendly local crops."""
     cfg = OmegaConf.structured(ExperimentConfig())
     assert cfg.dataset.transform.global_crops_size == 256
     assert cfg.dataset.transform.local_crops_size % 16 == 0
+    field = DINOv3TransformConfig.__dataclass_fields__["global_crops_size"]
+    assert field.metadata["description"] == "Size of global crops for DINOv3 training."
 
 
 @pytest.mark.config

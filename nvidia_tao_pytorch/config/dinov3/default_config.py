@@ -40,12 +40,37 @@ from nvidia_tao_pytorch.config.nvdinov2.default_config import (
     NVDINOv2ExportExpConfig,
     GenTrtEngineExpConfig,
 )
-from nvidia_tao_pytorch.config.common.common_config import CommonExperimentConfig
+from nvidia_tao_pytorch.config.common.common_config import (
+    CommonExperimentConfig,
+    CuDNNConfig,
+)
 
 # DINOv3 patch-16 ViT architectures supported by the backbone config.
 SUPPORTED_BACKBONES = [
     *["vit_s", "vit_s_plus", "vit_b", "vit_l", "vit_h_plus", "vit_7b"]
 ]
+SUPPORTED_IMAGE_SIZES = (256, 512, 768)
+
+
+def validate_img_size(backbone_config):
+    """Reject image sizes outside the DINOv3 schema enum.
+
+    Args:
+        backbone_config: Mapping- or attribute-style DINOv3 backbone configuration.
+
+    Raises:
+        ValueError: If ``img_size`` is not one of :data:`SUPPORTED_IMAGE_SIZES`.
+    """
+    try:
+        img_size = backbone_config["img_size"]
+    except TypeError:
+        img_size = backbone_config.img_size
+    if img_size not in SUPPORTED_IMAGE_SIZES:
+        raise ValueError(
+            f"Invalid value for model.backbone.img_size: {img_size}. "
+            f"Allowed values are: {list(SUPPORTED_IMAGE_SIZES)}."
+        )
+
 
 # DINOv3 ViT param map (patch-16). Distinct from the nvdinov2 (patch-14) map.
 # FFN note: DINOv3 ViT-S/B/L use a standard MLP; ViT-S+/H+/7B use SwiGLU. The
@@ -175,9 +200,9 @@ class DINOv3BackboneConfig(BackboneConfig):
     img_size: int = INT_FIELD(
         value=256,
         default_value=256,
-        description="Size of images for the backbone (single-res 256 in v1)",
+        description="Backbone image size. Supported values are 256, 512, and 768.",
         display_name="image size",
-        valid_options="256,512,768",
+        valid_options=",".join(str(size) for size in SUPPORTED_IMAGE_SIZES),
         popular="yes"
     )
     rope_theta: float = FLOAT_FIELD(
@@ -332,14 +357,14 @@ class DINOv3ModelConfig:
 
 @dataclass
 class DINOv3TransformConfig(NVDINOv2TransformConfig):
-    """DINOv3 transform config (single-res 256, patch-16-friendly crop sizes)."""
+    """DINOv3 transform config with a 256 default and patch-16-friendly crop sizes."""
 
     global_crops_size: int = INT_FIELD(
         value=256,
         default_value=256,
         valid_min=1,
         valid_max="inf",
-        description="Size of global crops (single-res 256 in v1)",
+        description="Size of global crops for DINOv3 training.",
         display_name="Global Crops Size",
         popular="yes"
     )
@@ -366,16 +391,51 @@ class DINOv3DatasetConfig(NVDINOv2DatasetConfig):
 
 
 @dataclass
+class DINOv3CuDNNConfig(CuDNNConfig):
+    """CuDNN defaults compatible with DINOv3 custom attention."""
+
+    benchmark: bool = BOOL_FIELD(
+        value=True,
+        default_value=True,
+        description="Enable CuDNN benchmarking for DINOv3 training.",
+        display_name="CuDNN benchmark",
+        popular="no",
+    )
+    deterministic: bool = BOOL_FIELD(
+        value=False,
+        default_value=False,
+        description=(
+            "Enable deterministic CuDNN behavior. Keep disabled when using "
+            "DINOv3 custom attention, which has no deterministic backward implementation."
+        ),
+        display_name="CuDNN deterministic",
+        popular="no",
+    )
+
+
+@dataclass
 class DINOv3TrainExpConfig(NVDINOv2TrainExpConfig):
     """DINOv3 train config.
 
-    Subclasses the nvdinov2 train config and adds a ``distributed_strategy`` selector.
-    The nvdinov2 default (Lightning ``'auto'`` -> single-device / DDP) is unchanged; FSDP
-    (FULL_SHARD) is opt-in and is what enables high-resolution and the larger ViT-L / ViT-H+
-    backbones, where DDP's full per-GPU replication does not fit. The ``DINOV3_STRATEGY`` env
-    var, kept for the de-risking smokes, overrides this field when set.
+    Subclasses the nvdinov2 train config, corrects the inherited pretrained-weight
+    contract, selects CuDNN defaults compatible with custom attention, and adds a
+    ``distributed_strategy`` selector. The nvdinov2 default (Lightning ``'auto'`` ->
+    single-device / DDP) is unchanged; FSDP (FULL_SHARD) is opt-in and is what enables
+    high-resolution and the larger ViT-L / ViT-H+ backbones, where DDP's full per-GPU
+    replication does not fit. The ``DINOV3_STRATEGY`` env var, kept for the de-risking
+    smokes, overrides this field when set.
     """
 
+    pretrained_model_path: Optional[str] = STR_FIELD(
+        value=None,
+        default_value=None,
+        default_type=None,
+        description=(
+            "Path to DINOv3 pretrained weights matching the configured backbone. "
+            "Accepts a timm-format directory or file, or a stripped TAO DINOv3 "
+            "backbone checkpoint. DINOv2/NVDINOv2 checkpoints are not supported."
+        )
+    )
     distributed_strategy: str = STR_FIELD(
         value="auto",
         default_value="auto",
@@ -388,6 +448,10 @@ class DINOv3TrainExpConfig(NVDINOv2TrainExpConfig):
         display_name="distributed strategy",
         popular="yes"
     )
+    cudnn: DINOv3CuDNNConfig = DATACLASS_FIELD(
+        DINOv3CuDNNConfig(),
+        description="CuDNN settings compatible with DINOv3 custom attention.",
+    )
 
 
 @dataclass
@@ -395,8 +459,8 @@ class DINOv3ExportExpConfig(NVDINOv2ExportExpConfig):
     """DINOv3 export config (patch-16 trace shape).
 
     Overrides the nvdinov2 default ONNX trace shape (518, a patch-14 multiple):
-    DINOv3 is patch-16 and single-res 256 in v1, so the default trace matches the
-    backbone ``img_size`` and stays divisible by the patch size.
+    DINOv3 is patch-16 and defaults to 256, so the default trace matches the backbone
+    ``img_size`` and stays divisible by the patch size.
     """
 
     checkpoint: str = STR_FIELD(

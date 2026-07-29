@@ -16,7 +16,7 @@ from nvidia_tao_pytorch.core.decorators.workflow import monitor_status
 from nvidia_tao_pytorch.core.hydra.hydra_runner import hydra_runner
 from nvidia_tao_pytorch.core.initialize_experiments import initialize_train_experiment
 from nvidia_tao_pytorch.core.tlt_logging import obfuscate_logs
-from nvidia_tao_pytorch.config.dinov3.default_config import ExperimentConfig
+from nvidia_tao_pytorch.config.dinov3.default_config import ExperimentConfig, validate_img_size
 from nvidia_tao_pytorch.ssl.nvdinov2.dataloader.pl_dinov2_data_module import DinoV2DataModule
 from nvidia_tao_pytorch.ssl.dinov3.model.pl_model import DinoV3PlModel
 
@@ -48,6 +48,10 @@ def _resolve_strategy(experiment_config):
 
 def run_experiment(experiment_config, key):
     """Start the training."""
+    # Fail before logger/trainer/data-module initialization. Hydra validates the field type,
+    # but the INT_FIELD ``valid_options`` enum is schema metadata rather than a runtime guard.
+    validate_img_size(experiment_config.model.backbone)
+
     resume_ckpt, trainer_kwargs = initialize_train_experiment(experiment_config, key)
 
     num_nodes = experiment_config.train.num_nodes

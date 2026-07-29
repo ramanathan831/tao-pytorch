@@ -68,6 +68,9 @@ class DinoV3PlModel(DinoV2PlModel):
         Args:
             experiment_spec: The DINOv3 experiment configuration.
         """
+        # ``valid_options`` generates the packaged schema enum but Hydra does not enforce
+        # that metadata at runtime. Validate before the parent initializes CUDA/model state.
+        v3_params.validate_img_size(experiment_spec.model.backbone)
         super().__init__(experiment_spec)
         self.checkpoint_filename = 'dinov3_model'
 
