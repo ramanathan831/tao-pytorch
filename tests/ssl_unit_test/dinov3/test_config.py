@@ -6,6 +6,8 @@ import pytest
 from omegaconf import OmegaConf
 
 from nvidia_tao_pytorch.config.dinov3.default_config import (
+    DINOv3BackboneConfig,
+    DINOv3CuDNNConfig,
     DINOv3ExportExpConfig,
     DINOv3TrainExpConfig,
     DINOv3TransformConfig,
@@ -42,6 +44,23 @@ def test_pretrained_model_path_description_is_dinov3_specific():
 
 @pytest.mark.config
 @pytest.mark.ssl_unit
+def test_cudnn_defaults_support_custom_attention():
+    """DINOv3 must not inherit deterministic CuDNN from the common train config."""
+    cfg = OmegaConf.structured(ExperimentConfig())
+    assert cfg.train.cudnn.benchmark is True
+    assert cfg.train.cudnn.deterministic is False
+
+    fields = DINOv3CuDNNConfig.__dataclass_fields__
+    assert fields["benchmark"].metadata["description"]
+    assert fields["benchmark"].metadata["display_name"] == "CuDNN benchmark"
+    assert fields["benchmark"].metadata["popular"] == "no"
+    assert fields["deterministic"].metadata["description"]
+    assert fields["deterministic"].metadata["display_name"] == "CuDNN deterministic"
+    assert fields["deterministic"].metadata["popular"] == "no"
+
+
+@pytest.mark.config
+@pytest.mark.ssl_unit
 def test_backbone_patch16_rope_defaults():
     """DINOv3 backbone defaults: patch-16, 4 register tokens, ViT-B, RoPE theta present."""
     cfg = OmegaConf.structured(ExperimentConfig())
@@ -62,13 +81,13 @@ def test_validate_img_size_is_public_config_contract():
     for img_size in SUPPORTED_IMAGE_SIZES:
         validate_img_size({"img_size": img_size})
 
-    backbone_config = ExperimentConfig().model.backbone
-    backbone_config.img_size = 300
+    backbone_config = DINOv3BackboneConfig(img_size=300)
     with pytest.raises(
         ValueError,
         match=r"model\.backbone\.img_size: 300.*\[256, 512, 768\]",
     ):
         validate_img_size(backbone_config)
+    assert ExperimentConfig().model.backbone.img_size == 256
 
 
 @pytest.mark.config

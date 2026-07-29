@@ -40,7 +40,10 @@ from nvidia_tao_pytorch.config.nvdinov2.default_config import (
     NVDINOv2ExportExpConfig,
     GenTrtEngineExpConfig,
 )
-from nvidia_tao_pytorch.config.common.common_config import CommonExperimentConfig
+from nvidia_tao_pytorch.config.common.common_config import (
+    CommonExperimentConfig,
+    CuDNNConfig,
+)
 
 # DINOv3 patch-16 ViT architectures supported by the backbone config.
 SUPPORTED_BACKBONES = [
@@ -388,15 +391,39 @@ class DINOv3DatasetConfig(NVDINOv2DatasetConfig):
 
 
 @dataclass
+class DINOv3CuDNNConfig(CuDNNConfig):
+    """CuDNN defaults compatible with DINOv3 custom attention."""
+
+    benchmark: bool = BOOL_FIELD(
+        value=True,
+        default_value=True,
+        description="Enable CuDNN benchmarking for DINOv3 training.",
+        display_name="CuDNN benchmark",
+        popular="no",
+    )
+    deterministic: bool = BOOL_FIELD(
+        value=False,
+        default_value=False,
+        description=(
+            "Enable deterministic CuDNN behavior. Keep disabled when using "
+            "DINOv3 custom attention, which has no deterministic backward implementation."
+        ),
+        display_name="CuDNN deterministic",
+        popular="no",
+    )
+
+
+@dataclass
 class DINOv3TrainExpConfig(NVDINOv2TrainExpConfig):
     """DINOv3 train config.
 
     Subclasses the nvdinov2 train config, corrects the inherited pretrained-weight
-    contract, and adds a ``distributed_strategy`` selector. The nvdinov2 default
-    (Lightning ``'auto'`` -> single-device / DDP) is unchanged; FSDP (FULL_SHARD) is
-    opt-in and is what enables high-resolution and the larger ViT-L / ViT-H+ backbones,
-    where DDP's full per-GPU replication does not fit. The ``DINOV3_STRATEGY`` env var,
-    kept for the de-risking smokes, overrides this field when set.
+    contract, selects CuDNN defaults compatible with custom attention, and adds a
+    ``distributed_strategy`` selector. The nvdinov2 default (Lightning ``'auto'`` ->
+    single-device / DDP) is unchanged; FSDP (FULL_SHARD) is opt-in and is what enables
+    high-resolution and the larger ViT-L / ViT-H+ backbones, where DDP's full per-GPU
+    replication does not fit. The ``DINOV3_STRATEGY`` env var, kept for the de-risking
+    smokes, overrides this field when set.
     """
 
     pretrained_model_path: Optional[str] = STR_FIELD(
@@ -420,6 +447,10 @@ class DINOv3TrainExpConfig(NVDINOv2TrainExpConfig):
         ),
         display_name="distributed strategy",
         popular="yes"
+    )
+    cudnn: DINOv3CuDNNConfig = DATACLASS_FIELD(
+        DINOv3CuDNNConfig(),
+        description="CuDNN settings compatible with DINOv3 custom attention.",
     )
 
 
