@@ -66,6 +66,7 @@ def _make_attribute_pair(idx, width=7, query_type="easy"):
     return {
         "query_type": query_type,
         "caption": f"Caption for image {idx}",
+        "unique_name": f"image_{idx}.jpg",
         "image_attr_values": list(range(idx, idx + width)),
         "text_attr_values": [idx] + [-1] + list(range(idx + 2, idx + width)),
     }
@@ -122,6 +123,14 @@ def _attribute_dataset_config(temp_dataset, pairs_file):
         'caption_file_suffix': '.txt',
         'train_pairs_file': str(pairs_file),
     }
+
+
+def _validation_attribute_dataset_config(temp_dataset, pairs_file):
+    """Build one validation dataset config with scalar metadata."""
+    config = _attribute_dataset_config(temp_dataset, pairs_file)
+    config.pop("train_pairs_file")
+    config["attribute_pairs_file"] = str(pairs_file)
+    return config
 
 
 def _write_attribute_source(
@@ -549,18 +558,82 @@ class TestImageTextDataset:
                 include_attribute_metadata=True,
             )
 
-    def test_attribute_metadata_rejects_validation_mode(self, temp_dataset):
-        """Test attribute metadata is not exposed on unused validation batches."""
+    def test_attribute_metadata_infers_val_pairs_file(self, temp_dataset):
+        """Test validation infers val_pairs.json from val_list.txt."""
+        val_list_file = temp_dataset['tmpdir'] / "val_list.txt"
+        val_list_file.write_text(
+            "\n".join([f"image_{i}.jpg" for i in range(5)])
+        )
+        val_pairs_file = temp_dataset['tmpdir'] / "val_pairs.json"
+        _write_attribute_pairs(val_pairs_file, count=5, width=7)
+        _write_attribute_vocab(
+            temp_dataset['tmpdir'] / "attribute_vocab.json",
+            attributes=[f"attribute_{i}" for i in range(7)],
+            value_to_id={},
+        )
         dataset_config = [{
             'image_dir': temp_dataset['image_dir'],
             'caption_dir': temp_dataset['caption_dir'],
-            'image_list_file': temp_dataset['image_list_file'],
+            'image_list_file': str(val_list_file),
             'caption_file_suffix': '.txt',
         }]
 
-        with pytest.raises(ValueError, match="only for training"):
+        dataset = ImageTextDataset(
+            datasets=dataset_config,
+            mode='val',
+            include_attribute_metadata=True,
+        )
+
+        _, _, metadata = dataset[0]
+        assert metadata["image_attr_values"].shape == (7,)
+        assert metadata["text_attr_values"].shape == (7,)
+        assert metadata["pas_row_index"].item() == 0
+
+    def test_validation_attribute_metadata_rejects_reordered_pairs(
+        self, temp_dataset
+    ):
+        """Test equal-length validation metadata cannot change row order."""
+        pairs_file = temp_dataset['tmpdir'] / "val_pairs.json"
+        rows = _write_attribute_pairs(pairs_file, count=5, width=7)
+        rows[0], rows[1] = rows[1], rows[0]
+        pairs_file.write_text(json.dumps(rows))
+
+        with pytest.raises(
+            ValueError,
+            match="unique_name .* does not match image list entry",
+        ):
             ImageTextDataset(
-                datasets=dataset_config,
+                datasets=[
+                    _validation_attribute_dataset_config(
+                        temp_dataset,
+                        pairs_file,
+                    )
+                ],
+                mode='val',
+                include_attribute_metadata=True,
+            )
+
+    def test_validation_attribute_metadata_rejects_stale_caption(
+        self, temp_dataset
+    ):
+        """Test validation JSON captions must match caption-file contents."""
+        pairs_file = temp_dataset['tmpdir'] / "val_pairs.json"
+        _write_attribute_pairs(pairs_file, count=5, width=7)
+        (
+            temp_dataset['caption_dir_path'] / "image_0.txt"
+        ).write_text("Stale caption")
+
+        with pytest.raises(
+            ValueError,
+            match="caption .* does not match caption file",
+        ):
+            ImageTextDataset(
+                datasets=[
+                    _validation_attribute_dataset_config(
+                        temp_dataset,
+                        pairs_file,
+                    )
+                ],
                 mode='val',
                 include_attribute_metadata=True,
             )
@@ -638,6 +711,47 @@ class TestImageTextDataset:
         )
 
         assert len(dataset) == 10
+
+    def test_multi_dataset_val_metadata_uses_global_row_indices(
+        self, temp_dataset, tmp_path
+    ):
+        """Test matching vocabularies preserve concatenated validation order."""
+        attributes = ["upper color", "lower color"]
+        value_to_id = {
+            "upper color": {"__missing__": 0, "black": 1},
+            "lower color": {"__missing__": 0, "blue": 2},
+        }
+        first_pairs = _write_attribute_source(
+            tmp_path,
+            "first",
+            attributes,
+            value_to_id,
+        )
+        second_pairs = _write_attribute_source(
+            tmp_path,
+            "second",
+            attributes,
+            dict(reversed(list(value_to_id.items()))),
+            indent=2,
+        )
+
+        dataset = ImageTextDataset(
+            datasets=[
+                _validation_attribute_dataset_config(
+                    temp_dataset, first_pairs
+                ),
+                _validation_attribute_dataset_config(
+                    temp_dataset, second_pairs
+                ),
+            ],
+            mode='val',
+            include_attribute_metadata=True,
+        )
+
+        assert len(dataset) == 10
+        assert dataset[0][2]["pas_row_index"].item() == 0
+        assert dataset[5][2]["pas_row_index"].item() == 5
+        assert dataset[9][2]["pas_row_index"].item() == 9
 
     def test_multi_dataset_attribute_metadata_requires_each_vocab(
         self, temp_dataset, tmp_path
@@ -744,6 +858,57 @@ class TestImageTextDataset:
                     _attribute_dataset_config(temp_dataset, second_pairs),
                 ],
                 mode='train',
+                include_attribute_metadata=True,
+            )
+
+    def test_multi_dataset_val_metadata_rejects_different_accessory_vocab_json(
+        self, temp_dataset, tmp_path
+    ):
+        """Test validation requires identical accessory vocabulary JSON."""
+        attributes = ["upper color", "lower color"]
+        value_to_id = {
+            "upper color": {"__missing__": 0, "black": 1},
+            "lower color": {"__missing__": 0, "blue": 2},
+        }
+        pair_files = [
+            _write_attribute_source(
+                tmp_path,
+                name,
+                attributes,
+                value_to_id,
+            )
+            for name in ("first", "second")
+        ]
+        for source_index, pairs_file in enumerate(pair_files):
+            rows = json.loads(pairs_file.read_text())
+            for row in rows:
+                row["image_accessory_ids"] = [11]
+                row["text_accessory_ids"] = [11]
+            pairs_file.write_text(json.dumps(rows))
+            accessory_vocab = {
+                "unknown_id": 0,
+                "value_to_id": {
+                    "__unknown__": 0,
+                    "black backpack": 11,
+                },
+                "source": source_index,
+            }
+            (pairs_file.parent / "accessory_vocab.json").write_text(
+                json.dumps(accessory_vocab)
+            )
+
+        with pytest.raises(
+            ValueError,
+            match="same accessory vocabulary",
+        ):
+            ImageTextDataset(
+                datasets=[
+                    _validation_attribute_dataset_config(
+                        temp_dataset, pairs_file
+                    )
+                    for pairs_file in pair_files
+                ],
+                mode='val',
                 include_attribute_metadata=True,
             )
 
@@ -1107,4 +1272,93 @@ class TestCLIPDataModule:
 
         assert dm.train_dataset == "train_loader"
         assert captured["mode"] == "train"
+        assert captured["include_attribute_metadata"] is True
+
+    def test_val_enables_attribute_metadata_for_matching(
+        self, monkeypatch
+    ):
+        """Test metadata-aware validation requests loader metadata."""
+        captured = {}
+
+        def fake_get_custom_dataloader(**kwargs):
+            captured.update(kwargs)
+            return SimpleNamespace(dataset=[0, 1])
+
+        monkeypatch.setattr(
+            clip_data_module,
+            "get_custom_dataloader",
+            fake_get_custom_dataloader,
+        )
+        dataset_config = SimpleNamespace(
+            seed=42,
+            pin_memory=True,
+            train=SimpleNamespace(type="custom"),
+            val=SimpleNamespace(
+                datasets=[{"image_dir": "/tmp/images"}],
+                batch_size=2,
+                num_workers=0,
+                metadata_match_eval=True,
+            ),
+        )
+        data_module = CLIPDataModule(
+            dataset_config=dataset_config,
+            tokenizer=lambda text: [text],
+            resume_step=0,
+            preprocess=(
+                lambda image: image,
+                lambda image: image,
+            ),
+            world_size=1,
+        )
+
+        data_module._setup_val_dataloader()
+
+        assert data_module.val_dataset is not None
+        assert captured["mode"] == "val"
+        assert captured["include_attribute_metadata"] is True
+
+    def test_val_metadata_matching_allows_multiple_datasets(
+        self, monkeypatch
+    ):
+        """Test metadata validation passes all datasets to the strict loader."""
+        captured = {}
+
+        def fake_get_custom_dataloader(**kwargs):
+            captured.update(kwargs)
+            return SimpleNamespace(dataset=[0, 1])
+
+        monkeypatch.setattr(
+            clip_data_module,
+            "get_custom_dataloader",
+            fake_get_custom_dataloader,
+        )
+        datasets = [
+            {"image_dir": "/tmp/one"},
+            {"image_dir": "/tmp/two"},
+        ]
+        dataset_config = SimpleNamespace(
+            seed=42,
+            pin_memory=True,
+            train=SimpleNamespace(type="custom"),
+            val=SimpleNamespace(
+                datasets=datasets,
+                batch_size=2,
+                num_workers=0,
+                metadata_match_eval=True,
+            ),
+        )
+        data_module = CLIPDataModule(
+            dataset_config=dataset_config,
+            tokenizer=lambda text: [text],
+            resume_step=0,
+            preprocess=(
+                lambda image: image,
+                lambda image: image,
+            ),
+            world_size=1,
+        )
+
+        data_module._setup_val_dataloader()
+
+        assert captured["datasets"] == datasets
         assert captured["include_attribute_metadata"] is True

@@ -116,6 +116,9 @@ class CLIPDataModule(pl.LightningDataModule):
                 "to enable retrieval evaluation during training."
             )
             return
+        metadata_match_eval = getattr(
+            val_cfg, 'metadata_match_eval', False
+        )
 
         self.val_dataset = get_custom_dataloader(
             datasets=val_cfg.datasets,
@@ -127,7 +130,8 @@ class CLIPDataModule(pl.LightningDataModule):
             shuffle=False,
             pin_memory=self.dataset_config.pin_memory,
             is_distributed=None,
-            mode='val'
+            mode='val',
+            include_attribute_metadata=metadata_match_eval,
         )
         logging.info(f"Validation dataloader: {len(val_cfg.datasets)} dataset(s), "
                      f"{len(self.val_dataset.dataset)} samples")

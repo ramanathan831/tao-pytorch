@@ -39,10 +39,13 @@ dataset:
       caption_file_suffix: .txt
       image_list_file: null  # Optional: text file listing image filenames
       train_pairs_file: null  # Optional per dataset block; required for that block when balance_query_types is true
+      attribute_pairs_file: null  # Optional explicit split-aligned metadata file
     batch_size: 16
     num_workers: 8
   val:
     datasets: []  # Same format as train.datasets
+    metadata_match_eval: false  # Multiple datasets require identical metadata vocabularies
+    metadata_match_mode: scalar_attributes  # scalar_attributes or scalar_plus_accessories
     batch_size: 16
     num_workers: 8
 
@@ -52,6 +55,8 @@ model:
 
 evaluate:
   checkpoint: ???
+  datasets: []  # Optional direct PAS export; otherwise uses dataset.val.datasets
+  pas_ground_truth_mode: paired_caption  # paired_caption, scalar_attributes, or scalar_plus_accessories
   batch_size: 16
 
 inference:

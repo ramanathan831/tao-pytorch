@@ -50,6 +50,7 @@ from nvidia_tao_pytorch.multimodal.clip.utils.attribute_metadata import (
 
 _ATTRIBUTE_METADATA_FIELDS = ("image_attr_values", "text_attr_values")
 _ACCESSORY_METADATA_FIELDS = ("image_accessory_ids", "text_accessory_ids")
+_PAS_ROW_INDEX_FIELD = "pas_row_index"
 
 
 # New dataloader that takes a list of dataset sources
@@ -78,11 +79,6 @@ class ImageTextDataset(Dataset):
         self.mapping = mapping
         self.mode = mode
         self.attribute_metadata = None
-
-        if include_attribute_metadata and mode != 'train':
-            raise ValueError(
-                "include_attribute_metadata is supported only for training."
-            )
 
         self.image_text_pairs = []
         attribute_metadata_rows = []
@@ -117,9 +113,12 @@ class ImageTextDataset(Dataset):
                         source_accessory_vocab_digest,
                     ) = _load_attribute_metadata(
                         dataset=dataset,
+                        mode=mode,
                         image_list=image_list,
                         expected_width=attribute_width,
-                        require_attribute_vocab=len(datasets) > 1,
+                        require_attribute_vocab=(
+                            len(datasets) > 1 or mode != 'train'
+                        ),
                     )
                     if attribute_vocab_digest is None:
                         attribute_vocab_digest = source_attribute_vocab_digest
@@ -208,6 +207,11 @@ class ImageTextDataset(Dataset):
                         ],
                         dtype=torch.long,
                     )
+            if self.mode != 'train':
+                self.attribute_metadata[_PAS_ROW_INDEX_FIELD] = torch.arange(
+                    len(attribute_metadata_rows),
+                    dtype=torch.long,
+                )
             logging.info(
                 "Loaded attribute metadata for "
                 f"{len(self.image_text_pairs)} samples ({self.mode}), "
@@ -259,15 +263,42 @@ def _read_image_list(image_list_file: str) -> List[str]:
         return [line.strip() for line in f if line.strip()]
 
 
-def _resolve_attribute_pairs_file(dataset: dict) -> Path:
-    """Resolve training pairs metadata used for attribute tensors."""
-    pairs_file = dataset.get('train_pairs_file')
-    if not pairs_file:
+def _infer_pairs_file_from_image_list(image_list_file: str) -> Path:
+    """Infer ``*_pairs.json`` from a split-aligned ``*_list.txt`` path."""
+    image_list_path = Path(image_list_file)
+    suffix = "_list.txt"
+    if not image_list_path.name.endswith(suffix):
+        raise ValueError(
+            "Validation attribute metadata requires attribute_pairs_file or "
+            f"an image_list_file ending with {suffix!r}, got "
+            f"{image_list_path}."
+        )
+    return image_list_path.with_name(
+        image_list_path.name[:-len(suffix)] + "_pairs.json"
+    )
+
+
+def _resolve_attribute_pairs_file(dataset: dict, mode: str) -> Path:
+    """Resolve split-aligned pairs metadata used for attribute tensors."""
+    if mode == 'train':
+        pairs_file = dataset.get('train_pairs_file')
+        if pairs_file:
+            return Path(pairs_file)
         raise ValueError(
             "include_attribute_metadata requires train_pairs_file for every "
             "training dataset."
         )
-    return Path(pairs_file)
+
+    pairs_file = dataset.get('attribute_pairs_file')
+    if pairs_file:
+        return Path(pairs_file)
+    image_list_file = dataset.get('image_list_file')
+    if not image_list_file:
+        raise ValueError(
+            "Validation attribute metadata requires attribute_pairs_file or "
+            "image_list_file for every validation dataset."
+        )
+    return _infer_pairs_file_from_image_list(image_list_file)
 
 
 def _validate_attribute_vector(
@@ -372,7 +403,7 @@ def _load_accessory_vocab(pairs_file: Path) -> Tuple[set, str]:
         if accessory_id > 0:
             valid_ids.add(accessory_id)
     canonical = json.dumps(
-        {"unknown_id": 0, "value_to_id": value_to_id},
+        vocab,
         sort_keys=True,
         separators=(",", ":"),
     ).encode("utf-8")
@@ -414,14 +445,65 @@ def _validate_accessory_ids(
     return list(value)
 
 
+def _validate_validation_pairs_alignment(
+    dataset: dict,
+    pairs_file: Path,
+    pairs: List[dict],
+    image_list: List[str],
+) -> None:
+    """Verify validation pairs describe the image and caption at each row."""
+    caption_dir = Path(
+        dataset.get('caption_dir') or dataset['image_dir']
+    )
+    caption_file_suffix = dataset.get('caption_file_suffix', '.txt')
+
+    for row_idx, (pair, image_name) in enumerate(
+        zip(pairs, image_list)
+    ):
+        if not isinstance(pair, dict):
+            raise ValueError(
+                f"{pairs_file} row {row_idx} must be a JSON object."
+            )
+
+        expected_name = Path(image_name).as_posix()
+        pair_name = Path(
+            str(pair.get("unique_name") or "").strip()
+        ).as_posix()
+        if pair_name != expected_name:
+            raise ValueError(
+                f"{pairs_file} row {row_idx} unique_name "
+                f"{pair_name!r} does not match image list entry "
+                f"{expected_name!r}."
+            )
+
+        caption_path = (
+            caption_dir / Path(image_name).with_suffix(caption_file_suffix)
+        )
+        try:
+            caption = caption_path.read_text(encoding='utf-8').strip()
+        except OSError as error:
+            raise ValueError(
+                f"{pairs_file} row {row_idx} could not read caption file "
+                f"{caption_path}: {error}"
+            ) from error
+        pair_caption = str(pair.get("caption") or "").strip()
+        if pair_caption != caption:
+            raise ValueError(
+                f"{pairs_file} row {row_idx} caption {pair_caption!r} "
+                f"does not match caption file {caption_path} content "
+                f"{caption!r}."
+            )
+
+
 def _load_attribute_metadata(
     dataset: dict,
+    mode: str,
     image_list: List[str],
     expected_width: Optional[int] = None,
     require_attribute_vocab: bool = False,
 ) -> Tuple[List[Dict[str, List[int]]], int, Optional[str], Optional[str]]:
     """Load image/text attribute vectors aligned with one image list."""
-    pairs_file = _resolve_attribute_pairs_file(dataset)
+    pairs_file = _resolve_attribute_pairs_file(dataset, mode)
     if not pairs_file.is_file():
         raise ValueError(
             "include_attribute_metadata requires a valid pairs metadata file, "
@@ -434,6 +516,13 @@ def _load_attribute_metadata(
         raise ValueError(
             f"{pairs_file} has {len(pairs)} items but image list has "
             f"{len(image_list)}."
+        )
+    if mode != 'train':
+        _validate_validation_pairs_alignment(
+            dataset,
+            pairs_file,
+            pairs,
+            image_list,
         )
 
     attribute_vocab_digest, attribute_vocab_width = (
