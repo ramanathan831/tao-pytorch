@@ -45,9 +45,18 @@ launch via a **staged launcher script** (never inline `bash -c`), back up `~/.ta
 no `--run_as_user`. In-container: `pip install tao-core/. && python setup.py develop` (~10–15 min).
 
 Assets on shares — **verified 2026-08-05**, corrected from the original guesses:
-- DINOv3 ViT-B weights: `/media/scratch.metropolis4/users/nikhil/dinov3_checkpoints/dinov3-vitb16-pretrain-lvd1689m/`
-  (HF layout: `model.safetensors`, 342 MB; sibling dirs cover S/S+/L/H+/7B and ConvNeXt).
-  **`/media/scratch.metropolis4/users/vpraveen/dinov3_vitb_v1` is empty** — do not point runs at it.
+- DINOv3 ViT-B weights, **use this**:
+  `/media/scratch.metropolis4/users/vpraveen/dinov3_lora/weights/dinov3_vitb16_timm/model.safetensors`
+  (timm `vit_base_patch16_dinov3`, fetched and verified in Phase 0: remaps **162/162**
+  tensors, only `mask_token` missing as expected).
+- **Do not use** `/media/scratch.metropolis4/users/nikhil/dinov3_checkpoints/dinov3-vitb16-pretrain-lvd1689m/`
+  for training. It is a HuggingFace `DINOv3ViTModel` export (`embeddings.*`,
+  `layer.N.attention.{q,k,v}_proj` with query/value biases), whereas `_remap_dinov3_state_dict`
+  expects the timm layout (fused `blocks.N.attn.qkv`, no qkv bias). It remaps **2 of 211**
+  tensors — 2/163 backbone coverage — so a run would train an almost entirely
+  randomly-initialized backbone while the remap log still reports a successful load. Converting
+  it would additionally have to reconcile the q/v biases that timm's reference does not have.
+- **`/media/scratch.metropolis4/users/vpraveen/dinov3_vitb_v1` is empty** — do not point runs at it.
 - ImageNet **train** (1000 class dirs): `/media/projects.metropolis2/public/imagenet2012/train`.
   `/media/scratch.metropolis3/zaid/imagenet-1k` holds **val only** (6.4 GB) — fine for k-NN
   banks/eval, not for the SSL training subset.
