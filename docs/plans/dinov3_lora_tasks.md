@@ -4,7 +4,27 @@ Companion to `dinov3_lora_design.md`. Target branch: `feature/dinov3_lora` off `
 Execution machine: **`a4u8g-0146`** (8×A100 80 GB PCIe, tracks `main`, direct internet —
 timm/HF DINOv3 weights download in place; `NCCL_P2P_DISABLE=1` for multi-GPU).
 
-## Phase 0 — Scaffolding & unit tests (local / CI, no GPU)
+## JIRA tracking
+
+Epic **[TAO-2488](https://jirasw.nvidia.com/browse/TAO-2488)** — *DINOv3 LoRA + preservation
+continual pre-training*.
+
+| Task | JIRA | Covers | Phase / Stage |
+|---|---|---|---|
+| T1 | [TAO-2489](https://jirasw.nvidia.com/browse/TAO-2489) | Scaffolding, config, injection wiring, unit tests | Phase 0 / Stage 1 (G1) |
+| T2 | [TAO-2490](https://jirasw.nvidia.com/browse/TAO-2490) | Devbox env prep, baselines, LoRA smoke training | Phase 1 / Stages 0+2 (G0, G2) |
+| T3 | [TAO-2491](https://jirasw.nvidia.com/browse/TAO-2491) | Merge-on-convert (timm) + ONNX export | Phase 0.6 / Stage 3 (G3) |
+| T4 | [TAO-2492](https://jirasw.nvidia.com/browse/TAO-2492) | Ablation arms A–E, retention analysis | Phase 2 / Stage 4 (G4) |
+| T5 | [TAO-2493](https://jirasw.nvidia.com/browse/TAO-2493) | Downstream consumption (classification/segformer/changenet) | Phase 3.2 / Stage 5 (G5) |
+| T6 | [TAO-2494](https://jirasw.nvidia.com/browse/TAO-2494) | Docs, spec YAMLs, ablation results, MR wrap-up | Phase 3.3 / Stage 6 |
+
+MR stack (titles are CI-enforced by `validate_mr_title`):
+
+1. `[TAO-2489][Feature] DINOv3 LoRA: injection, config, unit tests` — branch `feature/dinov3_lora`
+2. `[TAO-2491][Feature] DINOv3 LoRA: merge-on-convert + ONNX export` — stacked on 1
+3. `[TAO-2494][Docs] DINOv3 LoRA: design docs, specs, ablation results` — stacked on 2
+
+## Phase 0 — Scaffolding & unit tests (local / CI, no GPU) — **TAO-2489**
 
 | # | Task | Files | Acceptance |
 |---|------|-------|------------|
@@ -13,22 +33,28 @@ timm/HF DINOv3 weights download in place; `NCCL_P2P_DISABLE=1` for multi-GPU).
 | 0.3 | Injection lifecycle in train flow: inject into student+teacher backbones after `restore_pretrained_weights`, freeze base, keep heads + `mask_token` trainable; guards vs `distill.enable`, `gram.teacher_source='ema'`, FSDP | `ssl/dinov3/scripts/train.py`, `ssl/dinov3/model/pl_model.py` | unit test: student/teacher `named_parameters()` name lists identical (EMA zip safety); grads exist only on lora/heads/mask_token |
 | 0.4 | `_sync_gram_teacher` lora-key filtering; decouple anchor-teacher construction from `gram.enable` (build when gram OR preservation enabled) | `ssl/dinov3/model/pl_model.py` | sync works pre- and post-injection |
 | 0.5 | CLS preservation losses in `_extra_losses`, sharing the single anchor-teacher forward with Gram | `ssl/dinov3/model/pl_model.py`, `ssl/dinov3/model/loss.py` | loss values logged (`losses/cls_mse`, `losses/cls_cos`); zero when weights are 0 |
-| 0.6 | `merge_lora_state_dict()` in checkpoint remap; wire into `convert` and ONNX `export` | `ssl/dinov3/utils/checkpoint_remap.py`, `scripts/convert.py`, `scripts/export.py` | convert `validate=True` passes against fresh timm model from a LoRA checkpoint |
+| 0.6 (**TAO-2491**) | `merge_lora_state_dict()` in checkpoint remap; wire into `convert` and ONNX `export` | `ssl/dinov3/utils/checkpoint_remap.py`, `scripts/convert.py`, `scripts/export.py` | convert `validate=True` passes against fresh timm model from a LoRA checkpoint |
 | 0.7 | Unit tests for all of the above | `tests/ssl_unit_test/dinov3/test_lora.py` (new) | `pytest tests/ssl_unit_test/dinov3 -m "not gpu"` green |
 
 Dependencies: 0.1 → 0.3 → {0.4, 0.5}; 0.1 → 0.6; tests last.
 
-## Phase 1 — Single-GPU smoke (0146)
+## Phase 1 — Single-GPU smoke (0146) — **TAO-2490**
 
 Setup on 0146 (once): `cd ~/Software/tao-pytorch && git fetch && git checkout feature/dinov3_lora`;
 launch via a **staged launcher script** (never inline `bash -c`), back up `~/.tao_mounts.json`,
 no `--run_as_user`. In-container: `pip install tao-core/. && python setup.py develop` (~10–15 min).
 
-Assets already on shares (check before downloading):
-- DINOv3 ViT-B weights: `/media/scratch.metropolis4/users/vpraveen/dinov3_vitb_v1` (+ `_smoke`), CI ckpts under `/media/scratch.metropolis2/tao_ci/testmon/feature_dinov3-*`
-- ImageNet: `/media/scratch.metropolis3/zaid/imagenet-1k`, `/media/projects.metropolis2/public/imagenet2012`
-- Outputs → `/media/scratch.metropolis4/users/vpraveen/dinov3_lora/` (~13 TB free)
-- ADE20K: **not on 0146 shares** — download once for the dense-retention eval (direct internet)
+Assets on shares — **verified 2026-08-05**, corrected from the original guesses:
+- DINOv3 ViT-B weights: `/media/scratch.metropolis4/users/nikhil/dinov3_checkpoints/dinov3-vitb16-pretrain-lvd1689m/`
+  (HF layout: `model.safetensors`, 342 MB; sibling dirs cover S/S+/L/H+/7B and ConvNeXt).
+  **`/media/scratch.metropolis4/users/vpraveen/dinov3_vitb_v1` is empty** — do not point runs at it.
+- ImageNet **train** (1000 class dirs): `/media/projects.metropolis2/public/imagenet2012/train`.
+  `/media/scratch.metropolis3/zaid/imagenet-1k` holds **val only** (6.4 GB) — fine for k-NN
+  banks/eval, not for the SSL training subset.
+- Outputs → `/media/scratch.metropolis4/users/vpraveen/dinov3_lora/` (8.4 TB free of 40 TB).
+- ADE20K: confirmed **absent** from the mounted shares — download once for the dense-retention eval.
+- Host GPUs: 0–3 are occupied by another workload (~39 GB each); **4–7 free**. Pin with
+  `CUDA_VISIBLE_DEVICES` / `train.gpu_ids` rather than assuming an empty box.
 
 | # | Task | Acceptance |
 |---|------|------------|
@@ -38,7 +64,7 @@ Assets already on shares (check before downloading):
 | 1.4 | `dinov3 convert` from LoRA ckpt → merged timm backbone; load in `backbone_v2` registry | validate pass + feature parity vs in-training merged forward |
 | 1.5 | Baseline reference: identical run with `lora.enable=false` (full FT) for later comparison | metrics recorded |
 
-## Phase 2 — Ablations: does preservation earn its keep? (0146, 1–2 GPUs)
+## Phase 2 — Ablations: does preservation earn its keep? (0146, 1–2 GPUs) — **TAO-2492**
 
 Protocol per arm (~10–20k steps, ViT-B, domain dataset TBD — pick one from shares, e.g. a
 Metropolis vertical): measure **in-domain k-NN**, **ImageNet k-NN retention**, and
@@ -55,7 +81,7 @@ Metropolis vertical): measure **in-domain k-NN**, **ImageNet k-NN retention**, a
 Deliverable: table + recommendation for shipped defaults; rank sweep (4/8/16) on the winning arm
 if time allows.
 
-## Phase 3 — Multi-GPU + integration (0146)
+## Phase 3 — Multi-GPU + integration (0146) — **TAO-2493** (3.2), **TAO-2494** (3.3)
 
 | # | Task | Notes |
 |---|------|-------|

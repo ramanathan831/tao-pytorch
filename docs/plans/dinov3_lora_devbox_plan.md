@@ -132,7 +132,20 @@ dinov3 train -e $EXP/specs/smoke_lora.yaml \
 
 | # | Check | How verified |
 |---|---|---|
-| G2.1 | **Zero-start preservation**: `losses/gram_loss`, `losses/cls_mse`, `losses/cls_cos` are ≈0 (<1e-6) at step 0 and grow smoothly | TensorBoard scalars — student==anchor at init (B=0); nonzero start ⇒ teacher-sync or remap bug |
+| G2.1 | **Zero-start preservation**: at step 0, with iBOT masking *disabled*, `losses/gram_loss`, `losses/cls_mse`, `losses/cls_cos` are ≈0 (<1e-6); in the real (masked) run they start at the reference values below and grow smoothly | TensorBoard scalars — student==anchor at init (B=0); a nonzero *unmasked* start ⇒ teacher-sync or remap bug |
+
+**G2.1 calibration (measured in Phase 0, ViT-S fp32, `scripts/check_zero_start.py`).** The
+student runs on *masked* global crops while the frozen anchor runs unmasked, so at step 0 the
+patch tokens legitimately differ and the raw `<1e-6` threshold only holds without masking:
+
+| masking | `gram_loss` | `cls_mse` | `cls_cos` |
+|---|---|---|---|
+| none | 1.3e-14 | 7.9e-17 | 1.2e-07 |
+| 30% (realistic) | 9.1e-02 | 2.0e-09 | 4.0e-03 |
+
+So in a real smoke run, judge G2.1 on the **unmasked** variant (or on the step-0 value being
+stable and of this order, not on `<1e-6`). A masked `gram_loss` far above ~1e-1, or any
+*unmasked* value above 1e-6, indicates a genuine sync/remap defect.
 | G2.2 | DINO/iBOT/KoLeo losses finite, no NaN/inf over 500 steps, `train_loss` trending down | TB + log grep |
 | G2.3 | **Frozen-base hash**: SHA256 of all non-lora backbone tensors identical at step 0 vs step 500 (student AND teacher) | audit script `tools/lora_audit.py` (dump + compare) |
 | G2.4 | **EMA correctness**: teacher `lora_*` ≈ EMA trajectory of student `lora_*`; equal at step 0 | audit script |
